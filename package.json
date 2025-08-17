@@ -1,0 +1,98 @@
+{
+  "name": "mac-chrome-cli",
+  "version": "1.0.0",
+  "description": "Command-line interface for controlling Google Chrome on macOS.",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "mac-chrome-cli": "dist/index.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "build": "npm run clean && tsc",
+    "build:prod": "npm run clean && tsc --project tsconfig.prod.json",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "type-check": "tsc --noEmit",
+    "test": "jest",
+    "test:watch": "jest --watch src/",
+    "test:coverage": "jest --coverage src/",
+    "test:coverage:open": "jest --coverage src/ && open coverage/lcov-report/index.html",
+    "test:unit": "jest test/unit",
+    "test:integration": "jest test/integration",
+    "test:system": "jest test/system",
+    "test:ci": "jest --ci --coverage --watchAll=false --passWithNoTests src/",
+    "test:publish": "jest --ci --watchAll=false --passWithNoTests src/",
+    "test:debug": "node --inspect-brk node_modules/.bin/jest --runInBand --no-cache src/",
+    "test:clear-cache": "jest --clearCache",
+    "test:verbose": "jest --verbose src/",
+    "lint": "echo 'Linting not configured yet'",
+    "validate": "npm run type-check && npm run test:ci",
+    "validate:publish": "npm run type-check && npm run test:publish",
+    "prepublishOnly": "npm run validate:publish && npm run build:prod",
+    "postpublish": "echo 'Package published successfully! Install globally with: npm install -g mac-chrome-cli'",
+    "size-check": "du -sh dist/",
+    "size-check:detail": "du -sh dist/* | sort -h",
+    "prepack": "npm run build",
+    "pack:dry": "npm pack --dry-run",
+    "pack:test": "npm pack && echo 'Package created for testing'",
+    "install:global": "npm install -g .",
+    "uninstall:global": "npm uninstall -g mac-chrome-cli",
+    "release": "./scripts/release.sh",
+    "release:patch": "./scripts/release.sh patch",
+    "release:minor": "./scripts/release.sh minor",
+    "release:major": "./scripts/release.sh major"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/carlrannaberg/mac-chrome-cli.git"
+  },
+  "keywords": [
+    "chrome",
+    "macos",
+    "cli",
+    "automation",
+    "screenshot",
+    "browser",
+    "applescript",
+    "testing",
+    "dom-evaluation",
+    "javascript-execution"
+  ],
+  "files": [
+    "dist/**/*",
+    "README.md",
+    "API.md",
+    "PERMISSIONS.md",
+    "CLAUDE.md",
+    "PERFORMANCE.md",
+    "LICENSE"
+  ],
+  "author": "Carl Rannaberg",
+  "license": "ISC",
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ],
+  "bugs": {
+    "url": "https://github.com/carlrannaberg/mac-chrome-cli/issues"
+  },
+  "homepage": "https://github.com/carlrannaberg/mac-chrome-cli#readme",
+  "dependencies": {
+    "commander": "^12.0.0",
+    "lru-cache": "^10.4.3",
+    "sharp": "^0.33.4"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/node": "^20.0.0",
+    "jest": "^30.0.5",
+    "ts-jest": "^29.4.1",
+    "typescript": "^5.5.0"
+  }
+}
