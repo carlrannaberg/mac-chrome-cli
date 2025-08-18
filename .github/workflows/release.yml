@@ -1,0 +1,138 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version_type:
+        description: 'Version bump type'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+jobs:
+  release:
+    runs-on: macos-latest
+    
+    permissions:
+      contents: write
+      id-token: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20.x
+        cache: 'npm'
+        registry-url: 'https://registry.npmjs.org'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Run full validation
+      run: npm run validate
+    
+    - name: Build for production
+      run: npm run build:prod
+    
+    - name: Test package installation
+      run: |
+        npm run pack:test
+        npm install -g ./mac-chrome-cli-*.tgz
+        mac-chrome-cli --version
+        mac-chrome-cli test
+        npm uninstall -g mac-chrome-cli
+        rm -f mac-chrome-cli-*.tgz
+    
+    - name: Bump version (manual trigger only)
+      if: github.event_name == 'workflow_dispatch'
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        npm version ${{ github.event.inputs.version_type }} --no-git-tag-version
+        NEW_VERSION=$(node -p "require('./package.json').version")
+        echo "NEW_VERSION=v${NEW_VERSION}" >> $GITHUB_ENV
+        git add package.json
+        git commit -m "chore: bump version to v${NEW_VERSION}"
+        git tag "v${NEW_VERSION}"
+        git push origin main
+        git push origin "v${NEW_VERSION}"
+    
+    - name: Extract version from tag (tag trigger only)
+      if: github.event_name == 'push'
+      run: |
+        echo "NEW_VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+    
+    - name: Generate changelog
+      id: changelog
+      run: |
+        if [ -f CHANGELOG.md ]; then
+          echo "CHANGELOG_EXISTS=true" >> $GITHUB_OUTPUT
+          # Extract the latest version's changelog
+          awk '/^## \[?[0-9]/{if(++n==2)exit} n>=1' CHANGELOG.md > latest_changes.md
+        else
+          echo "CHANGELOG_EXISTS=false" >> $GITHUB_OUTPUT
+          echo "Changes in this release:" > latest_changes.md
+          git log --oneline --decorate --no-merges $(git describe --tags --abbrev=0 HEAD^)..HEAD >> latest_changes.md || echo "- Initial release" >> latest_changes.md
+        fi
+    
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ env.NEW_VERSION }}
+        name: Release ${{ env.NEW_VERSION }}
+        body_path: latest_changes.md
+        draft: false
+        prerelease: false
+        files: |
+          mac-chrome-cli-*.tgz
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Publish to npm
+      run: npm publish --provenance
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  post-release:
+    needs: release
+    runs-on: macos-latest
+    if: success()
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20.x
+    
+    - name: Verify npm package
+      run: |
+        echo "Waiting for npm to sync..."
+        sleep 30
+        PACKAGE_VERSION=$(node -p "require('./package.json').version")
+        echo "Verifying package version ${PACKAGE_VERSION} is available on npm..."
+        npm view mac-chrome-cli@${PACKAGE_VERSION} version
+        echo "Package successfully published!"
+    
+    - name: Test global installation from npm
+      run: |
+        echo "Testing global installation from npm registry..."
+        npm install -g mac-chrome-cli
+        mac-chrome-cli --version
+        mac-chrome-cli test
+        npm uninstall -g mac-chrome-cli
+        echo "Global installation test successful!"

@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scroll Test Page</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+        }
+        
+        .section {
+            height: 800px;
+            padding: 40px;
+            margin: 20px 0;
+            border: 2px solid #333;
+            background: linear-gradient(45deg, #f0f0f0, #e0e0e0);
+        }
+        
+        .target {
+            background-color: #ffeb3b;
+            border: 3px solid #ff9800;
+            padding: 20px;
+            margin: 100px 0;
+            text-align: center;
+            font-weight: bold;
+            font-size: 18px;
+        }
+        
+        .overflow-container {
+            width: 300px;
+            height: 200px;
+            overflow-y: scroll;
+            border: 2px solid #2196f3;
+            margin: 20px 0;
+            padding: 10px;
+        }
+        
+        .overflow-content {
+            height: 600px;
+            background: repeating-linear-gradient(
+                45deg,
+                #e3f2fd,
+                #e3f2fd 10px,
+                #bbdefb 10px,
+                #bbdefb 20px
+            );
+            padding: 20px;
+        }
+        
+        .overflow-target {
+            background-color: #4caf50;
+            color: white;
+            padding: 15px;
+            margin: 200px 0;
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        .horizontal-scroll {
+            width: 100%;
+            height: 100px;
+            overflow-x: scroll;
+            border: 2px solid #9c27b0;
+            margin: 20px 0;
+            white-space: nowrap;
+        }
+        
+        .horizontal-content {
+            width: 2000px;
+            height: 80px;
+            background: repeating-linear-gradient(
+                90deg,
+                #f3e5f5,
+                #f3e5f5 50px,
+                #e1bee7 50px,
+                #e1bee7 100px
+            );
+            padding: 10px;
+        }
+        
+        .horizontal-target {
+            display: inline-block;
+            background-color: #e91e63;
+            color: white;
+            padding: 20px;
+            margin-left: 800px;
+            vertical-align: top;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>Mac Chrome CLI Scroll Test Page</h1>
+    
+    <div class="section">
+        <h2>Section 1</h2>
+        <p>This is the first section. It's 800px tall to create scrollable content.</p>
+        <div class="target" id="target1">
+            🎯 Target Element 1 - Scroll here with: --selector "#target1"
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>Section 2</h2>
+        <p>This is the second section with an overflow container.</p>
+        
+        <div class="overflow-container">
+            <div class="overflow-content">
+                <h3>Scrollable Container</h3>
+                <p>This content is inside a scrollable container.</p>
+                <div class="overflow-target" id="overflow-target">
+                    🎯 Overflow Target - Scroll here with: --selector "#overflow-target"
+                </div>
+                <p>More content after the target...</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>Section 3</h2>
+        <p>This section has horizontal scrolling.</p>
+        
+        <div class="horizontal-scroll">
+            <div class="horizontal-content">
+                <div class="horizontal-target" id="horizontal-target">
+                    🎯 Horizontal Target
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>Section 4</h2>
+        <div class="target" id="target2">
+            🎯 Target Element 2 - Test with: --selector "#target2"
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>Section 5</h2>
+        <div class="target" id="final-target">
+            🎯 Final Target - Test with: --selector "#final-target"
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>Test Instructions</h2>
+        <ul>
+            <li><strong>Test scroll to element:</strong> <code>mac-chrome-cli scroll to --selector "#target1"</code></li>
+            <li><strong>Test smooth scrolling:</strong> <code>mac-chrome-cli scroll to --selector "#target2" --smooth</code></li>
+            <li><strong>Test scroll by pixels:</strong> <code>mac-chrome-cli scroll by --px 500</code></li>
+            <li><strong>Test smooth pixel scroll:</strong> <code>mac-chrome-cli scroll by --px -300 --smooth</code></li>
+            <li><strong>Test horizontal scroll:</strong> <code>mac-chrome-cli scroll by --px 200 --horizontal</code></li>
+            <li><strong>Get scroll position:</strong> <code>mac-chrome-cli scroll position</code></li>
+            <li><strong>Test overflow container:</strong> <code>mac-chrome-cli scroll to --selector "#overflow-target"</code></li>
+        </ul>
+    </div>
+    
+    <div style="height: 1000px; background: #f5f5f5; padding: 40px;">
+        <h2>End Section</h2>
+        <p>This is extra content to make the page longer for testing scroll position.</p>
+    </div>
+    
+    <script>
+        // Add scroll position indicator
+        function updateScrollPosition() {
+            const scrollInfo = document.getElementById('scroll-info') || (() => {
+                const div = document.createElement('div');
+                div.id = 'scroll-info';
+                div.style.cssText = `
+                    position: fixed;
+                    top: 10px;
+                    right: 10px;
+                    background: rgba(0, 0, 0, 0.8);
+                    color: white;
+                    padding: 10px;
+                    border-radius: 5px;
+                    font-family: monospace;
+                    z-index: 1000;
+                `;
+                document.body.appendChild(div);
+                return div;
+            })();
+            
+            scrollInfo.textContent = `Scroll: X=${window.pageXOffset}, Y=${window.pageYOffset}`;
+        }
+        
+        window.addEventListener('scroll', updateScrollPosition);
+        updateScrollPosition();
+    </script>
+</body>
+</html>

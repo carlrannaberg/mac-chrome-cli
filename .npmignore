@@ -1,0 +1,67 @@
+# Source files
+src/
+test/
+coverage/
+
+# Configuration files
+tsconfig.json
+tsconfig.prod.json
+jest.config.js
+
+# Development files
+.jest-cache/
+*.log
+yarn.lock
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git files
+.git/
+.gitignore
+
+# Documentation that's already included via files field
+# (keeping essential docs)
+
+# Development scripts
+scripts/
+tools/
+
+# Test artifacts
+test-scroll.html
+
+# Build artifacts not in dist/
+*.tsbuildinfo
+
+# Development dependencies
+.yarn/
+.pnp.*
+
+# GitHub Actions and CI files
+.github/
+
+# Environment files
+.env*
+
+# Additional log files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Source maps for type definitions (keep JS source maps for debugging)
+*.d.ts.map
+
+# Additional development files
+todo.md

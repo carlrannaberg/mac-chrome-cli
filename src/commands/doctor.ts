@@ -1,0 +1,338 @@
+import { execWithTimeout } from '../lib/util.js';
+import { isChromeRunning } from '../lib/apple.js';
+
+export interface DependencyCheck {
+  name: string;
+  required: boolean;
+  installed: boolean;
+  version?: string | undefined;
+  installCommand?: string | undefined;
+  description: string;
+}
+
+export interface PermissionCheck {
+  name: string;
+  granted: boolean;
+  description: string;
+  instructions?: string | undefined;
+}
+
+export interface SystemCheck {
+  name: string;
+  status: 'ok' | 'warning' | 'error';
+  description: string;
+  details?: string | undefined;
+}
+
+export interface DoctorResult {
+  overall: 'healthy' | 'warnings' | 'errors';
+  dependencies: DependencyCheck[];
+  permissions: PermissionCheck[];
+  system: SystemCheck[];
+  recommendations: string[];
+}
+
+/**
+ * Check if a command exists in PATH
+ */
+async function commandExists(command: string): Promise<boolean> {
+  try {
+    const result = await execWithTimeout('which', [command], 5000);
+    return result.success && result.stdout.trim().length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Get command version
+ */
+async function getCommandVersion(command: string, versionFlag: string = '--version'): Promise<string | undefined> {
+  try {
+    const result = await execWithTimeout(command, [versionFlag], 5000);
+    if (result.success) {
+      return result.stdout.trim().split('\n')[0];
+    }
+  } catch {
+    // Ignore errors
+  }
+  return undefined;
+}
+
+/**
+ * Check Chrome CLI dependency
+ */
+async function checkChromeCLI(): Promise<DependencyCheck> {
+  const installed = await commandExists('chrome-cli');
+  let version: string | undefined;
+  
+  if (installed) {
+    version = await getCommandVersion('chrome-cli', '--version');
+  }
+  
+  return {
+    name: 'chrome-cli',
+    required: false,
+    installed,
+    version,
+    installCommand: 'brew install chrome-cli',
+    description: 'Command-line tool for controlling Chrome (optional, enhances tab management)'
+  };
+}
+
+/**
+ * Check cliclick dependency
+ */
+async function checkCliclick(): Promise<DependencyCheck> {
+  const installed = await commandExists('cliclick');
+  let version: string | undefined;
+  
+  if (installed) {
+    version = await getCommandVersion('cliclick', '-V');
+  }
+  
+  return {
+    name: 'cliclick',
+    required: true,
+    installed,
+    version,
+    installCommand: 'brew install cliclick',
+    description: 'Command-line tool for mouse and keyboard automation (required for interactions)'
+  };
+}
+
+/**
+ * Check AppleScript automation permission
+ */
+async function checkAppleScriptPermission(): Promise<PermissionCheck> {
+  try {
+    const testScript = `
+tell application "System Events"
+  return "test"
+end tell`;
+    
+    const result = await execWithTimeout('osascript', ['-e', testScript], 5000);
+    const granted = result.success && !result.stderr.includes('not authorized');
+    
+    return {
+      name: 'AppleScript Automation',
+      granted,
+      description: 'Permission to control other applications via AppleScript',
+      instructions: granted ? undefined : 'Grant permission in System Preferences > Privacy & Security > Automation > Terminal'
+    };
+  } catch {
+    return {
+      name: 'AppleScript Automation',
+      granted: false,
+      description: 'Permission to control other applications via AppleScript',
+      instructions: 'Grant permission in System Preferences > Privacy & Security > Automation > Terminal'
+    };
+  }
+}
+
+/**
+ * Check screen recording permission
+ */
+async function checkScreenRecordingPermission(): Promise<PermissionCheck> {
+  try {
+    // Try to take a small screenshot
+    const result = await execWithTimeout('screencapture', ['-x', '-t', 'png', '/tmp/mac-chrome-cli-test.png'], 5000);
+    const granted = result.success;
+    
+    // Clean up test file
+    if (granted) {
+      await execWithTimeout('rm', ['-f', '/tmp/mac-chrome-cli-test.png'], 1000);
+    }
+    
+    return {
+      name: 'Screen Recording',
+      granted,
+      description: 'Permission to capture screenshots',
+      instructions: granted ? undefined : 'Grant permission in System Preferences > Privacy & Security > Screen Recording > Terminal'
+    };
+  } catch {
+    return {
+      name: 'Screen Recording',
+      granted: false,
+      description: 'Permission to capture screenshots',
+      instructions: 'Grant permission in System Preferences > Privacy & Security > Screen Recording > Terminal'
+    };
+  }
+}
+
+/**
+ * Check Chrome availability
+ */
+async function checkChromeAvailability(): Promise<SystemCheck> {
+  const isRunning = await isChromeRunning();
+  
+  if (isRunning) {
+    return {
+      name: 'Google Chrome',
+      status: 'ok',
+      description: 'Google Chrome is running and accessible'
+    };
+  }
+  
+  // Check if Chrome is installed
+  const chromeExists = await commandExists('open');
+  if (chromeExists) {
+    try {
+      const result = await execWithTimeout('open', ['-Ra', 'Google Chrome', '--args', '--version'], 3000);
+      if (result.success) {
+        return {
+          name: 'Google Chrome',
+          status: 'warning',
+          description: 'Google Chrome is installed but not currently running',
+          details: 'Start Chrome to use mac-chrome-cli commands'
+        };
+      }
+    } catch {
+      // Fall through to error case
+    }
+  }
+  
+  return {
+    name: 'Google Chrome',
+    status: 'error',
+    description: 'Google Chrome is not installed or not accessible',
+    details: 'Install Google Chrome from https://www.google.com/chrome/'
+  };
+}
+
+/**
+ * Check macOS version compatibility
+ */
+async function checkMacOSVersion(): Promise<SystemCheck> {
+  try {
+    const result = await execWithTimeout('sw_vers', ['-productVersion'], 5000);
+    if (result.success) {
+      const version = result.stdout.trim();
+      const versionParts = version.split('.');
+      const majorVersion = versionParts.length > 0 && versionParts[0] ? parseInt(versionParts[0], 10) : 0;
+      
+      if (majorVersion >= 12) { // macOS Monterey or later
+        return {
+          name: 'macOS Version',
+          status: 'ok',
+          description: `macOS ${version} - fully compatible`
+        };
+      } else if (majorVersion >= 10) {
+        return {
+          name: 'macOS Version',
+          status: 'warning',
+          description: `macOS ${version} - may have limited functionality`,
+          details: 'Some features may not work on older macOS versions'
+        };
+      } else {
+        return {
+          name: 'macOS Version',
+          status: 'error',
+          description: `macOS ${version} - not supported`,
+          details: 'Upgrade to macOS 10.15 or later for best compatibility'
+        };
+      }
+    }
+  } catch {
+    // Fall through to unknown case
+  }
+  
+  return {
+    name: 'macOS Version',
+    status: 'warning',
+    description: 'Unable to determine macOS version'
+  };
+}
+
+/**
+ * Run comprehensive system diagnostics
+ */
+export async function runDiagnostics(): Promise<DoctorResult> {
+  // Run all checks in parallel
+  const [
+    chromeCLICheck,
+    cliclickCheck,
+    appleScriptPermission,
+    screenRecordingPermission,
+    chromeAvailability,
+    macOSVersion
+  ] = await Promise.all([
+    checkChromeCLI(),
+    checkCliclick(),
+    checkAppleScriptPermission(),
+    checkScreenRecordingPermission(),
+    checkChromeAvailability(),
+    checkMacOSVersion()
+  ]);
+  
+  const dependencies = [chromeCLICheck, cliclickCheck];
+  const permissions = [appleScriptPermission, screenRecordingPermission];
+  const system = [chromeAvailability, macOSVersion];
+  
+  // Generate recommendations
+  const recommendations: string[] = [];
+  
+  // Required dependencies
+  const missingRequired = dependencies.filter(dep => dep.required && !dep.installed);
+  if (missingRequired.length > 0) {
+    recommendations.push('Install required dependencies:');
+    missingRequired.forEach(dep => {
+      recommendations.push(`  ${dep.installCommand}`);
+    });
+  }
+  
+  // Optional dependencies
+  const missingOptional = dependencies.filter(dep => !dep.required && !dep.installed);
+  if (missingOptional.length > 0) {
+    recommendations.push('Consider installing optional dependencies for enhanced functionality:');
+    missingOptional.forEach(dep => {
+      recommendations.push(`  ${dep.installCommand}`);
+    });
+  }
+  
+  // Missing permissions
+  const missingPermissions = permissions.filter(perm => !perm.granted);
+  if (missingPermissions.length > 0) {
+    recommendations.push('Grant required permissions:');
+    missingPermissions.forEach(perm => {
+      if (perm.instructions) {
+        recommendations.push(`  ${perm.instructions}`);
+      }
+    });
+  }
+  
+  // System issues
+  const systemErrors = system.filter(sys => sys.status === 'error');
+  const systemWarnings = system.filter(sys => sys.status === 'warning');
+  
+  if (systemErrors.length > 0) {
+    recommendations.push('Resolve system issues:');
+    systemErrors.forEach(sys => {
+      if (sys.details) {
+        recommendations.push(`  ${sys.details}`);
+      }
+    });
+  }
+  
+  // Chrome specific
+  if (chromeAvailability.status === 'warning') {
+    recommendations.push('Start Google Chrome to enable all functionality');
+  }
+  
+  // Determine overall status
+  let overall: 'healthy' | 'warnings' | 'errors' = 'healthy';
+  
+  if (missingRequired.length > 0 || missingPermissions.length > 0 || systemErrors.length > 0) {
+    overall = 'errors';
+  } else if (missingOptional.length > 0 || systemWarnings.length > 0) {
+    overall = 'warnings';
+  }
+  
+  return {
+    overall,
+    dependencies,
+    permissions,
+    system,
+    recommendations
+  };
+}
