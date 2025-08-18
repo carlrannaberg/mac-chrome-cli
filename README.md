@@ -13,6 +13,66 @@ A powerful command-line interface for controlling Google Chrome on macOS systems
 - Upload files and manage form inputs
 - Integrate with Claude Code for AI-powered browser automation
 
+## Architecture
+
+`mac-chrome-cli` is built with a modern, service-oriented architecture that provides excellent performance, maintainability, and extensibility:
+
+### Core Components
+
+- **CLI Layer** (`src/cli/`): Command-line interface using Commander.js with modular command registration
+- **Commands** (`src/commands/`): Individual command implementations extending base classes
+- **Core Services** (`src/core/`): Unified error handling, result patterns, and retry mechanisms
+- **Dependency Injection** (`src/di/`): Service container with lifecycle management and dependency resolution
+- **Security Layer** (`src/security/`): Data sanitization and secure path validation
+- **Service Layer** (`src/services/`): Business logic with AppleScript service abstraction
+
+### Key Design Patterns
+
+- **Unified Result<T,E> Pattern**: Type-safe error handling across all operations
+- **Service-Oriented Architecture**: Modular services with dependency injection
+- **Command Pattern**: Consistent command structure with base class inheritance
+- **Repository Pattern**: Centralized service management and configuration
+- **Decorator Pattern**: Enhanced error handling and retry capabilities
+
+### Service Architecture
+
+```
+┌─────────────────────┐    ┌─────────────────────┐    ┌─────────────────────┐
+│   CLI Interface     │    │   Command Layer     │    │   Service Layer     │
+│                     │    │                     │    │                     │
+│ • MacChromeCLI      │───▶│ • SnapshotCommand   │───▶│ • AppleScriptService│
+│ • CommandRegistry   │    │ • NavigationCommand │    │ • CacheService      │
+│ • OutputFormatter   │    │ • InteractionCommand│    │ • LoggerService     │
+└─────────────────────┘    └─────────────────────┘    └─────────────────────┘
+           │                           │                           │
+           ▼                           ▼                           ▼
+┌─────────────────────┐    ┌─────────────────────┐    ┌─────────────────────┐
+│   Core Systems      │    │   Security Layer    │    │   Utilities         │
+│                     │    │                     │    │                     │
+│ • Result<T,E>       │    │ • DataSanitizer     │    │ • Performance       │
+│ • ErrorCodes        │    │ • PathValidator     │    │ • Benchmarking      │
+│ • RetryHandler      │    │ • Input validation  │    │ • Compatibility     │
+└─────────────────────┘    └─────────────────────┘    └─────────────────────┘
+```
+
+### Performance Optimizations
+
+- **Connection Pooling**: Reuse AppleScript connections for better performance
+- **Caching Layer**: LRU cache for frequently accessed data and compiled scripts
+- **Batch Operations**: Group multiple AppleScript calls to reduce IPC overhead
+- **Lazy Loading**: Services instantiated only when needed via dependency injection
+- **Data Sanitization**: Secure input processing with performance-optimized validation
+
+### Error Handling Strategy
+
+The application uses a unified `Result<T, E>` pattern that provides:
+
+- **Type Safety**: Compile-time guarantees for error handling
+- **Recovery Hints**: Automatic suggestions for error resolution
+- **Context Tracking**: Detailed error context for debugging
+- **Consistent APIs**: Uniform error handling across all services
+- **Functional Programming**: Map, flatMap, and other FP operations on results
+
 ## Features
 
 - **Screenshots & Snapshots**: Capture viewport, window, or element screenshots; extract page structure

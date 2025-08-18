@@ -204,8 +204,15 @@ end tell`;
   }
 }
 
+// WebP generation cache for identical images
+const webpCache = new LRUCache<string, { buffer: Buffer; base64: string; size: number }>({
+  max: 20, // Cache up to 20 recent WebP conversions
+  ttl: 1000 * 60 * 10, // 10 minute TTL
+  allowStale: false
+});
+
 /**
- * Optimized WebP creation with streaming and caching
+ * Optimized WebP creation with caching, streaming, and adaptive quality
  */
 export async function createOptimizedWebP(
   imagePath: string,
@@ -218,52 +225,118 @@ export async function createOptimizedWebP(
   });
 
   try {
-    // Create optimized pipeline
+    // Create cache key based on image path, size constraints, and file modification time
+    const fs = await import('fs');
+    const stats = await fs.promises.stat(imagePath);
+    const cacheKey = createHash('md5')
+      .update(`${imagePath}-${maxSizeBytes}-${maxWidth}-${stats.mtime.getTime()}`)
+      .digest('hex')
+      .substring(0, 12);
+    
+    // Check cache first
+    const cached = webpCache.get(cacheKey);
+    if (cached) {
+      endBenchmark(benchmarkId, true);
+      return cached;
+    }
+
+    // Create optimized pipeline with enhanced settings
     let pipeline = sharp(imagePath, {
       failOn: 'warning', // Don't fail on minor issues
-      limitInputPixels: 268402689 // ~16MP limit for safety
+      limitInputPixels: 268402689, // ~16MP limit for safety
+      sequentialRead: true, // Optimize for sequential access
+      density: 150 // Improved density for better quality
     });
     
-    // Get metadata once
+    // Get metadata once for efficient processing
     const metadata = await pipeline.metadata();
     
-    // Calculate optimal resize dimensions
+    // Smart dimension calculation
     let targetWidth = maxWidth;
-    if (metadata.width && metadata.width <= maxWidth) {
-      targetWidth = metadata.width; // Don't upscale
+    let targetHeight: number | null = null;
+    
+    if (metadata.width && metadata.height) {
+      if (metadata.width <= maxWidth) {
+        targetWidth = metadata.width; // Don't upscale
+      } else {
+        // Calculate proportional height to maintain aspect ratio
+        targetHeight = Math.round((metadata.height * maxWidth) / metadata.width);
+      }
     }
     
-    // Single pipeline for resize and conversion
+    // Determine optimal quality based on size constraints and image characteristics
+    let initialQuality = WEBP_SETTINGS.quality;
+    const estimatedPixels = targetWidth * (targetHeight || (metadata.height || 800));
+    
+    // Adjust initial quality based on image complexity
+    if (estimatedPixels > 1000000) { // > 1MP
+      initialQuality = Math.max(70, WEBP_SETTINGS.quality - 10);
+    }
+    
+    // Single optimized pipeline
     pipeline = pipeline
-      .resize(targetWidth, null, {
+      .resize(targetWidth, targetHeight, {
         withoutEnlargement: true,
         fit: 'inside',
-        kernel: 'lanczos3' // Good quality vs speed balance
+        kernel: 'lanczos3', // Good quality vs speed balance
+        fastShrinkOnLoad: true // Optimize memory usage
       })
       .webp({
         ...WEBP_SETTINGS,
-        quality: WEBP_SETTINGS.quality
+        quality: initialQuality,
+        alphaQuality: 80, // Better alpha channel handling
+        nearLossless: false, // Prioritize compression
+        smartSubsample: true,
+        reductionEffort: 4 // Slightly higher effort for better compression
       });
     
     let buffer = await pipeline.toBuffer();
     
-    // If still too large, reduce quality iteratively
+    // Adaptive quality reduction if size target not met
     if (buffer.length > maxSizeBytes) {
-      let quality = 75;
-      while (buffer.length > maxSizeBytes && quality >= 30) {
-        pipeline = sharp(imagePath)
-          .resize(targetWidth, null, {
+      const qualitySteps = [70, 60, 50, 45, 40, 35, 30];
+      
+      for (const quality of qualitySteps) {
+        if (buffer.length <= maxSizeBytes) break;
+        
+        pipeline = sharp(imagePath, { sequentialRead: true })
+          .resize(targetWidth, targetHeight, {
             withoutEnlargement: true,
             fit: 'inside',
-            kernel: 'lanczos3'
+            kernel: 'lanczos3',
+            fastShrinkOnLoad: true
           })
           .webp({
             ...WEBP_SETTINGS,
-            quality
+            quality,
+            alphaQuality: Math.max(60, quality - 10),
+            reductionEffort: quality < 40 ? 6 : 4 // Higher effort for very low quality
           });
         
         buffer = await pipeline.toBuffer();
-        quality -= 15;
+      }
+      
+      // Last resort: further reduce dimensions if still too large
+      if (buffer.length > maxSizeBytes && targetWidth > 400) {
+        const scaleFactor = 0.8;
+        const newWidth = Math.round(targetWidth * scaleFactor);
+        const newHeight = targetHeight ? Math.round(targetHeight * scaleFactor) : null;
+        
+        pipeline = sharp(imagePath, { sequentialRead: true })
+          .resize(newWidth, newHeight, {
+            withoutEnlargement: true,
+            fit: 'inside',
+            kernel: 'lanczos3',
+            fastShrinkOnLoad: true
+          })
+          .webp({
+            ...WEBP_SETTINGS,
+            quality: 40,
+            alphaQuality: 50,
+            reductionEffort: 6
+          });
+        
+        buffer = await pipeline.toBuffer();
       }
     }
     
@@ -272,6 +345,9 @@ export async function createOptimizedWebP(
       base64: buffer.toString('base64'),
       size: buffer.length
     };
+    
+    // Cache the result for future use
+    webpCache.set(cacheKey, result);
     
     endBenchmark(benchmarkId, true);
     return result;
@@ -395,6 +471,7 @@ export function getPerformanceStats(): {
   cacheStats: {
     scriptCache: { size: number; maxSize: number };
     coordsCache: { size: number; maxSize: number };
+    webpCache: { size: number; maxSize: number };
   };
   connectionPool: { activeConnections: number; maxConnections: number };
   memory: ReturnType<typeof getMemoryUsage>;
@@ -402,7 +479,8 @@ export function getPerformanceStats(): {
   return {
     cacheStats: {
       scriptCache: { size: scriptCache.size, maxSize: 50 },
-      coordsCache: { size: coordsCache.size, maxSize: 100 }
+      coordsCache: { size: coordsCache.size, maxSize: 100 },
+      webpCache: { size: webpCache.size, maxSize: 20 }
     },
     connectionPool: chromeConnectionPool.getStats(),
     memory: getMemoryUsage()
@@ -415,6 +493,161 @@ export function getPerformanceStats(): {
 export function clearPerformanceCaches(): void {
   scriptCache.clear();
   coordsCache.clear();
+  webpCache.clear();
+}
+
+/**
+ * Batch operation processor for improved performance
+ */
+export class BatchOperationProcessor {
+  private batchSize: number;
+  private concurrencyLimit: number;
+  private operationQueue: Array<() => Promise<any>> = [];
+  
+  constructor(batchSize: number = 5, concurrencyLimit: number = 3) {
+    this.batchSize = batchSize;
+    this.concurrencyLimit = concurrencyLimit;
+  }
+  
+  /**
+   * Add operation to batch queue
+   */
+  addOperation<T>(operation: () => Promise<T>): Promise<T> {
+    return new Promise((resolve, reject) => {
+      const wrappedOperation = async () => {
+        try {
+          const result = await operation();
+          resolve(result);
+          return result;
+        } catch (error) {
+          reject(error);
+          throw error;
+        }
+      };
+      
+      this.operationQueue.push(wrappedOperation);
+    });
+  }
+  
+  /**
+   * Process all queued operations in optimized batches
+   */
+  async processBatch(): Promise<void> {
+    const benchmarkId = startBenchmark('batch-operations', {
+      queueSize: this.operationQueue.length,
+      batchSize: this.batchSize,
+      concurrency: this.concurrencyLimit
+    });
+    
+    try {
+      // Process operations in chunks with controlled concurrency
+      const chunks = [];
+      for (let i = 0; i < this.operationQueue.length; i += this.batchSize) {
+        chunks.push(this.operationQueue.slice(i, i + this.batchSize));
+      }
+      
+      // Execute chunks with concurrency limit
+      const executeChunk = async (chunk: Array<() => Promise<any>>) => {
+        const semaphore = new Array(this.concurrencyLimit).fill(null);
+        let chunkIndex = 0;
+        
+        const executeConcurrent = async () => {
+          while (chunkIndex < chunk.length) {
+            const operation = chunk[chunkIndex++];
+            await operation();
+          }
+        };
+        
+        await Promise.all(semaphore.map(() => executeConcurrent()));
+      };
+      
+      // Process all chunks sequentially to maintain order
+      for (const chunk of chunks) {
+        await executeChunk(chunk);
+      }
+      
+      this.operationQueue = []; // Clear queue after processing
+      endBenchmark(benchmarkId, true);
+      
+    } catch (error) {
+      endBenchmark(benchmarkId, false);
+      throw error;
+    }
+  }
+  
+  /**
+   * Get queue status
+   */
+  getQueueStatus(): { queueSize: number; batchSize: number; concurrencyLimit: number } {
+    return {
+      queueSize: this.operationQueue.length,
+      batchSize: this.batchSize,
+      concurrencyLimit: this.concurrencyLimit
+    };
+  }
+}
+
+/**
+ * Global batch processor instance
+ */
+export const batchProcessor = new BatchOperationProcessor();
+
+/**
+ * Utility function to create a batch of similar operations
+ */
+export async function executeBatchOperations<T>(
+  operations: Array<() => Promise<T>>,
+  options: {
+    batchSize?: number;
+    concurrency?: number;
+    preserveOrder?: boolean;
+  } = {}
+): Promise<T[]> {
+  const {
+    batchSize = 5,
+    concurrency = 3,
+    preserveOrder = true
+  } = options;
+  
+  const benchmarkId = startBenchmark('execute-batch-operations', {
+    operationCount: operations.length,
+    batchSize,
+    concurrency,
+    preserveOrder
+  });
+  
+  try {
+    if (preserveOrder) {
+      // Execute in order-preserving batches
+      const results: T[] = [];
+      for (let i = 0; i < operations.length; i += batchSize) {
+        const batch = operations.slice(i, i + batchSize);
+        const batchResults = await Promise.all(
+          batch.map(async (operation, index) => {
+            // Add small delay between concurrent operations to reduce system load
+            if (index > 0) {
+              await new Promise(resolve => setTimeout(resolve, 10));
+            }
+            return operation();
+          })
+        );
+        results.push(...batchResults);
+      }
+      
+      endBenchmark(benchmarkId, true);
+      return results;
+      
+    } else {
+      // Execute with controlled concurrency, order doesn't matter
+      const results = await Promise.all(operations.map(operation => operation()));
+      endBenchmark(benchmarkId, true);
+      return results;
+    }
+    
+  } catch (error) {
+    endBenchmark(benchmarkId, false);
+    throw error;
+  }
 }
 
 /**
@@ -427,6 +660,7 @@ export function getPerformanceRecommendations(): string[] {
   // Cache hit rate recommendations
   const scriptCacheUsage = stats.cacheStats.scriptCache.size / stats.cacheStats.scriptCache.maxSize;
   const coordsCacheUsage = stats.cacheStats.coordsCache.size / stats.cacheStats.coordsCache.maxSize;
+  const webpCacheUsage = stats.cacheStats.webpCache.size / stats.cacheStats.webpCache.maxSize;
   
   if (scriptCacheUsage > 0.8) {
     recommendations.push('Consider increasing script cache size for high-frequency operations');
@@ -434,6 +668,10 @@ export function getPerformanceRecommendations(): string[] {
   
   if (coordsCacheUsage > 0.8) {
     recommendations.push('Consider increasing coordinates cache size for repeated DOM queries');
+  }
+  
+  if (webpCacheUsage > 0.8) {
+    recommendations.push('WebP cache is near capacity - consider increasing cache size or clearing old entries');
   }
   
   // Memory usage recommendations

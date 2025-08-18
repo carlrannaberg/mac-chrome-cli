@@ -5,13 +5,18 @@
  * without requiring actual system permissions (using mocks for CI safety)
  */
 
-import { execWithTimeout, ERROR_CODES } from '../../src/lib/util.js';
+import { execWithTimeout, execWithTimeoutLegacy, ERROR_CODES } from '../../src/lib/util.js';
 import { 
   execChromeJS, 
   isChromeRunning, 
   focusChromeWindow,
   escapeAppleScriptString 
 } from '../../src/lib/apple.js';
+import {
+  execChromeJSLegacy,
+  focusChromeWindowLegacy,
+  isChromeRunningLegacy
+} from '../../src/lib/apple-compat.js';
 import { runDiagnostics } from '../../src/commands/doctor.js';
 
 // Mock child_process for system-level command testing
@@ -35,7 +40,7 @@ describe('System Permission Tests', () => {
 
       mockSpawn.mockReturnValue(mockChild as never);
 
-      const promise = execWithTimeout('osascript', ['-e', 'tell application "System Events" to return "test"'], 5000);
+      const promise = execWithTimeoutLegacy('osascript', ['-e', 'tell application "System Events" to return "test"'], 5000);
 
       // Simulate permission denied error
       const stderrHandler = mockChild.stderr.on.mock.calls.find(call => call[0] === 'data')?.[1];
@@ -63,7 +68,7 @@ describe('System Permission Tests', () => {
 
       mockSpawn.mockReturnValue(mockChild as never);
 
-      const promise = execWithTimeout('osascript', ['-e', 'tell application "System Events" to return "success"'], 5000);
+      const promise = execWithTimeoutLegacy('osascript', ['-e', 'tell application "System Events" to return "success"'], 5000);
 
       // Simulate successful execution
       const stdoutHandler = mockChild.stdout.on.mock.calls.find(call => call[0] === 'data')?.[1];
@@ -107,7 +112,7 @@ describe('System Permission Tests', () => {
 
         mockSpawn.mockReturnValue(mockChild as never);
 
-        const promise = execWithTimeout('osascript', ['-e', 'test script'], 5000);
+        const promise = execWithTimeoutLegacy('osascript', ['-e', 'test script'], 5000);
 
         const stderrHandler = mockChild.stderr.on.mock.calls.find(call => call[0] === 'data')?.[1];
         if (stderrHandler) {
@@ -153,7 +158,7 @@ describe('System Permission Tests', () => {
 
       mockSpawn.mockReturnValue(mockChild as never);
 
-      const promise = execWithTimeout('screencapture', ['-x', '-t', 'png', '/tmp/test.png'], 5000);
+      const promise = execWithTimeoutLegacy('screencapture', ['-x', '-t', 'png', '/tmp/test.png'], 5000);
 
       // Simulate permission denied
       const stderrHandler = mockChild.stderr.on.mock.calls.find(call => call[0] === 'data')?.[1];
@@ -180,7 +185,7 @@ describe('System Permission Tests', () => {
 
       mockSpawn.mockReturnValue(mockChild as never);
 
-      const promise = execWithTimeout('screencapture', ['-x', '-t', 'png', '/tmp/test.png'], 5000);
+      const promise = execWithTimeoutLegacy('screencapture', ['-x', '-t', 'png', '/tmp/test.png'], 5000);
 
       // Simulate successful capture (no output)
       const closeHandler = mockChild.on.mock.calls.find(call => call[0] === 'close')?.[1];
@@ -205,7 +210,7 @@ describe('System Permission Tests', () => {
 
       mockSpawn.mockReturnValue(mockChild as never);
 
-      const promise = execChromeJS('document.title', 1, 1, 5000);
+      const promise = execChromeJSLegacy('document.title', 1, 1, 5000);
 
       // Simulate Chrome not running AppleScript error
       const stdoutHandler = mockChild.stdout.on.mock.calls.find(call => call[0] === 'data')?.[1];
@@ -233,7 +238,7 @@ describe('System Permission Tests', () => {
 
       mockSpawn.mockReturnValue(mockChild as never);
 
-      const promise = execChromeJS('document.title', 1, 1, 5000);
+      const promise = execChromeJSLegacy('document.title', 1, 1, 5000);
 
       // Simulate permission denied error
       const stderrHandler = mockChild.stderr.on.mock.calls.find(call => call[0] === 'data')?.[1];
@@ -261,7 +266,7 @@ describe('System Permission Tests', () => {
 
       mockSpawn.mockReturnValue(mockChild as never);
 
-      const promise = execChromeJS('document.title', 1, 1, 5000);
+      const promise = execChromeJSLegacy('document.title', 1, 1, 5000);
 
       // Simulate successful execution
       const stdoutHandler = mockChild.stdout.on.mock.calls.find(call => call[0] === 'data')?.[1];
@@ -289,7 +294,7 @@ describe('System Permission Tests', () => {
 
       mockSpawn.mockReturnValue(mockChild as never);
 
-      const promise = focusChromeWindow(1);
+      const promise = focusChromeWindowLegacy(1);
 
       // Simulate successful window focus
       const stdoutHandler = mockChild.stdout.on.mock.calls.find(call => call[0] === 'data')?.[1];
@@ -325,7 +330,7 @@ describe('System Permission Tests', () => {
 
       mockSpawn.mockReturnValue(mockChild as never);
 
-      const promise = execWithTimeout('osascript', ['-e', 'tell application "System Events" to return "test"'], 100);
+      const promise = execWithTimeoutLegacy('osascript', ['-e', 'tell application "System Events" to return "test"'], 100);
 
       // Don't trigger any events - let it timeout
       setTimeout(() => {
@@ -351,7 +356,7 @@ describe('System Permission Tests', () => {
 
       mockSpawn.mockReturnValue(mockChild as never);
 
-      const promise = execWithTimeout('non-existent-command', [], 5000);
+      const promise = execWithTimeoutLegacy('non-existent-command', [], 5000);
 
       // Simulate spawn error
       const errorHandler = mockChild.on.mock.calls.find(call => call[0] === 'error')?.[1];
@@ -378,7 +383,7 @@ describe('System Permission Tests', () => {
 
       mockSpawn.mockReturnValue(mockChild as never);
 
-      const promise = isChromeRunning();
+      const promise = isChromeRunningLegacy();
 
       // Simulate Chrome process found
       const stdoutHandler = mockChild.stdout.on.mock.calls.find(call => call[0] === 'data')?.[1];
@@ -403,7 +408,7 @@ describe('System Permission Tests', () => {
 
       mockSpawn.mockReturnValue(mockChild as never);
 
-      const promise = isChromeRunning();
+      const promise = isChromeRunningLegacy();
 
       // Simulate Chrome process not found
       const stdoutHandler = mockChild.stdout.on.mock.calls.find(call => call[0] === 'data')?.[1];
@@ -428,7 +433,7 @@ describe('System Permission Tests', () => {
 
       mockSpawn.mockReturnValue(mockChild as never);
 
-      const promise = isChromeRunning();
+      const promise = isChromeRunningLegacy();
 
       // Simulate error
       const errorHandler = mockChild.on.mock.calls.find(call => call[0] === 'error')?.[1];
@@ -481,7 +486,7 @@ describe('System Permission Tests', () => {
       mockSpawn.mockReturnValue(mockChild as never);
 
       // First call (AppleScript test) - success
-      let promise1 = execWithTimeout('osascript', ['-e', 'tell application "System Events" to return "test"'], 5000);
+      let promise1 = execWithTimeoutLegacy('osascript', ['-e', 'tell application "System Events" to return "test"'], 5000);
       
       const stdoutHandler1 = mockChild.stdout.on.mock.calls.find(call => call[0] === 'data')?.[1];
       if (stdoutHandler1) stdoutHandler1(Buffer.from('test\n'));
@@ -497,7 +502,7 @@ describe('System Permission Tests', () => {
       mockSpawn.mockReturnValue(mockChild as never);
 
       // Second call (screen capture) - failure
-      let promise2 = execWithTimeout('screencapture', ['-x', '-t', 'png', '/tmp/test.png'], 5000);
+      let promise2 = execWithTimeoutLegacy('screencapture', ['-x', '-t', 'png', '/tmp/test.png'], 5000);
       
       const stderrHandler2 = mockChild.stderr.on.mock.calls.find(call => call[0] === 'data')?.[1];
       if (stderrHandler2) stderrHandler2(Buffer.from('screencapture: cannot create screenshot file\n'));

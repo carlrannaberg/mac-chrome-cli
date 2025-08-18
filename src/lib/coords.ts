@@ -1,5 +1,6 @@
 import { execChromeJS, getChromeWindowBounds, type JavaScriptResult } from './apple.js';
 import { ERROR_CODES, type ErrorCode } from './util.js';
+import { Result, ok, error, type ResultContext } from '../core/index.js';
 import { getCachedCoordinates, generateCoordsCacheKey } from './performance.js';
 
 export interface Coordinates {
@@ -33,7 +34,26 @@ export interface WindowBounds {
   contentAreaY: number;
 }
 
-export interface CoordinateResult {
+/**
+ * Coordinate calculation data
+ */
+export interface CoordinateData {
+  coordinates?: Coordinates;
+  element?: ElementRect;
+  viewport?: ViewportRect;
+  window?: WindowBounds;
+}
+
+/**
+ * Coordinate calculation result using unified Result<T,E> pattern
+ */
+export type CoordinateResult = Result<CoordinateData, string>;
+
+/**
+ * Legacy CoordinateResult interface for backward compatibility
+ * @deprecated Use CoordinateResult (Result<CoordinateData, string>) instead
+ */
+export interface LegacyCoordinateResult {
   success: boolean;
   coordinates?: Coordinates;
   element?: ElementRect;

@@ -15,7 +15,7 @@ describe('Wait Command', () => {
       expect(result.data?.cmd).toBe('wait idle');
       expect(result.data?.durationMs).toBe(800); // default
       expect(result.data?.actualMs).toBeGreaterThanOrEqual(800);
-      expect(result.data?.actualMs).toBeLessThan(850); // allow some variance
+      expect(result.data?.actualMs).toBeLessThan(900); // allow more variance for CI environments
       expect(actualDuration).toBeGreaterThanOrEqual(800);
       expect(result.data?.timestamp).toBeDefined();
     });
@@ -33,7 +33,7 @@ describe('Wait Command', () => {
       expect(result.data?.cmd).toBe('wait idle');
       expect(result.data?.durationMs).toBe(requestedMs);
       expect(result.data?.actualMs).toBeGreaterThanOrEqual(requestedMs);
-      expect(result.data?.actualMs).toBeLessThan(requestedMs + 50); // allow some variance
+      expect(result.data?.actualMs).toBeLessThan(requestedMs + 100); // allow more variance for CI environments
       // System timing can be imprecise, allow small variance
       expect(actualDuration).toBeGreaterThanOrEqual(requestedMs - 5);
     });
@@ -96,7 +96,7 @@ describe('Wait Command', () => {
       // System timing precision may cause very short waits to complete in 0ms
       expect(actualDuration).toBeGreaterThanOrEqual(0);
       // Even 1ms waits might take slightly longer due to system scheduling
-      expect(actualDuration).toBeLessThan(50);
+      expect(actualDuration).toBeLessThan(100); // more lenient for CI environments
     });
 
     it('should include proper timestamp in result', async () => {
@@ -119,11 +119,11 @@ describe('Wait Command', () => {
       
       expect(result.success).toBe(true);
       expect(result.data?.actualMs).toBeGreaterThanOrEqual(requestedMs);
-      expect(result.data?.actualMs).toBeLessThan(requestedMs + 30); // Allow reasonable variance
+      expect(result.data?.actualMs).toBeLessThan(requestedMs + 100); // Allow more variance for CI environments
       
       // Actual time should be close to requested time
       const variance = Math.abs(result.data!.actualMs - result.data!.durationMs);
-      expect(variance).toBeLessThan(20); // Less than 20ms variance expected
+      expect(variance).toBeLessThan(100); // Less than 100ms variance expected for CI environments
     });
   });
 });

@@ -1,4 +1,5 @@
-import { formatJSONResult, ERROR_CODES, type JSONResult } from '../lib/util.js';
+import { Result, ok, error, ErrorCode } from '../core/index.js';
+import { ErrorUtils, executeWithContext } from '../core/ErrorUtils.js';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
@@ -936,8 +937,8 @@ async function getMacOSVersion(): Promise<string | undefined> {
 /**
  * Get comprehensive meta information about the CLI
  */
-export async function getMetaInfo(): Promise<JSONResult<MetaInfo | null>> {
-  try {
+export async function getMetaInfo(): Promise<Result<MetaInfo, string>> {
+  return executeWithContext(async () => {
     const packageInfo = getPackageInfo();
     const commandInfo = getImplementedCommands();
     const capabilities = getCapabilities();
@@ -965,46 +966,26 @@ export async function getMetaInfo(): Promise<JSONResult<MetaInfo | null>> {
       }
     };
 
-    return formatJSONResult(metaInfo, undefined, ERROR_CODES.OK);
-  } catch (error) {
-    return formatJSONResult(
-      null, 
-      `Failed to gather meta information: ${error}`, 
-      ERROR_CODES.UNKNOWN_ERROR
-    );
-  }
+    return metaInfo;
+  }, 'gather-meta-info');
 }
 
 /**
  * Get detailed command information
  */
-export async function getCommands(): Promise<JSONResult<CommandInfo[] | null>> {
-  try {
-    const commands = getCommandRegistry();
-    return formatJSONResult(commands, undefined, ERROR_CODES.OK);
-  } catch (error) {
-    return formatJSONResult(
-      null,
-      `Failed to gather command information: ${error}`,
-      ERROR_CODES.UNKNOWN_ERROR
-    );
-  }
+export async function getCommands(): Promise<Result<CommandInfo[], string>> {
+  return executeWithContext(async () => {
+    return getCommandRegistry();
+  }, 'gather-command-info');
 }
 
 /**
  * Get permission requirements
  */
-export async function getPermissions(): Promise<JSONResult<PermissionInfo[] | null>> {
-  try {
-    const permissions = getPermissionRequirements();
-    return formatJSONResult(permissions, undefined, ERROR_CODES.OK);
-  } catch (error) {
-    return formatJSONResult(
-      null,
-      `Failed to gather permission information: ${error}`,
-      ERROR_CODES.UNKNOWN_ERROR
-    );
-  }
+export async function getPermissions(): Promise<Result<PermissionInfo[], string>> {
+  return executeWithContext(async () => {
+    return getPermissionRequirements();
+  }, 'gather-permission-info');
 }
 
 /**
@@ -1027,8 +1008,8 @@ export interface CliStats {
   };
 }
 
-export async function getCliStats(): Promise<JSONResult<CliStats | null>> {
-  try {
+export async function getCliStats(): Promise<Result<CliStats, string>> {
+  return executeWithContext(async () => {
     const stats: CliStats = {
       uptime: process.uptime(),
       startTime: new Date(Date.now() - process.uptime() * 1000).toISOString(),
@@ -1040,22 +1021,16 @@ export async function getCliStats(): Promise<JSONResult<CliStats | null>> {
         gid: process.getgid?.()
       }
     };
-
-    return formatJSONResult(stats, undefined, ERROR_CODES.OK);
-  } catch (error) {
-    return formatJSONResult(
-      null,
-      `Failed to gather CLI statistics: ${error}`,
-      ERROR_CODES.UNKNOWN_ERROR
-    );
-  }
+    
+    return stats;
+  }, 'gather-cli-stats');
 }
 
 /**
  * Get performance statistics and recommendations
  */
-export async function getPerformanceInfo(): Promise<JSONResult<any | null>> {
-  try {
+export async function getPerformanceInfo(): Promise<Result<{ stats: unknown; recommendations: unknown; timestamp: string }, string>> {
+  return executeWithContext(async () => {
     const { getPerformanceStats, getPerformanceRecommendations } = await import('../lib/performance.js');
     
     const performanceInfo = {
@@ -1064,21 +1039,15 @@ export async function getPerformanceInfo(): Promise<JSONResult<any | null>> {
       timestamp: new Date().toISOString()
     };
 
-    return formatJSONResult(performanceInfo, undefined, ERROR_CODES.OK);
-  } catch (error) {
-    return formatJSONResult(
-      null,
-      `Failed to gather performance information: ${error}`,
-      ERROR_CODES.UNKNOWN_ERROR
-    );
-  }
+    return performanceInfo;
+  }, 'gather-performance-info');
 }
 
 /**
  * Format meta information for human-readable output
  */
-export function formatMetaOutput(metaResult: JSONResult<MetaInfo | null>): string {
-  if (!metaResult.success || !metaResult.data) {
+export function formatMetaOutput(metaResult: Result<MetaInfo, string>): string {
+  if (!metaResult.success) {
     return `Error: ${metaResult.error || 'Failed to get meta information'}`;
   }
 
@@ -1117,8 +1086,8 @@ ${meta.commands.implemented.map(cmd => `   • ${cmd}`).join('\n')}
 /**
  * Format command information for human-readable output
  */
-export function formatCommandsOutput(commandsResult: JSONResult<CommandInfo[] | null>): string {
-  if (!commandsResult.success || !commandsResult.data) {
+export function formatCommandsOutput(commandsResult: Result<CommandInfo[], string>): string {
+  if (!commandsResult.success) {
     return `Error: ${commandsResult.error || 'Failed to get command information'}`;
   }
 
@@ -1188,8 +1157,8 @@ export function formatCommandsOutput(commandsResult: JSONResult<CommandInfo[] | 
 /**
  * Format permission information for human-readable output
  */
-export function formatPermissionsOutput(permissionsResult: JSONResult<PermissionInfo[] | null>): string {
-  if (!permissionsResult.success || !permissionsResult.data) {
+export function formatPermissionsOutput(permissionsResult: Result<PermissionInfo[], string>): string {
+  if (!permissionsResult.success) {
     return `Error: ${permissionsResult.error || 'Failed to get permission information'}`;
   }
 
@@ -1223,8 +1192,8 @@ export function formatPermissionsOutput(permissionsResult: JSONResult<Permission
 /**
  * Format CLI statistics for human-readable output
  */
-export function formatStatsOutput(statsResult: JSONResult<CliStats | null>): string {
-  if (!statsResult.success || !statsResult.data) {
+export function formatStatsOutput(statsResult: Result<CliStats, string>): string {
+  if (!statsResult.success) {
     return `Error: ${statsResult.error || 'Failed to get CLI statistics'}`;
   }
 

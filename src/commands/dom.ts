@@ -1,30 +1,129 @@
+/**
+ * @fileoverview DOM evaluation functionality for executing JavaScript in browser context
+ * 
+ * This module provides secure JavaScript execution capabilities within Chrome tabs,
+ * with security validation, result serialization, and comprehensive error handling.
+ * 
+ * @example
+ * ```typescript
+ * // Execute simple DOM query
+ * const result = await domEval({ 
+ *   js: 'document.title' 
+ * });
+ * 
+ * // Execute with custom timeout and tab targeting
+ * const complexResult = await domEval({
+ *   js: 'document.querySelectorAll("button").length',
+ *   tabIndex: 2,
+ *   timeout: 15000
+ * });
+ * ```
+ * 
+ * @author mac-chrome-cli
+ * @version 1.0.0
+ */
+
 import { execChromeJS, type JavaScriptResult } from '../lib/apple.js';
 import { ERROR_CODES, validateInput, formatJSONResult, type JSONResult } from '../lib/util.js';
 
+/**
+ * Configuration options for DOM JavaScript evaluation.
+ * 
+ * @interface DOMEvalOptions
+ * @example
+ * ```typescript
+ * const options: DOMEvalOptions = {
+ *   js: 'document.querySelector("#button").textContent',
+ *   tabIndex: 1,
+ *   windowIndex: 1,
+ *   timeout: 10000
+ * };
+ * ```
+ */
 export interface DOMEvalOptions {
+  /** JavaScript code to execute in the browser context */
   js: string;
+  /** Target tab index (1-based, default: 1) */
   tabIndex?: number;
+  /** Target window index (1-based, default: 1) */
   windowIndex?: number;
+  /** Execution timeout in milliseconds (default: 10000) */
   timeout?: number;
 }
 
+/**
+ * Metadata about the JavaScript execution operation.
+ * Provides timing, size, and serialization information.
+ * 
+ * @interface DOMEvalMeta
+ * @example
+ * ```typescript
+ * const meta: DOMEvalMeta = {
+ *   executionTimeMs: 150,
+ *   timestamp: '2023-06-15T10:30:00.000Z',
+ *   resultSize: 1024,
+ *   truncated: false
+ * };
+ * ```
+ */
 export interface DOMEvalMeta {
+  /** How long the JavaScript execution took in milliseconds */
   executionTimeMs: number;
+  /** ISO timestamp of when the execution completed */
   timestamp: string;
+  /** Size of the result data in bytes */
   resultSize: number;
+  /** Whether the result was truncated due to size limits */
   truncated: boolean;
+  /** Warning message about serialization issues, if any */
   serializationWarning?: string;
 }
 
+/**
+ * Result data structure for DOM JavaScript evaluation.
+ * Contains the execution result, error information, and metadata.
+ * 
+ * @interface DOMEvalData
+ * @example
+ * ```typescript
+ * const data: DOMEvalData = {
+ *   success: true,
+ *   result: 'Page Title',
+ *   meta: {
+ *     executionTimeMs: 50,
+ *     timestamp: '2023-06-15T10:30:00.000Z',
+ *     resultSize: 256,
+ *     truncated: false
+ *   }
+ * };
+ * ```
+ */
 export interface DOMEvalData {
+  /** Whether the JavaScript execution succeeded */
   success: boolean;
+  /** The result value from the JavaScript execution (if successful) */
   result?: unknown;
+  /** Error message (if execution failed) */
   error?: string | undefined;
+  /** Metadata about the execution operation */
   meta: DOMEvalMeta;
 }
 
 /**
- * Dangerous JavaScript patterns that should be blocked for security
+ * Regular expression patterns for detecting dangerous JavaScript code.
+ * These patterns are used to prevent execution of potentially harmful code
+ * that could compromise security or access system resources.
+ * 
+ * @constant {RegExp[]} DANGEROUS_PATTERNS
+ * @private
+ * @example
+ * Blocked patterns include:
+ * - eval() calls
+ * - Function constructor
+ * - Timer functions (setTimeout, setInterval)
+ * - Property deletion
+ * - Prototype manipulation
+ * - Node.js specific APIs
  */
 const DANGEROUS_PATTERNS = [
   /\beval\s*\(/,
@@ -41,7 +140,49 @@ const DANGEROUS_PATTERNS = [
 ];
 
 /**
- * Execute arbitrary JavaScript in the page context with security validation
+ * Executes arbitrary JavaScript code in the browser page context with security validation.
+ * 
+ * This function provides a secure way to execute JavaScript in Chrome tabs by:
+ * - Validating input for dangerous patterns
+ * - Setting appropriate timeouts
+ * - Capturing execution metadata
+ * - Handling serialization of complex results
+ * 
+ * @param options - Configuration for the JavaScript execution
+ * @returns Promise resolving to execution result with metadata
+ * 
+ * @throws {Error} When dangerous JavaScript patterns are detected
+ * @throws {Error} When input validation fails
+ * 
+ * @example
+ * ```typescript
+ * // Simple DOM query
+ * const titleResult = await domEval({ 
+ *   js: 'document.title' 
+ * });
+ * 
+ * // Complex evaluation with timeout
+ * const formResult = await domEval({
+ *   js: `
+ *     const forms = Array.from(document.forms);
+ *     return forms.map(form => ({
+ *       id: form.id,
+ *       action: form.action,
+ *       method: form.method
+ *     }));
+ *   `,
+ *   timeout: 15000
+ * });
+ * 
+ * // Target specific tab
+ * const tabResult = await domEval({
+ *   js: 'window.location.href',
+ *   tabIndex: 2
+ * });
+ * ```
+ * 
+ * @security This function blocks dangerous JavaScript patterns but should still
+ * be used with caution. Only execute trusted JavaScript code.
  */
 export async function domEval(options: DOMEvalOptions): Promise<JavaScriptResult<DOMEvalData>> {
   const { js, tabIndex = 1, windowIndex = 1, timeout = 10000 } = options;

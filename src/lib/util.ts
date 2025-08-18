@@ -1,21 +1,36 @@
 import { spawn } from 'child_process';
 import { homedir } from 'os';
 import { join } from 'path';
+import { Result, ok, error, type ResultContext } from '../core/Result.js';
+import { ErrorCode, ERROR_CODES, type LegacyErrorCode } from '../core/ErrorCodes.js';
 
-// Error codes as specified in the requirements
-export const ERROR_CODES = {
-  OK: 0,
-  INVALID_INPUT: 10,
-  TARGET_NOT_FOUND: 20,
-  PERMISSION_DENIED: 30,
-  TIMEOUT: 40,
-  CHROME_NOT_FOUND: 50,
-  UNKNOWN_ERROR: 99
-} as const;
+// Re-export core types for backward compatibility
+export { ErrorCode, ERROR_CODES } from '../core/ErrorCodes.js';
+export type { Result, ResultContext } from '../core/Result.js';
 
-export type ErrorCode = typeof ERROR_CODES[keyof typeof ERROR_CODES];
+// Legacy type alias for backward compatibility
+/** @deprecated Use ErrorCode from core/ErrorCodes.js instead */
+export type LegacyErrorCode = typeof ERROR_CODES[keyof typeof ERROR_CODES];
 
-export interface ExecResult {
+/**
+ * Process execution data
+ */
+export interface ExecData {
+  stdout: string;
+  stderr: string;
+  command?: string;
+}
+
+/**
+ * Process execution result using unified Result<T,E> pattern
+ */
+export type ExecResult = Result<ExecData, string>;
+
+/**
+ * Legacy ExecResult interface for backward compatibility
+ * @deprecated Use ExecResult (Result<ExecData, string>) instead
+ */
+export interface LegacyExecResult {
   success: boolean;
   stdout: string;
   stderr: string;
@@ -23,7 +38,16 @@ export interface ExecResult {
   command?: string;
 }
 
-export interface JSONResult<T = unknown> {
+/**
+ * JSON output result using unified Result<T,E> pattern
+ */
+export type JSONResult<T = unknown> = Result<T, string>;
+
+/**
+ * Legacy JSONResult interface for backward compatibility
+ * @deprecated Use JSONResult (Result<T, string>) instead
+ */
+export interface LegacyJSONResult<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;
@@ -32,7 +56,7 @@ export interface JSONResult<T = unknown> {
 }
 
 /**
- * Execute a command with timeout and proper error handling
+ * Execute a command with timeout and proper error handling using unified Result<T,E> pattern
  */
 export async function execWithTimeout(
   command: string,
@@ -47,17 +71,17 @@ export async function execWithTimeout(
     let stdout = '';
     let stderr = '';
     let timedOut = false;
+    const startTime = Date.now();
+    const fullCommand = `${command} ${args.join(' ')}`;
 
     const timeout = setTimeout(() => {
       timedOut = true;
       child.kill('SIGTERM');
-      resolve({
-        success: false,
-        stdout: '',
-        stderr: 'Command timed out',
-        code: ERROR_CODES.TIMEOUT,
-        command: `${command} ${args.join(' ')}`
-      });
+      resolve(error('Command timed out', ErrorCode.TIMEOUT, {
+        durationMs: Date.now() - startTime,
+        recoveryHint: 'retry',
+        metadata: { command: fullCommand, timeoutMs }
+      }));
     }, timeoutMs);
 
     child.stdout?.on('data', (data) => {
@@ -72,41 +96,140 @@ export async function execWithTimeout(
       if (timedOut) return;
       
       clearTimeout(timeout);
+      const duration = Date.now() - startTime;
       
-      const success = code === 0;
-      resolve({
-        success,
+      const execData: ExecData = {
         stdout: stdout.trim(),
         stderr: stderr.trim(),
-        code: success ? ERROR_CODES.OK : ERROR_CODES.UNKNOWN_ERROR,
-        command: `${command} ${args.join(' ')}`
-      });
+        command: fullCommand
+      };
+      
+      const context: ResultContext = {
+        durationMs: duration,
+        metadata: { exitCode: code, command: fullCommand }
+      };
+      
+      if (code === 0) {
+        resolve(ok(execData, ErrorCode.OK, context));
+      } else {
+        // Use stderr content as the error message if available, otherwise use generic message
+        const errorMessage = stderr.trim() || `Process exited with code ${code}`;
+        resolve(error(errorMessage, ErrorCode.UNKNOWN_ERROR, {
+          ...context,
+          recoveryHint: 'check_target',
+          metadata: { 
+            ...context.metadata, 
+            originalStderr: stderr.trim(),
+            originalStdout: stdout.trim()
+          }
+        }));
+      }
     });
 
-    child.on('error', (error) => {
+    child.on('error', (err) => {
       if (timedOut) return;
       
       clearTimeout(timeout);
-      resolve({
-        success: false,
-        stdout: '',
-        stderr: error.message,
-        code: ERROR_CODES.UNKNOWN_ERROR,
-        command: `${command} ${args.join(' ')}`
-      });
+      resolve(error(err.message, ErrorCode.PROCESS_FAILED, {
+        durationMs: Date.now() - startTime,
+        recoveryHint: 'retry',
+        metadata: { command: fullCommand, originalError: err.message }
+      }));
     });
   });
 }
 
 /**
- * Format result as JSON with consistent structure
+ * Legacy execWithTimeout function that maintains backward compatibility with tests
+ * This wraps the new Result<T,E> version to provide the old interface structure
+ * @deprecated Use the main execWithTimeout function and handle Result<T,E> properly
+ */
+export async function execWithTimeoutLegacy(
+  command: string,
+  args: string[] = [],
+  timeoutMs: number = 30000
+): Promise<LegacyExecResult> {
+  const result = await execWithTimeout(command, args, timeoutMs);
+  
+  if (result.success) {
+    return {
+      success: true,
+      stdout: result.data.stdout,
+      stderr: result.data.stderr,
+      code: result.code,
+      command: result.data.command
+    };
+  } else {
+    // For compatibility, use the original error message when available
+    // Check if we have metadata with original stderr or original error
+    const originalStderr = result.context?.metadata?.originalStderr as string;
+    const originalError = result.context?.metadata?.originalError as string;
+    const stderr = originalStderr || originalError || result.error;
+    
+    // Map new error codes to legacy codes for compatibility
+    let legacyCode = result.code;
+    if (result.code === ErrorCode.PROCESS_FAILED) {
+      legacyCode = ERROR_CODES.UNKNOWN_ERROR; // Map PROCESS_FAILED (83) to UNKNOWN_ERROR (99)
+    }
+    
+    return {
+      success: false,
+      stdout: result.context?.metadata?.originalStdout as string || '',
+      stderr,
+      code: legacyCode,
+      command: `${command} ${args.join(' ')}`
+    };
+  }
+}
+
+/**
+ * Format result as JSON with consistent structure using unified Result<T,E> pattern
  */
 export function formatJSONResult<T = unknown>(
   data?: T,
-  error?: string,
+  errorMessage?: string,
   code: ErrorCode = ERROR_CODES.OK
 ): JSONResult<T> {
-  const result: JSONResult<T> = {
+  if (code === ERROR_CODES.OK && data !== undefined) {
+    return ok(data, code);
+  } else if (code !== ERROR_CODES.OK && errorMessage) {
+    return error(errorMessage, code);
+  } else if (code === ERROR_CODES.OK) {
+    // Handle case where data is undefined but operation succeeded
+    return ok(undefined as T, code);
+  } else {
+    return error('Unknown error occurred', code);
+  }
+}
+
+/**
+ * Temporary backward compatibility adapter for existing code
+ * @deprecated This is a temporary adapter for migration - use Result<T,E> directly
+ */
+export function formatJSONResultLegacy<T = unknown>(
+  data?: T,
+  errorMessage?: string,
+  code: ErrorCode = ERROR_CODES.OK
+): LegacyJSONResult<T> {
+  return {
+    success: code === ERROR_CODES.OK,
+    code,
+    timestamp: new Date().toISOString(),
+    ...(code === ERROR_CODES.OK && data !== undefined && { data }),
+    ...(code !== ERROR_CODES.OK && errorMessage && { error: errorMessage })
+  };
+}
+
+/**
+ * Legacy formatJSONResult function for backward compatibility
+ * @deprecated Use formatJSONResult with Result<T,E> pattern instead
+ */
+export function formatLegacyJSONResult<T = unknown>(
+  data?: T,
+  error?: string,
+  code: ErrorCode = ERROR_CODES.OK
+): LegacyJSONResult<T> {
+  const result: LegacyJSONResult<T> = {
     success: code === ERROR_CODES.OK,
     code,
     timestamp: new Date().toISOString()

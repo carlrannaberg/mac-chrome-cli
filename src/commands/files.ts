@@ -1,7 +1,11 @@
 import { execChromeJS, escapeAppleScriptString } from '../lib/apple.js';
-import { execWithTimeout, expandPath, validateInput, sleep, escapeCSSSelector, ERROR_CODES, type ErrorCode } from '../lib/util.js';
-import { existsSync, statSync } from 'fs';
-import { resolve } from 'path';
+import { expandPath, validateInput, sleep, escapeCSSSelector, ERROR_CODES, type ErrorCode } from '../lib/util.js';
+import { SecurePathValidator } from '../security/PathValidator.js';
+import { appleScriptService } from '../services/AppleScriptService.js';
+import { Result, ok, error, isOk, type ResultContext } from '../core/index.js';
+
+// Initialize path validator for secure file operations
+const pathValidator = new SecurePathValidator();
 
 export interface FileUploadOptions {
   selector: string;
@@ -10,7 +14,24 @@ export interface FileUploadOptions {
   timeout?: number;
 }
 
-export interface FileUploadResult {
+/**
+ * File upload data
+ */
+export interface FileUploadData {
+  filesUploaded: string[];
+  totalFiles: number;
+}
+
+/**
+ * File upload result using unified Result<T,E> pattern
+ */
+export type FileUploadResult = Result<FileUploadData, string>;
+
+/**
+ * Legacy FileUploadResult interface for backward compatibility
+ * @deprecated Use FileUploadResult (Result<FileUploadData, string>) instead
+ */
+export interface LegacyFileUploadResult {
   success: boolean;
   filesUploaded: string[];
   totalFiles: number;
@@ -19,31 +40,41 @@ export interface FileUploadResult {
 }
 
 /**
- * Execute AppleScript with proper error handling
+ * Execute AppleScript with proper error handling using service container or legacy service
  */
-async function executeAppleScript(script: string, timeoutMs: number = 10000): Promise<{ success: boolean; error?: string }> {
+async function executeAppleScript(
+  script: string, 
+  timeoutMs: number = 10000, 
+  serviceContainer?: IServiceContainer
+): Promise<{ success: boolean; error?: string }> {
   try {
-    const result = await execWithTimeout('osascript', ['-e', script], timeoutMs);
+    let scriptService: IAppleScriptService;
+    
+    if (serviceContainer) {
+      const result = await serviceContainer.resolve(SERVICE_TOKENS.AppleScriptService);
+      if (!result.success) {
+        return { success: false, error: `Failed to resolve AppleScriptService: ${result.error}` };
+      }
+      scriptService = result.data;
+    } else {
+      // Fallback to legacy service
+      scriptService = appleScriptService;
+    }
+    
+    const result = await scriptService.executeScript(script, timeoutMs);
     
     if (!result.success) {
-      if (result.stderr.includes('not authorized') || result.stderr.includes('access')) {
-        return {
-          success: false,
-          error: 'AppleScript automation permission denied. Please grant permission in System Preferences > Privacy & Security > Automation.'
-        };
-      }
-      
       return {
         success: false,
-        error: result.stderr || 'AppleScript execution failed'
+        error: result.error || 'AppleScript execution failed'
       };
     }
 
-    // Check for AppleScript errors in stdout
-    if (result.stdout.includes('error') || result.stdout.includes('ERROR')) {
+    // Check for AppleScript errors in the result
+    if (result.result?.includes('error') || result.result?.includes('ERROR')) {
       return {
         success: false,
-        error: result.stdout.trim()
+        error: result.result.trim()
       };
     }
 
@@ -57,26 +88,24 @@ async function executeAppleScript(script: string, timeoutMs: number = 10000): Pr
 }
 
 /**
- * Validate file path and expand tilde
+ * Validate file path with security checks and expand tilde
  */
 function validateAndExpandPath(filePath: string): { valid: boolean; expandedPath?: string; error?: string } {
   if (!validateInput(filePath, 'string')) {
     return { valid: false, error: 'File path is required and must be a non-empty string' };
   }
 
+  // First expand the path to handle tilde
   const expandedPath = expandPath(filePath);
-  const resolvedPath = resolve(expandedPath);
-
-  if (!existsSync(resolvedPath)) {
-    return { valid: false, error: `File does not exist: ${resolvedPath}` };
+  
+  // Use secure path validator to check for security issues
+  const securityValidation = pathValidator.validateFilePath(expandedPath);
+  if (!securityValidation.success) {
+    return { valid: false, error: `Security validation failed: ${securityValidation.error}` };
   }
 
-  const stats = statSync(resolvedPath);
-  if (!stats.isFile()) {
-    return { valid: false, error: `Path is not a file: ${resolvedPath}` };
-  }
-
-  return { valid: true, expandedPath: resolvedPath };
+  // The validator already checks file existence and accessibility
+  return { valid: true, expandedPath: securityValidation.value! };
 }
 
 /**
@@ -129,7 +158,7 @@ async function verifyFileInput(selector: string): Promise<{ exists: boolean; err
 /**
  * Upload files to a file input element
  */
-export async function uploadFiles(options: FileUploadOptions): Promise<FileUploadResult> {
+export async function uploadFiles(options: FileUploadOptions): Promise<LegacyFileUploadResult> {
   const { selector, path, multiple = false, timeout = 30000 } = options;
 
   // Validate inputs
@@ -356,7 +385,7 @@ end tell`;
 /**
  * Simulate drag and drop file upload for dropzone elements
  */
-export async function dragDropFiles(options: FileUploadOptions): Promise<FileUploadResult> {
+export async function dragDropFiles(options: FileUploadOptions): Promise<LegacyFileUploadResult> {
   const { selector, path, multiple = false } = options;
 
   // Validate inputs

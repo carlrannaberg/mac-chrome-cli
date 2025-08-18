@@ -2,6 +2,7 @@ import { getScreenCoordinates, validateElementVisibility } from './coords.js';
 import { clickAt, pasteText, clearField, typeText } from './ui.js';
 import { execChromeJS } from './apple.js';
 import { ERROR_CODES, validateInput, sleep, type ErrorCode } from './util.js';
+import { Result, ok, error, type ResultContext } from '../core/index.js';
 
 // Re-export typeText for convenience
 export { typeText } from './ui.js';
@@ -16,7 +17,32 @@ export interface InputOptions {
   maskSecret?: boolean;
 }
 
-export interface InputResult {
+/**
+ * Input action data
+ */
+export interface InputActionData {
+  action: string;
+  selector: string;
+  method: 'paste' | 'type' | 'js';
+  value: string; // Masked if secret
+  actualValue?: string; // Only included if not secret
+  element?: {
+    visible: boolean;
+    focusable: boolean;
+    type: string;
+  };
+}
+
+/**
+ * Input action result using unified Result<T,E> pattern
+ */
+export type InputResult = Result<InputActionData, string>;
+
+/**
+ * Legacy InputResult interface for backward compatibility
+ * @deprecated Use InputResult (Result<InputActionData, string>) instead
+ */
+export interface LegacyInputResult {
   success: boolean;
   action: string;
   selector: string;

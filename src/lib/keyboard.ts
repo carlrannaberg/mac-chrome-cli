@@ -1,5 +1,6 @@
 import { typeText, sendKeys, pressKey, clearField, type UIResult } from './ui.js';
 import { ERROR_CODES, validateInput, sleep, type ErrorCode } from './util.js';
+import { Result, ok, error, type ResultContext } from '../core/index.js';
 
 export interface KeyInputOptions {
   text?: string;
@@ -10,7 +11,27 @@ export interface KeyInputOptions {
   repeat?: number;
 }
 
-export interface KeyboardResult {
+/**
+ * Keyboard action data
+ */
+export interface KeyboardActionData {
+  action: string;
+  input: string; // What was typed/pressed
+  method: 'type' | 'combo' | 'key' | 'clear';
+  speed?: number;
+  repeat?: number;
+}
+
+/**
+ * Keyboard action result using unified Result<T,E> pattern
+ */
+export type KeyboardResult = Result<KeyboardActionData, string>;
+
+/**
+ * Legacy KeyboardResult interface for backward compatibility
+ * @deprecated Use KeyboardResult (Result<KeyboardActionData, string>) instead
+ */
+export interface LegacyKeyboardResult {
   success: boolean;
   action: string;
   input: string; // What was typed/pressed

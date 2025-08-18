@@ -61,6 +61,198 @@ mac-chrome-cli mouse click --selector ".load-data-btn"
 mac-chrome-cli netlog dump --format json | jq '.events[] | select(.type=="response")'
 ```
 
+## Advanced Integration Patterns
+
+### 4. Result-Based Error Handling
+
+The new service architecture provides unified `Result<T, E>` patterns for robust error handling:
+
+```bash
+#!/bin/bash
+# Error-aware automation with recovery strategies
+
+# Capture with comprehensive error handling
+result=$(mac-chrome-cli snapshot outline --json 2>/dev/null)
+
+if echo "$result" | jq -e '.success' > /dev/null; then
+  # Success path - analyze data
+  elements=$(echo "$result" | jq '.data.nodes | length')
+  echo "Found $elements interactive elements"
+else
+  # Error path - check recovery options
+  error_code=$(echo "$result" | jq -r '.code // 99')
+  recovery=$(echo "$result" | jq -r '.context.recoveryHint // "none"')
+  
+  case "$recovery" in
+    "retry")
+      echo "Retrying operation..."
+      sleep 2
+      # Retry the same command
+      ;;
+    "permission")
+      echo "Permission issue detected - check accessibility settings"
+      mac-chrome-cli doctor --json
+      ;;
+    "check_target")
+      echo "Target verification needed"
+      mac-chrome-cli shot viewport --out debug.png
+      ;;
+  esac
+fi
+```
+
+### 5. Service-Aware Automation
+
+Leverage the service architecture for optimized performance:
+
+```bash
+#!/bin/bash
+# Batch operations for better performance
+
+# Use the underlying service patterns for efficiency
+batch_results=$(cat << 'EOF' | mac-chrome-cli dom eval --js -
+// Batch multiple operations in single JavaScript execution
+const results = {
+  title: document.title,
+  url: window.location.href,
+  forms: Array.from(document.forms).length,
+  buttons: Array.from(document.querySelectorAll('button')).length,
+  inputs: Array.from(document.querySelectorAll('input')).length
+};
+results;
+EOF
+)
+
+echo "$batch_results" | jq '.data'
+```
+
+### 6. Performance-Optimized Workflows
+
+Take advantage of caching and connection pooling:
+
+```bash
+#!/bin/bash
+# Performance-optimized automation sequence
+
+# Operations are automatically optimized via service layer
+echo "Starting performance-optimized workflow..."
+
+# Multiple rapid commands benefit from connection pooling
+mac-chrome-cli snapshot outline --json > structure.json &
+mac-chrome-cli shot viewport --out viewport.png &
+mac-chrome-cli scroll position --json > position.json &
+
+wait # Wait for all background operations
+
+# Process results
+jq '.data.nodes[] | select(.role == "button")' structure.json > buttons.json
+echo "Captured $(jq '. | length' buttons.json) buttons in optimized workflow"
+```
+
+### 7. Secure Automation Patterns
+
+Utilize the built-in security features:
+
+```bash
+#!/bin/bash
+# Security-aware automation with data sanitization
+
+# Input validation happens automatically
+safe_js="document.querySelector('meta[name=\"csrf-token\"]')?.content || null"
+
+# Execute with automatic sanitization
+csrf_token=$(mac-chrome-cli dom eval --js "$safe_js" --json | jq -r '.data')
+
+if [ "$csrf_token" != "null" ]; then
+  echo "CSRF token captured securely: ${csrf_token:0:8}..."
+else
+  echo "No CSRF token found"
+fi
+
+# File operations use secure path validation
+mac-chrome-cli files upload --selector "input[type=file]" --path "/secure/path/document.pdf"
+```
+
+## Error Handling Strategies
+
+The new architecture provides sophisticated error handling capabilities:
+
+### Recovery Hints
+
+Commands now provide recovery suggestions in their error responses:
+
+```bash
+# Extract recovery strategies from errors
+handle_error() {
+  local result="$1"
+  local recovery=$(echo "$result" | jq -r '.context.recoveryHint // "not_recoverable"')
+  
+  case "$recovery" in
+    "retry")
+      echo "Operation can be safely retried"
+      return 1  # Signal retry
+      ;;
+    "retry_with_delay") 
+      echo "Retrying after delay..."
+      sleep 5
+      return 1  # Signal retry
+      ;;
+    "permission")
+      echo "Permission required - running diagnostics"
+      mac-chrome-cli doctor
+      return 2  # Signal permission issue
+      ;;
+    "check_target")
+      echo "Target element verification needed"
+      mac-chrome-cli snapshot outline --visible-only
+      return 3  # Signal target issue
+      ;;
+    "not_recoverable")
+      echo "Unrecoverable error occurred"
+      return 4  # Signal fatal error
+      ;;
+  esac
+}
+
+# Usage in automation scripts
+for attempt in {1..3}; do
+  result=$(mac-chrome-cli mouse click --selector "#submit-btn" --json)
+  
+  if echo "$result" | jq -e '.success' > /dev/null; then
+    echo "Click successful"
+    break
+  elif handle_error "$result"; then
+    continue  # Retry based on recovery hint
+  else
+    echo "Operation failed after $attempt attempts"
+    exit 1
+  fi
+done
+```
+
+### Context-Rich Error Information
+
+Errors now include detailed context for debugging:
+
+```bash
+# Extract detailed error context
+analyze_error() {
+  local result="$1"
+  echo "Error Analysis:"
+  echo "  Code: $(echo "$result" | jq -r '.code')"
+  echo "  Message: $(echo "$result" | jq -r '.error')" 
+  echo "  Timestamp: $(echo "$result" | jq -r '.timestamp')"
+  echo "  Duration: $(echo "$result" | jq -r '.context.durationMs // "unknown"')ms"
+  echo "  Recovery: $(echo "$result" | jq -r '.context.recoveryHint // "none"')"
+  
+  # Additional context if available
+  if echo "$result" | jq -e '.context.metadata' > /dev/null; then
+    echo "  Metadata:"
+    echo "$result" | jq '.context.metadata' | sed 's/^/    /'
+  fi
+}
+```
+
 ## Recommended Workflows
 
 ### Web Testing Automation
@@ -329,3 +521,48 @@ mac-chrome-cli netlog dump --format json | jq '.events[-5:]'
 5. **Build reusable automation modules** for common patterns
 
 For complete command reference and options, see [API.md](./API.md).
+
+## Git Commit Conventions
+
+This project uses [Conventional Commits](https://www.conventionalcommits.org/) specification:
+
+**Format**: `<type>[optional scope]: <description>`
+
+**Types:**
+- `feat`: New feature
+- `fix`: Bug fix  
+- `docs`: Documentation only changes
+- `style`: Code style changes (formatting, missing semicolons, etc.)
+- `refactor`: Code change that neither fixes a bug nor adds a feature
+- `perf`: Performance improvements
+- `test`: Adding missing tests or correcting existing tests
+- `chore`: Changes to build process or auxiliary tools
+- `ci`: CI configuration changes
+- `build`: Changes that affect the build system or dependencies
+
+**Scopes** (optional):
+- `cli`: Command-line interface changes
+- `core`: Core functionality changes  
+- `security`: Security-related changes
+- `perf`: Performance optimizations
+- `docs`: Documentation changes
+- `deps`: Dependency changes
+
+**Breaking Changes**: Add `!` after type/scope or `BREAKING CHANGE:` in footer
+
+**Examples:**
+```
+feat(cli): add memory monitoring commands
+fix(security): prevent directory traversal in file uploads  
+docs: update architecture overview in README
+refactor!: migrate to unified Result<T,E> pattern
+perf(core): implement AppleScript connection pooling
+test: add comprehensive failure scenario coverage
+```
+
+**Attribution**: Include Claude Code attribution for AI-assisted changes:
+```
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+```

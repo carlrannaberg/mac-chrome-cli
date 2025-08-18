@@ -1,68 +1,227 @@
-import { execChromeJS, type JavaScriptResult } from '../lib/apple.js';
-import { formatJSONResult, ERROR_CODES, type JSONResult } from '../lib/util.js';
+/**
+ * @fileoverview Page snapshot functionality for capturing interactive elements and DOM structure
+ * 
+ * This module provides comprehensive page snapshotting capabilities to capture
+ * interactive elements, accessibility information, and DOM structure. It supports
+ * two modes: outline (flat list of interactive elements) and dom-lite (pruned hierarchy).
+ * 
+ * @example
+ * ```typescript
+ * // Capture interactive elements only
+ * const outlineResult = await captureOutline({ visibleOnly: true });
+ * 
+ * // Capture DOM structure with hierarchy
+ * const domLiteResult = await captureDomLite({ maxDepth: 5, visibleOnly: true });
+ * ```
+ * 
+ * @author mac-chrome-cli
+ * @version 1.0.0
+ */
 
+import { execChromeJS, type JavaScriptResult } from '../lib/apple.js';
+import { Result, ok, error, ErrorCode } from '../core/index.js';
+import { BrowserCommandBase, CommandUtils } from '../core/CommandBase.js';
+import { ErrorUtils } from '../core/ErrorUtils.js';
+
+/**
+ * Represents the bounding rectangle of a DOM element.
+ * Coordinates are relative to the viewport.
+ * 
+ * @interface ElementRect
+ * @example
+ * ```typescript
+ * const rect: ElementRect = {
+ *   x: 100,      // Left edge position
+ *   y: 50,       // Top edge position  
+ *   w: 200,      // Width in pixels
+ *   h: 30        // Height in pixels
+ * };
+ * ```
+ */
 export interface ElementRect {
+  /** X coordinate of the element's left edge relative to viewport */
   x: number;
+  /** Y coordinate of the element's top edge relative to viewport */
   y: number;
+  /** Width of the element in pixels */
   w: number;
+  /** Height of the element in pixels */
   h: number;
 }
 
+/**
+ * Represents the current state and properties of a DOM element.
+ * Used to capture form states, interaction states, and accessibility properties.
+ * 
+ * @interface ElementState
+ * @example
+ * ```typescript
+ * const buttonState: ElementState = {
+ *   editable: false,
+ *   disabled: false,
+ *   focused: true,
+ *   checked: undefined  // Not applicable for buttons
+ * };
+ * ```
+ */
 export interface ElementState {
+  /** Whether the element can be edited (inputs, contentEditable) */
   editable?: boolean;
+  /** Whether the element is disabled */
   disabled?: boolean;
+  /** Current value for form elements (passwords are masked) */
   value?: string;
+  /** Whether checkboxes/radio buttons are checked */
   checked?: boolean;
+  /** Whether expandable elements are expanded (aria-expanded) */
   expanded?: boolean;
+  /** Whether option elements are selected */
   selected?: boolean;
+  /** Whether the element is hidden via CSS */
   hidden?: boolean;
+  /** Whether the element currently has focus */
   focused?: boolean;
 }
 
+/**
+ * Represents a single DOM element captured in a page snapshot.
+ * Contains accessibility information, selectors, positioning, and metadata.
+ * 
+ * @interface SnapshotNode
+ * @example
+ * ```typescript
+ * const node: SnapshotNode = {
+ *   role: 'button',
+ *   name: 'Submit Form',
+ *   selector: '#submit-btn',
+ *   rect: { x: 100, y: 200, w: 80, h: 32 },
+ *   state: { editable: false, disabled: false },
+ *   tagName: 'button',
+ *   type: 'submit'
+ * };
+ * ```
+ */
 export interface SnapshotNode {
+  /** ARIA role (explicit or computed implicit role) */
   role: string;
+  /** Accessible name derived from labels, aria-label, text content, etc. */
   name: string;
+  /** Unique CSS selector to target this element */
   selector: string;
+  /** Element's bounding rectangle in viewport coordinates */
   rect: ElementRect;
+  /** Current state and properties of the element */
   state: ElementState;
+  /** HTML tag name in lowercase */
   tagName?: string;
+  /** Element's id attribute */
   id?: string;
+  /** Element's class attribute value */
   className?: string;
+  /** href attribute for links */
   href?: string;
+  /** src attribute for images and media */
   src?: string;
+  /** alt attribute for images */
   alt?: string;
+  /** title attribute for tooltips */
   title?: string;
+  /** type attribute for inputs */
   type?: string;
+  /** placeholder attribute for inputs */
   placeholder?: string;
+  /** Explicit aria-label attribute */
   ariaLabel?: string;
+  /** Explicit role attribute */
   ariaRole?: string;
-  level?: number; // for DOM-lite hierarchy
-  parent?: string; // parent selector for DOM-lite
+  /** Hierarchy level (used in DOM-lite mode) */
+  level?: number;
+  /** Parent element selector (used in DOM-lite mode) */
+  parent?: string;
 }
 
+/**
+ * Result structure returned from page snapshot operations.
+ * Contains the captured elements and metadata about the operation.
+ * 
+ * @interface SnapshotResult
+ * @example
+ * ```typescript
+ * const result: SnapshotResult = {
+ *   ok: true,
+ *   cmd: 'snapshot.outline',
+ *   nodes: [],
+ *   meta: {
+ *     url: 'https://example.com',
+ *     title: 'Example Page',
+ *     timestamp: '2023-06-15T10:30:00.000Z',
+ *     durationMs: 150,
+ *     visibleOnly: true
+ *   }
+ * };
+ * ```
+ */
 export interface SnapshotResult {
+  /** Whether the snapshot operation succeeded */
   ok: boolean;
+  /** Command identifier that generated this result */
   cmd: string;
+  /** Array of captured DOM elements */
   nodes: SnapshotNode[];
+  /** Optional metadata about the snapshot operation */
   meta?: {
+    /** URL of the page when snapshot was taken */
     url: string;
+    /** Page title when snapshot was taken */
     title: string;
+    /** ISO timestamp of when snapshot was captured */
     timestamp: string;
+    /** How long the snapshot operation took in milliseconds */
     durationMs: number;
+    /** Whether only visible elements were captured */
     visibleOnly: boolean;
+    /** Maximum depth for DOM-lite mode */
     maxDepth?: number;
   };
 }
 
+/**
+ * Configuration options for snapshot operations.
+ * Controls what elements are captured and how the snapshot is structured.
+ * 
+ * @interface SnapshotOptions
+ * @example
+ * ```typescript
+ * // Capture only visible interactive elements
+ * const outlineOptions: SnapshotOptions = {
+ *   mode: 'outline',
+ *   visibleOnly: true
+ * };
+ * 
+ * // Capture DOM hierarchy with depth limit  
+ * const domLiteOptions: SnapshotOptions = {
+ *   mode: 'dom-lite',
+ *   maxDepth: 8,
+ *   visibleOnly: false
+ * };
+ * ```
+ */
 export interface SnapshotOptions {
+  /** Whether to only capture visible elements */
   visibleOnly?: boolean;
+  /** Maximum depth for DOM-lite hierarchy traversal */
   maxDepth?: number;
+  /** Snapshot mode: 'outline' for flat list, 'dom-lite' for hierarchy */
   mode: 'outline' | 'dom-lite';
 }
 
 /**
- * Get unique CSS selector for an element
- * Priority: id > data-testid > data-test > unique class > path
+ * JavaScript code that generates unique CSS selectors for DOM elements.
+ * Uses a priority system: id > data-testid > data-test > unique class > path-based selector.
+ * This ensures the most reliable and maintainable selectors are chosen first.
+ * 
+ * @constant {string} getSelectorScript
+ * @private
  */
 const getSelectorScript = `
 function getUniqueSelector(element) {
@@ -144,7 +303,12 @@ function getUniqueSelector(element) {
 `;
 
 /**
- * Check if element is visible in viewport
+ * JavaScript code that determines if a DOM element is visible in the viewport.
+ * Checks for CSS visibility, display properties, opacity, and viewport intersection.
+ * Used to filter elements when visibleOnly option is enabled.
+ * 
+ * @constant {string} isVisibleScript
+ * @private
  */
 const isVisibleScript = `
 function isElementVisible(element) {
@@ -163,7 +327,13 @@ function isElementVisible(element) {
 `;
 
 /**
- * Get element role and accessible name
+ * JavaScript code that extracts ARIA role and accessible name information from DOM elements.
+ * Implements the accessibility name computation algorithm following WCAG guidelines.
+ * Maps implicit roles for standard HTML elements and resolves accessible names from
+ * labels, aria-label, text content, and other sources in priority order.
+ * 
+ * @constant {string} getAccessibilityInfoScript
+ * @private
  */
 const getAccessibilityInfoScript = `
 function getAccessibilityInfo(element) {
@@ -286,7 +456,12 @@ function getAccessibilityInfo(element) {
 `;
 
 /**
- * Get element state information
+ * JavaScript code that captures the current state of DOM elements.
+ * Extracts form values, interaction states, accessibility properties,
+ * and visual states. Masks sensitive information like passwords.
+ * 
+ * @constant {string} getElementStateScript
+ * @private
  */
 const getElementStateScript = `
 function getElementState(element) {
@@ -343,7 +518,20 @@ function getElementState(element) {
 `;
 
 /**
- * Main snapshot extraction script
+ * Generates JavaScript code for capturing page snapshots in the browser.
+ * Creates a self-executing function that captures interactive elements based on the specified mode.
+ * 
+ * @param options - Configuration options for the snapshot operation
+ * @returns JavaScript code as a string that can be executed in Chrome
+ * 
+ * @example
+ * ```typescript
+ * const script = generateSnapshotScript({
+ *   mode: 'outline',
+ *   visibleOnly: true
+ * });
+ * const result = await execChromeJS(script);
+ * ```
  */
 function generateSnapshotScript(options: SnapshotOptions): string {
   return `
@@ -531,7 +719,7 @@ ${getElementStateScript}
   } catch (error) {
     return {
       ok: false,
-      cmd: 'snapshot.' + ${JSON.stringify(options.mode)},
+      cmd: 'snapshot.' + mode,
       nodes: [],
       error: error.message || 'Unknown error during snapshot'
     };
@@ -541,7 +729,22 @@ ${getElementStateScript}
 }
 
 /**
- * Capture page snapshot in outline mode (flat list of interactive elements)
+ * Captures a page snapshot in outline mode, returning a flat list of interactive elements.
+ * This mode focuses on elements that users can interact with (buttons, links, inputs, etc.)
+ * without preserving the DOM hierarchy.
+ * 
+ * @param options - Configuration options for the outline capture
+ * @param options.visibleOnly - If true, only capture elements visible in the viewport
+ * @returns Promise resolving to a JavaScriptResult containing the snapshot data
+ * 
+ * @example
+ * ```typescript
+ * // Capture all interactive elements
+ * const result = await captureOutline();
+ * 
+ * // Capture only visible elements
+ * const visibleResult = await captureOutline({ visibleOnly: true });
+ * ```
  */
 export async function captureOutline(options: { visibleOnly?: boolean } = {}): Promise<JavaScriptResult<SnapshotResult>> {
   const snapshotOptions: SnapshotOptions = {
@@ -554,7 +757,26 @@ export async function captureOutline(options: { visibleOnly?: boolean } = {}): P
 }
 
 /**
- * Capture page snapshot in DOM-lite mode (pruned hierarchy)
+ * Captures a page snapshot in DOM-lite mode, preserving a pruned hierarchy of elements.
+ * This mode maintains parent-child relationships while filtering out non-interactive elements,
+ * providing context about the page structure while keeping the data manageable.
+ * 
+ * @param options - Configuration options for the DOM-lite capture
+ * @param options.maxDepth - Maximum depth to traverse in the DOM tree (default: 10)
+ * @param options.visibleOnly - If true, only capture elements visible in the viewport
+ * @returns Promise resolving to a JavaScriptResult containing the hierarchical snapshot data
+ * 
+ * @example
+ * ```typescript
+ * // Capture with default settings
+ * const result = await captureDomLite();
+ * 
+ * // Capture with limited depth and visible elements only
+ * const limitedResult = await captureDomLite({ 
+ *   maxDepth: 5, 
+ *   visibleOnly: true 
+ * });
+ * ```
  */
 export async function captureDomLite(options: { maxDepth?: number; visibleOnly?: boolean } = {}): Promise<JavaScriptResult<SnapshotResult>> {
   const snapshotOptions: SnapshotOptions = {
@@ -568,24 +790,102 @@ export async function captureDomLite(options: { maxDepth?: number; visibleOnly?:
 }
 
 /**
- * Format snapshot result for CLI output
+ * Internal command class that extends BrowserCommandBase to provide snapshot functionality.
+ * This class handles parameter validation, error handling, and JavaScript execution
+ * for snapshot operations using the unified Result pattern.
+ * 
+ * @private
+ * @extends BrowserCommandBase
  */
-export function formatSnapshotResult(result: JavaScriptResult<SnapshotResult>): SnapshotResult | JSONResult<null> {
-  if (!result.success) {
-    return formatJSONResult(
-      null,
-      result.error || 'Failed to capture page snapshot',
-      result.code
+class SnapshotCommand extends BrowserCommandBase {
+  /**
+   * Executes a snapshot operation with comprehensive validation and error handling.
+   * Validates input parameters, generates and executes JavaScript, and returns
+   * results using the unified Result<T, E> pattern.
+   * 
+   * @param options - Snapshot configuration options
+   * @returns Promise resolving to a Result containing SnapshotResult or error message
+   * 
+   * @example
+   * ```typescript
+   * const result = await snapshotCommand.executeSnapshot({
+   *   mode: 'outline',
+   *   visibleOnly: true
+   * });
+   * 
+   * if (result.success) {
+   *   console.log(`Found ${result.data.nodes.length} elements`);
+   * } else {
+   *   console.error('Snapshot failed:', result.error);
+   * }
+   * ```
+   */
+  async executeSnapshot(options: SnapshotOptions): Promise<Result<SnapshotResult, string>> {
+    // Validate options
+    const validation = this.validateParams(options, {
+      visibleOnly: { type: 'boolean' },
+      maxDepth: { type: 'number', min: 1, max: 20 },
+      mode: { type: 'string', enum: ['outline', 'dom-lite'] as const }
+    });
+    
+    if (!validation.success) {
+      return validation as Result<SnapshotResult, string>;
+    }
+
+    const operationName = `snapshot-${options.mode}`;
+    
+    return this.executeJavaScript<SnapshotResult>(
+      getSnapshotJavaScript(options),
+      1, // tabIndex
+      1, // windowIndex
+      30000, // timeoutMs
+      operationName
     );
+  }
+}
+
+// Create singleton instance
+const snapshotCommand = new SnapshotCommand();
+
+/**
+ * Formats a JavaScript execution result into a standardized snapshot result format.
+ * Handles both successful snapshots and error cases, providing consistent output
+ * structure for CLI consumers.
+ * 
+ * @param result - The raw JavaScript execution result from Chrome
+ * @returns Formatted snapshot result or error object with consistent structure
+ * 
+ * @example
+ * ```typescript
+ * const jsResult = await execChromeJS(script);
+ * const formatted = formatSnapshotResult(jsResult);
+ * 
+ * if ('success' in formatted && !formatted.success) {
+ *   console.error('Snapshot failed:', formatted.error);
+ * } else if ('ok' in formatted && formatted.ok) {
+ *   console.log(`Captured ${formatted.nodes.length} elements`);
+ * }
+ * ```
+ */
+export function formatSnapshotResult(result: JavaScriptResult<SnapshotResult>): SnapshotResult | { success: false; error: string; code: ErrorCode; timestamp: string } {
+  if (!result.success) {
+    return {
+      success: false,
+      error: result.error || 'Failed to capture page snapshot',
+      code: result.code as ErrorCode,
+      timestamp: new Date().toISOString()
+    };
   }
   
   if (!result.result) {
-    return formatJSONResult(
-      null,
-      'No snapshot data returned',
-      ERROR_CODES.UNKNOWN_ERROR
-    );
+    return {
+      success: false,
+      error: 'No snapshot data returned',
+      code: ErrorCode.UNKNOWN_ERROR,
+      timestamp: new Date().toISOString()
+    };
   }
   
+  // Return the original SnapshotResult object for successful cases
   return result.result;
 }

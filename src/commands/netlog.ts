@@ -1,4 +1,22 @@
-import { execWithTimeout } from '../lib/util.js';
+import { NetworkDataSanitizer } from '../security/DataSanitizer.js';
+import { appleScriptService } from '../services/AppleScriptService.js';
+
+// Initialize data sanitizer
+const dataSanitizer = new NetworkDataSanitizer();
+
+/**
+ * Sanitize network events to remove sensitive data
+ */
+function sanitizeNetworkEvents(events: NetworkEvent[]): NetworkEvent[] {
+  return events.map(event => ({
+    ...event,
+    url: dataSanitizer.sanitizeUrl(event.url),
+    requestHeaders: dataSanitizer.sanitizeHeaders(event.requestHeaders),
+    ...(event.requestBody && { requestBody: dataSanitizer.sanitizeBody(event.requestBody) }),
+    ...(event.responseHeaders && { responseHeaders: dataSanitizer.sanitizeHeaders(event.responseHeaders) }),
+    ...(event.responseBody && { responseBody: dataSanitizer.sanitizeBody(event.responseBody) })
+  }));
+}
 
 // Network event types
 export type NetworkEventType = 'fetch' | 'xhr' | 'websocket';
@@ -349,15 +367,15 @@ const NETWORK_HOOK_SCRIPT = `
 `;
 
 /**
- * Execute AppleScript to inject network monitoring hooks
+ * Execute AppleScript to inject network monitoring hooks using unified service
  */
 async function executeAppleScript(script: string): Promise<{ success: boolean; result?: string; error?: string }> {
   try {
-    const result = await execWithTimeout('osascript', ['-e', script], 10000);
+    const result = await appleScriptService.executeScript(script, 10000);
     return {
       success: result.success,
-      result: result.stdout,
-      ...(result.stderr && { error: result.stderr })
+      result: result.result,
+      ...(result.error && { error: result.error })
     };
   } catch (error) {
     return {
@@ -566,9 +584,15 @@ if (window.__netlog) {
       };
     }
     
+    // Sanitize events before returning
+    const sanitizedData = {
+      ...data,
+      events: sanitizeNetworkEvents(data.events)
+    };
+    
     return {
       success: true,
-      data
+      data: sanitizedData
     };
   } catch (error) {
     return {
@@ -582,7 +606,9 @@ if (window.__netlog) {
  * Convert network events to HAR format
  */
 export function convertToHAR(events: NetworkEvent[]): HAR {
-  const entries: HAREntry[] = events.map(event => {
+  // Sanitize events before converting to HAR
+  const sanitizedEvents = sanitizeNetworkEvents(events);
+  const entries: HAREntry[] = sanitizedEvents.map(event => {
     const startedDateTime = new Date(event.timestamp).toISOString();
     const time = event.timing?.duration || 0;
     

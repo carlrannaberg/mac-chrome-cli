@@ -1,4 +1,5 @@
-import { formatJSONResult, ERROR_CODES, type JSONResult } from '../lib/util.js';
+import { Result, ok, error, ErrorCode } from '../core/index.js';
+import { ErrorUtils, validateInputParam, executeWithContext } from '../core/ErrorUtils.js';
 
 export interface WaitOptions {
   milliseconds?: number;
@@ -30,40 +31,40 @@ const MIN_WAIT_MS = 1;
 /**
  * Wait for the specified duration
  */
-export async function waitIdle(options: WaitOptions = {}): Promise<JSONResult<WaitResult | null>> {
+export async function waitIdle(options: WaitOptions = {}): Promise<Result<WaitResult, string>> {
   const requestedMs = options.milliseconds ?? DEFAULT_WAIT_MS;
   
-  // Validate input
+  // Validate input parameters - check for special cases first to match test expectations
   if (typeof requestedMs !== 'number' || isNaN(requestedMs)) {
-    return formatJSONResult(
-      null,
+    return ErrorUtils.validationError(
       'Invalid milliseconds value. Must be a number.',
-      ERROR_CODES.INVALID_INPUT
+      'milliseconds',
+      requestedMs
     );
   }
   
-  // Check for negative infinity specifically
+  // Check for -Infinity specifically (Infinity is handled in the "too long" check below)
   if (requestedMs === -Infinity) {
-    return formatJSONResult(
-      null,
-      'Invalid milliseconds value. Must be a number.',
-      ERROR_CODES.INVALID_INPUT
+    return ErrorUtils.validationError(
+      'Invalid milliseconds value. Must be a finite number.',
+      'milliseconds',
+      requestedMs
     );
   }
   
   if (requestedMs < MIN_WAIT_MS) {
-    return formatJSONResult(
-      null,
+    return ErrorUtils.validationError(
       `Wait duration too short. Minimum is ${MIN_WAIT_MS}ms.`,
-      ERROR_CODES.INVALID_INPUT
+      'milliseconds',
+      requestedMs
     );
   }
   
   if (requestedMs > MAX_WAIT_MS || requestedMs === Infinity) {
-    return formatJSONResult(
-      null,
+    return ErrorUtils.validationError(
       `Wait duration too long. Maximum is ${MAX_WAIT_MS}ms (10 minutes).`,
-      ERROR_CODES.INVALID_INPUT
+      'milliseconds',
+      requestedMs
     );
   }
   
@@ -105,7 +106,10 @@ export async function waitIdle(options: WaitOptions = {}): Promise<JSONResult<Wa
       timestamp: startTimestamp
     };
     
-    return formatJSONResult(result, undefined, ERROR_CODES.OK);
+    return ok(result, ErrorCode.OK, {
+      durationMs: actualMs,
+      metadata: { operation: 'wait-idle', requestedMs, actualMs }
+    });
     
   } catch (error) {
     const actualMs = Date.now() - startTime;
@@ -120,17 +124,25 @@ export async function waitIdle(options: WaitOptions = {}): Promise<JSONResult<Wa
         timestamp: startTimestamp
       };
       
-      return formatJSONResult(
-        result,
+      return error(
         error.message,
-        ERROR_CODES.TIMEOUT // Use timeout code for interruptions
+        ErrorCode.TIMEOUT,
+        {
+          recoveryHint: 'retry',
+          metadata: { 
+            operation: 'wait-idle', 
+            requestedMs, 
+            actualMs, 
+            interrupted: true 
+          }
+        }
       );
     }
     
-    return formatJSONResult(
-      null,
-      `Wait command failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      ERROR_CODES.UNKNOWN_ERROR
+    return ErrorUtils.fromException(
+      error,
+      'wait-idle',
+      ErrorCode.UNKNOWN_ERROR
     );
   }
 }

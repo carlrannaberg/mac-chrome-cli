@@ -1,5 +1,7 @@
 import { execChromeJS, type JavaScriptResult } from '../lib/apple.js';
-import { ERROR_CODES, validateInput } from '../lib/util.js';
+import { ErrorCode, Result, ok, error } from '../core/index.js';
+import { ErrorUtils, validateInputParam, executeWithContext } from '../core/ErrorUtils.js';
+import { withRetry } from '../core/RetryHandler.js';
 
 export interface ScrollPosition {
   x: number;
@@ -24,13 +26,11 @@ export async function scrollToElement(
   tabIndex: number = 1,
   windowIndex: number = 1,
   timeoutMs: number = 10000
-): Promise<JavaScriptResult<ScrollResult>> {
-  if (!validateInput(selector, 'string')) {
-    return {
-      success: false,
-      error: 'Invalid selector parameter',
-      code: ERROR_CODES.INVALID_INPUT
-    };
+): Promise<Result<ScrollResult, string>> {
+  // Validate input parameters
+  const selectorValidation = validateInputParam(selector, 'selector', 'string');
+  if (!selectorValidation.success) {
+    return selectorValidation as Result<ScrollResult, string>;
   }
 
   const javascript = `
@@ -60,17 +60,28 @@ export async function scrollToElement(
   };
 })()`;
 
-  const result = await execChromeJS<ScrollResult>(javascript, tabIndex, windowIndex, timeoutMs);
-  
-  if (!result.success) {
-    return {
-      success: false,
-      error: result.error || 'Failed to scroll to element',
-      code: result.code
-    };
-  }
-
-  return result;
+  // Execute with retry and error context
+  return withRetry(async () => {
+    const result = await execChromeJS<ScrollResult>(javascript, tabIndex, windowIndex, timeoutMs);
+    
+    if (!result.success) {
+      if (result.error?.includes('Element not found')) {
+        return ErrorUtils.targetNotFoundError(selector, 'scroll target');
+      }
+      return error(
+        result.error || 'Failed to scroll to element',
+        result.code as ErrorCode,
+        {
+          recoveryHint: 'check_target',
+          metadata: { selector, operation: 'scroll-to-element' }
+        }
+      );
+    }
+    
+    return ok(result.result as ScrollResult, ErrorCode.OK, {
+      metadata: { selector, smooth, operation: 'scroll-to-element' }
+    });
+  }, { maxAttempts: 2, initialDelayMs: 500 }, `scroll to element: ${selector}`);
 }
 
 /**
@@ -83,13 +94,15 @@ export async function scrollByPixels(
   tabIndex: number = 1,
   windowIndex: number = 1,
   timeoutMs: number = 10000
-): Promise<JavaScriptResult<ScrollResult>> {
-  if (!validateInput(pixels, 'number')) {
-    return {
-      success: false,
-      error: 'Invalid pixels parameter',
-      code: ERROR_CODES.INVALID_INPUT
-    };
+): Promise<Result<ScrollResult, string>> {
+  // Validate input parameters
+  const pixelsValidation = validateInputParam(pixels, 'pixels', 'number');
+  if (!pixelsValidation.success) {
+    return pixelsValidation as Result<ScrollResult, string>;
+  }
+  
+  if (pixels < 0) {
+    return ErrorUtils.validationError('Pixels must be a positive number', 'pixels', pixels);
   }
 
   const javascript = `
@@ -129,17 +142,16 @@ export async function scrollByPixels(
   };
 })()`;
 
-  const result = await execChromeJS<ScrollResult>(javascript, tabIndex, windowIndex, timeoutMs);
-  
-  if (!result.success) {
-    return {
-      success: false,
-      error: result.error || 'Failed to scroll by pixels',
-      code: result.code
-    };
-  }
-
-  return result;
+  // Execute with error context
+  return executeWithContext(async () => {
+    const result = await execChromeJS<ScrollResult>(javascript, tabIndex, windowIndex, timeoutMs);
+    
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to scroll by pixels');
+    }
+    
+    return result.result as ScrollResult;
+  }, `scroll by ${pixels}px ${direction}`);
 }
 
 /**
@@ -149,7 +161,7 @@ export async function getScrollPosition(
   tabIndex: number = 1,
   windowIndex: number = 1,
   timeoutMs: number = 10000
-): Promise<JavaScriptResult<ScrollResult>> {
+): Promise<Result<ScrollResult, string>> {
   const javascript = `
 (() => {
   const scrollX = window.pageXOffset || document.documentElement.scrollLeft;
@@ -164,15 +176,14 @@ export async function getScrollPosition(
   };
 })()`;
 
-  const result = await execChromeJS<ScrollResult>(javascript, tabIndex, windowIndex, timeoutMs);
-  
-  if (!result.success) {
-    return {
-      success: false,
-      error: result.error || 'Failed to get scroll position',
-      code: result.code
-    };
-  }
-
-  return result;
+  // Execute with error context
+  return executeWithContext(async () => {
+    const result = await execChromeJS<ScrollResult>(javascript, tabIndex, windowIndex, timeoutMs);
+    
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to get scroll position');
+    }
+    
+    return result.result as ScrollResult;
+  }, 'get scroll position');
 }

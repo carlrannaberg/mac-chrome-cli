@@ -1,6 +1,7 @@
 import { getScreenCoordinates, validateElementVisibility, type CoordinateResult } from './coords.js';
 import { clickAt, doubleClickAt, rightClickAt, moveTo, dragFromTo, type ClickOptions, type UIResult } from './ui.js';
 import { ERROR_CODES, validateInput, type ErrorCode } from './util.js';
+import { Result, ok, error, type ResultContext } from '../core/index.js';
 
 export interface MouseOptions {
   selector?: string;
@@ -13,7 +14,29 @@ export interface MouseOptions {
   windowIndex?: number;
 }
 
-export interface MouseResult {
+/**
+ * Mouse action data
+ */
+export interface MouseActionData {
+  action: string;
+  coordinates?: { x: number; y: number };
+  element?: {
+    selector: string;
+    visible: boolean;
+    clickable: boolean;
+  };
+}
+
+/**
+ * Mouse action result using unified Result<T,E> pattern
+ */
+export type MouseResult = Result<MouseActionData, string>;
+
+/**
+ * Legacy MouseResult interface for backward compatibility
+ * @deprecated Use MouseResult (Result<MouseActionData, string>) instead
+ */
+export interface LegacyMouseResult {
   success: boolean;
   action: string;
   coordinates?: { x: number; y: number } | undefined;

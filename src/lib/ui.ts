@@ -1,4 +1,5 @@
 import { execWithTimeout, ERROR_CODES, sleep, type ErrorCode } from './util.js';
+import { Result, ok, error, type ResultContext } from '../core/index.js';
 
 export interface ClickOptions {
   button?: 'left' | 'right' | 'middle';
@@ -11,7 +12,24 @@ export interface KeyboardOptions {
   modifiers?: string[];
 }
 
-export interface UIResult {
+/**
+ * UI action data
+ */
+export interface UIActionData {
+  action: string;
+  coordinates?: { x: number; y: number };
+}
+
+/**
+ * UI action result using unified Result<T,E> pattern
+ */
+export type UIResult = Result<UIActionData, string>;
+
+/**
+ * Legacy UIResult interface for backward compatibility
+ * @deprecated Use UIResult (Result<UIActionData, string>) instead
+ */
+export interface LegacyUIResult {
   success: boolean;
   action: string;
   coordinates?: { x: number; y: number };

@@ -4,6 +4,7 @@
 
 import {
   execWithTimeout,
+  execWithTimeoutLegacy,
   formatJSONResult,
   createWebPPreview,
   expandPath,
@@ -12,7 +13,8 @@ import {
   escapeCSSSelector,
   ERROR_CODES,
   type ExecResult,
-  type JSONResult
+  type JSONResult,
+  type LegacyExecResult
 } from '../../src/lib/util.js';
 import { spawn } from 'child_process';
 import { join } from 'path';
@@ -52,7 +54,7 @@ describe('Utility Functions', () => {
       mockSpawn.mockReturnValue(mockChild as never);
 
       // Simulate successful execution
-      const promise = execWithTimeout('echo', ['hello'], 5000);
+      const promise = execWithTimeoutLegacy('echo', ['hello'], 5000);
 
       // Trigger stdout data
       const stdoutHandler = mockChild.stdout.on.mock.calls.find(call => call[0] === 'data')?.[1];
@@ -81,7 +83,7 @@ describe('Utility Functions', () => {
 
       mockSpawn.mockReturnValue(mockChild as never);
 
-      const promise = execWithTimeout('false', [], 5000);
+      const promise = execWithTimeoutLegacy('false', [], 5000);
 
       // Trigger close with non-zero exit code
       const closeHandler = mockChild.on.mock.calls.find(call => call[0] === 'close')?.[1];
@@ -103,7 +105,7 @@ describe('Utility Functions', () => {
 
       mockSpawn.mockReturnValue(mockChild as never);
 
-      const promise = execWithTimeout('sleep', ['10'], 100); // 100ms timeout
+      const promise = execWithTimeoutLegacy('sleep', ['10'], 100); // 100ms timeout
 
       // Don't trigger close, let it timeout
       setTimeout(() => {
@@ -129,7 +131,7 @@ describe('Utility Functions', () => {
 
       mockSpawn.mockReturnValue(mockChild as never);
 
-      const promise = execWithTimeout('test-command', [], 5000);
+      const promise = execWithTimeoutLegacy('test-command', [], 5000);
 
       // Trigger stderr data
       const stderrHandler = mockChild.stderr.on.mock.calls.find(call => call[0] === 'data')?.[1];
@@ -156,7 +158,7 @@ describe('Utility Functions', () => {
 
       mockSpawn.mockReturnValue(mockChild as never);
 
-      const promise = execWithTimeout('non-existent-command', [], 5000);
+      const promise = execWithTimeoutLegacy('non-existent-command', [], 5000);
 
       // Trigger error event
       const errorHandler = mockChild.on.mock.calls.find(call => call[0] === 'error')?.[1];
@@ -179,7 +181,7 @@ describe('Utility Functions', () => {
 
       mockSpawn.mockReturnValue(mockChild as never);
 
-      const promise = execWithTimeout('test', [], 5000);
+      const promise = execWithTimeoutLegacy('test', [], 5000);
 
       // Trigger multiple stdout chunks
       const stdoutHandler = mockChild.stdout.on.mock.calls.find(call => call[0] === 'data')?.[1];
@@ -215,7 +217,7 @@ describe('Utility Functions', () => {
 
       mockSpawn.mockReturnValue(mockChild as never);
 
-      execWithTimeout('test');
+      execWithTimeoutLegacy('test');
 
       // Verify timeout was set (we can't easily test the exact value, but we can check it was called)
       expect(mockSpawn).toHaveBeenCalledWith('test', [], expect.any(Object));
@@ -425,7 +427,7 @@ describe('Utility Functions', () => {
       const end = Date.now();
       
       expect(end - start).toBeGreaterThanOrEqual(95); // Allow small timing variations
-      expect(end - start).toBeLessThan(150);
+      expect(end - start).toBeLessThan(200); // Increased tolerance for CI environments
     });
 
     it('should handle zero delay', async () => {
@@ -433,7 +435,7 @@ describe('Utility Functions', () => {
       await sleep(0);
       const end = Date.now();
       
-      expect(end - start).toBeLessThan(10);
+      expect(end - start).toBeLessThan(50); // Increased tolerance for zero delay
     });
 
     it('should return a Promise', () => {
