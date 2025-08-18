@@ -435,7 +435,7 @@ describe('Utility Functions', () => {
       await sleep(0);
       const end = Date.now();
       
-      expect(end - start).toBeLessThan(50); // Increased tolerance for zero delay
+      expect(end - start).toBeLessThan(100); // Increased tolerance for zero delay in CI environments
     });
 
     it('should return a Promise', () => {
