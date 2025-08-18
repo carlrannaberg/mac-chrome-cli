@@ -595,6 +595,1573 @@ if (!safePath.success) {
 
 ---
 
+## Service Interface Definitions
+
+### Core Service Interfaces
+
+This section provides complete interface definitions for all services in the refactored architecture, ensuring type safety and clear contracts between components.
+
+#### IAppleScriptService
+
+```typescript
+// src/services/interfaces/IAppleScriptService.ts
+export interface IAppleScriptService {
+  /**
+   * Execute AppleScript with caching and error handling
+   * @param script - The AppleScript code to execute
+   * @param options - Execution options including timeout and retries
+   * @returns Promise resolving to script output or error
+   */
+  execute(script: string, options?: ExecutionOptions): Promise<Result<string>>;
+  
+  /**
+   * Execute JavaScript in Chrome browser context
+   * @param js - JavaScript code to execute
+   * @param context - Browser context (tab, window)
+   * @returns Promise resolving to execution result
+   */
+  executeJavaScript<T = any>(js: string, context: BrowserContext): Promise<Result<T>>;
+  
+  /**
+   * Execute JavaScript with DOM element selection
+   * @param js - JavaScript code template
+   * @param selector - CSS selector for target element
+   * @param context - Browser context
+   * @returns Promise resolving to element operation result
+   */
+  executeWithSelector<T = any>(
+    js: string, 
+    selector: string, 
+    context: BrowserContext
+  ): Promise<Result<T>>;
+  
+  /**
+   * Validate system permissions for AppleScript execution
+   * @returns Promise resolving to permission status
+   */
+  validatePermissions(): Promise<Result<PermissionStatus>>;
+  
+  /**
+   * Check if Chrome browser is running and accessible
+   * @returns Promise resolving to browser availability status
+   */
+  checkBrowserAvailability(): Promise<Result<BrowserStatus>>;
+  
+  /**
+   * Get current AppleScript execution statistics
+   * @returns Service statistics including cache hits, execution times
+   */
+  getStatistics(): ServiceStatistics;
+  
+  /**
+   * Start the service and initialize connections
+   * @returns Promise resolving when service is ready
+   */
+  start(): Promise<Result<void>>;
+  
+  /**
+   * Stop the service and cleanup resources
+   * @returns Promise resolving when cleanup is complete
+   */
+  stop(): Promise<Result<void>>;
+  
+  /**
+   * Clear internal caches and reset state
+   * @returns Promise resolving when cleanup is complete
+   */
+  cleanup(): Promise<Result<void>>;
+}
+
+export interface ExecutionOptions {
+  timeout?: number;           // Execution timeout in milliseconds (default: 5000)
+  retries?: number;          // Number of retry attempts (default: 2)
+  cacheKey?: string;         // Custom cache key for result caching
+  cacheTTL?: number;         // Cache time-to-live in seconds
+  suppressErrors?: boolean;   // Whether to suppress non-critical errors
+}
+
+export interface BrowserContext {
+  tabIndex?: number;         // Target tab index (default: active tab)
+  windowIndex?: number;      // Target window index (default: front window)
+  validate?: boolean;        // Validate context before execution
+}
+
+export interface PermissionStatus {
+  appleScript: boolean;      // AppleScript execution permission
+  automation: boolean;       // Browser automation permission
+  screenRecording: boolean;  // Screen recording permission
+  accessibility: boolean;    // Accessibility permission
+}
+
+export interface BrowserStatus {
+  isRunning: boolean;        // Chrome is running
+  isAccessible: boolean;     // Chrome is accessible via AppleScript
+  version: string;           // Chrome version
+  tabCount: number;          // Number of open tabs
+  activeTabUrl: string;      // URL of active tab
+}
+```
+
+#### ICacheService
+
+```typescript
+// src/services/interfaces/ICacheService.ts
+export interface ICacheService {
+  /**
+   * Store value in cache with optional TTL
+   * @param key - Cache key
+   * @param value - Value to store
+   * @param ttl - Time to live in seconds
+   * @returns Promise resolving when storage is complete
+   */
+  set(key: string, value: any, ttl?: number): Promise<Result<void>>;
+  
+  /**
+   * Retrieve value from cache
+   * @param key - Cache key
+   * @returns Promise resolving to cached value or null if not found
+   */
+  get<T = any>(key: string): Promise<Result<T | null>>;
+  
+  /**
+   * Check if key exists in cache
+   * @param key - Cache key to check
+   * @returns Promise resolving to existence status
+   */
+  has(key: string): Promise<Result<boolean>>;
+  
+  /**
+   * Remove value from cache
+   * @param key - Cache key to remove
+   * @returns Promise resolving when deletion is complete
+   */
+  delete(key: string): Promise<Result<void>>;
+  
+  /**
+   * Clear all cached values
+   * @returns Promise resolving when cache is cleared
+   */
+  clear(): Promise<Result<void>>;
+  
+  /**
+   * Get cache statistics and metrics
+   * @returns Cache performance metrics
+   */
+  getStatistics(): CacheStatistics;
+  
+  /**
+   * Set cache size limit
+   * @param maxSize - Maximum number of entries
+   * @returns Promise resolving when limit is applied
+   */
+  setMaxSize(maxSize: number): Promise<Result<void>>;
+  
+  /**
+   * Perform cache cleanup and optimization
+   * @returns Promise resolving when optimization is complete
+   */
+  optimize(): Promise<Result<void>>;
+  
+  /**
+   * Start cache service with monitoring
+   * @returns Promise resolving when service is ready
+   */
+  start(): Promise<Result<void>>;
+  
+  /**
+   * Stop cache service and persist data if configured
+   * @returns Promise resolving when shutdown is complete
+   */
+  stop(): Promise<Result<void>>;
+}
+
+export interface CacheStatistics {
+  hitRate: number;           // Cache hit rate percentage
+  totalRequests: number;     // Total cache requests
+  totalHits: number;         // Total cache hits
+  totalMisses: number;       // Total cache misses
+  currentSize: number;       // Current number of entries
+  maxSize: number;           // Maximum allowed entries
+  memoryUsage: number;       // Estimated memory usage in bytes
+  averageResponseTime: number; // Average response time in milliseconds
+}
+```
+
+#### ICommandExecutor
+
+```typescript
+// src/services/interfaces/ICommandExecutor.ts
+export interface ICommandExecutor {
+  /**
+   * Execute system command with options
+   * @param command - Command to execute
+   * @param args - Command arguments
+   * @param options - Execution options
+   * @returns Promise resolving to command output
+   */
+  run(command: string, args: string[], options?: CommandOptions): Promise<Result<CommandOutput>>;
+  
+  /**
+   * Execute command with streaming output
+   * @param command - Command to execute
+   * @param args - Command arguments
+   * @param callback - Callback for streaming output
+   * @param options - Execution options
+   * @returns Promise resolving when command completes
+   */
+  runStreaming(
+    command: string, 
+    args: string[], 
+    callback: (chunk: string) => void,
+    options?: CommandOptions
+  ): Promise<Result<void>>;
+  
+  /**
+   * Execute command in background
+   * @param command - Command to execute
+   * @param args - Command arguments
+   * @param options - Execution options
+   * @returns Promise resolving to process handle
+   */
+  runBackground(
+    command: string, 
+    args: string[], 
+    options?: CommandOptions
+  ): Promise<Result<ProcessHandle>>;
+  
+  /**
+   * Kill running background process
+   * @param handle - Process handle from runBackground
+   * @returns Promise resolving when process is terminated
+   */
+  kill(handle: ProcessHandle): Promise<Result<void>>;
+  
+  /**
+   * Check if command is available on system
+   * @param command - Command name to check
+   * @returns Promise resolving to availability status
+   */
+  isAvailable(command: string): Promise<Result<boolean>>;
+  
+  /**
+   * Get executor statistics and performance metrics
+   * @returns Executor performance data
+   */
+  getStatistics(): ExecutorStatistics;
+  
+  /**
+   * Set resource limits for command execution
+   * @param limits - Resource limits configuration
+   * @returns Promise resolving when limits are applied
+   */
+  setLimits(limits: ResourceLimits): Promise<Result<void>>;
+  
+  /**
+   * Start executor service
+   * @returns Promise resolving when service is ready
+   */
+  start(): Promise<Result<void>>;
+  
+  /**
+   * Stop executor service and terminate running processes
+   * @returns Promise resolving when shutdown is complete
+   */
+  stop(): Promise<Result<void>>;
+}
+
+export interface CommandOptions {
+  timeout?: number;          // Execution timeout in milliseconds
+  cwd?: string;             // Working directory
+  env?: Record<string, string>; // Environment variables
+  shell?: boolean;          // Execute in shell
+  encoding?: string;        // Output encoding (default: 'utf8')
+  maxBuffer?: number;       // Maximum output buffer size
+}
+
+export interface CommandOutput {
+  stdout: string;           // Standard output
+  stderr: string;           // Standard error
+  exitCode: number;         // Exit code
+  duration: number;         // Execution duration in milliseconds
+  command: string;          // Executed command
+}
+
+export interface ProcessHandle {
+  pid: number;              // Process ID
+  command: string;          // Command being executed
+  startTime: Date;          // Process start time
+}
+
+export interface ExecutorStatistics {
+  totalExecutions: number;   // Total commands executed
+  successRate: number;       // Success rate percentage
+  averageExecutionTime: number; // Average execution time
+  activeProcesses: number;   // Currently running processes
+  memoryUsage: number;       // Current memory usage
+}
+
+export interface ResourceLimits {
+  maxMemory?: number;        // Maximum memory usage in MB
+  maxConcurrency?: number;   // Maximum concurrent processes
+  maxExecutionTime?: number; // Maximum execution time in seconds
+}
+```
+
+#### IDataSanitizer
+
+```typescript
+// src/services/interfaces/IDataSanitizer.ts
+export interface IDataSanitizer {
+  /**
+   * Sanitize HTTP headers by removing sensitive information
+   * @param headers - Raw HTTP headers
+   * @returns Sanitized headers with sensitive data redacted
+   */
+  sanitizeHeaders(headers: Record<string, string>): Record<string, string>;
+  
+  /**
+   * Sanitize request/response body content
+   * @param body - Raw body content
+   * @param contentType - Content-Type header value
+   * @returns Sanitized body with sensitive data redacted
+   */
+  sanitizeBody(body: string, contentType?: string): string;
+  
+  /**
+   * Sanitize URL by removing sensitive query parameters
+   * @param url - Raw URL
+   * @returns Sanitized URL with sensitive parameters redacted
+   */
+  sanitizeUrl(url: string): string;
+  
+  /**
+   * Sanitize JavaScript code by removing potential security risks
+   * @param code - Raw JavaScript code
+   * @param options - Sanitization options
+   * @returns Sanitized JavaScript code
+   */
+  sanitizeJavaScript(code: string, options?: SanitizationOptions): Result<string>;
+  
+  /**
+   * Sanitize file path to prevent directory traversal
+   * @param path - Raw file path
+   * @returns Sanitized and validated file path
+   */
+  sanitizePath(path: string): Result<string>;
+  
+  /**
+   * Add custom sanitization pattern
+   * @param pattern - Regular expression pattern
+   * @param replacement - Replacement string
+   * @returns Promise resolving when pattern is added
+   */
+  addPattern(pattern: RegExp, replacement: string): Promise<Result<void>>;
+  
+  /**
+   * Remove custom sanitization pattern
+   * @param pattern - Pattern to remove
+   * @returns Promise resolving when pattern is removed
+   */
+  removePattern(pattern: RegExp): Promise<Result<void>>;
+  
+  /**
+   * Get sanitization statistics
+   * @returns Statistics on sanitization operations
+   */
+  getStatistics(): SanitizationStatistics;
+  
+  /**
+   * Configure sanitization rules
+   * @param config - Sanitization configuration
+   * @returns Promise resolving when configuration is applied
+   */
+  configure(config: SanitizationConfig): Promise<Result<void>>;
+  
+  /**
+   * Start sanitizer service
+   * @returns Promise resolving when service is ready
+   */
+  start(): Promise<Result<void>>;
+  
+  /**
+   * Stop sanitizer service
+   * @returns Promise resolving when service is stopped
+   */
+  stop(): Promise<Result<void>>;
+}
+
+export interface SanitizationOptions {
+  level: 'basic' | 'strict' | 'paranoid'; // Sanitization level
+  allowEval?: boolean;       // Allow eval() function
+  allowDOM?: boolean;        // Allow DOM manipulation
+  customPatterns?: Array<{ pattern: RegExp; replacement: string }>; // Custom patterns
+}
+
+export interface SanitizationStatistics {
+  totalSanitizations: number; // Total sanitization operations
+  patternsMatched: Record<string, number>; // Patterns matched count
+  bytesProcessed: number;     // Total bytes processed
+  averageProcessingTime: number; // Average processing time
+}
+
+export interface SanitizationConfig {
+  enabledPatterns: string[]; // Enabled pattern names
+  customPatterns: Array<{ name: string; pattern: RegExp; replacement: string }>;
+  logMatches: boolean;       // Log pattern matches
+  strictMode: boolean;       // Enable strict sanitization
+}
+```
+
+#### ServiceContainer Interface
+
+```typescript
+// src/core/ServiceContainer.ts
+export interface ServiceContainer {
+  /**
+   * Register a service instance
+   * @param token - Service identifier token
+   * @param instance - Service instance or factory
+   * @param options - Registration options
+   * @returns Promise resolving when service is registered
+   */
+  register<T>(
+    token: ServiceToken<T>, 
+    instance: T | ServiceFactory<T>,
+    options?: RegistrationOptions
+  ): Promise<Result<void>>;
+  
+  /**
+   * Resolve a service instance
+   * @param token - Service identifier token
+   * @returns Promise resolving to service instance
+   */
+  resolve<T>(token: ServiceToken<T>): Promise<Result<T>>;
+  
+  /**
+   * Check if service is registered
+   * @param token - Service identifier token
+   * @returns Whether service is registered
+   */
+  has<T>(token: ServiceToken<T>): boolean;
+  
+  /**
+   * Unregister a service
+   * @param token - Service identifier token
+   * @returns Promise resolving when service is unregistered
+   */
+  unregister<T>(token: ServiceToken<T>): Promise<Result<void>>;
+  
+  /**
+   * Create child container with inherited services
+   * @returns New child container instance
+   */
+  createChild(): ServiceContainer;
+  
+  /**
+   * Get all registered service tokens
+   * @returns Array of registered service tokens
+   */
+  getRegisteredTokens(): ServiceToken<any>[];
+  
+  /**
+   * Start all registered services
+   * @returns Promise resolving when all services are started
+   */
+  startAll(): Promise<Result<void>>;
+  
+  /**
+   * Stop all registered services
+   * @returns Promise resolving when all services are stopped
+   */
+  stopAll(): Promise<Result<void>>;
+  
+  /**
+   * Get container statistics
+   * @returns Container performance and usage statistics
+   */
+  getStatistics(): ContainerStatistics;
+  
+  /**
+   * Dispose container and cleanup resources
+   * @returns Promise resolving when cleanup is complete
+   */
+  dispose(): Promise<Result<void>>;
+}
+
+export interface ServiceToken<T> {
+  readonly name: string;
+  readonly type: new (...args: any[]) => T;
+}
+
+export interface ServiceFactory<T> {
+  create(container: ServiceContainer): Promise<T> | T;
+}
+
+export interface RegistrationOptions {
+  singleton?: boolean;       // Register as singleton (default: true)
+  lazy?: boolean;           // Lazy initialization (default: false)
+  autoStart?: boolean;      // Auto-start service (default: true)
+  dependencies?: ServiceToken<any>[]; // Service dependencies
+}
+
+export interface ContainerStatistics {
+  registeredServices: number; // Number of registered services
+  activeServices: number;     // Number of active services
+  singletonInstances: number; // Number of singleton instances
+  resolutionTime: Record<string, number>; // Resolution times by service
+  memoryUsage: number;        // Estimated memory usage
+}
+```
+
+#### Additional Service Interfaces
+
+```typescript
+// src/services/interfaces/IChromeService.ts
+export interface IChromeService extends IAppleScriptService {
+  /**
+   * Navigate to URL in active tab
+   * @param url - Target URL
+   * @param options - Navigation options
+   * @returns Promise resolving when navigation completes
+   */
+  navigate(url: string, options?: NavigationOptions): Promise<Result<NavigationResult>>;
+  
+  /**
+   * Get current tab information
+   * @param tabIndex - Tab index (default: active tab)
+   * @returns Promise resolving to tab information
+   */
+  getTabInfo(tabIndex?: number): Promise<Result<TabInfo>>;
+  
+  /**
+   * Create new tab
+   * @param url - Initial URL for new tab
+   * @returns Promise resolving to new tab information
+   */
+  createTab(url?: string): Promise<Result<TabInfo>>;
+  
+  /**
+   * Close tab by index
+   * @param tabIndex - Tab index to close
+   * @returns Promise resolving when tab is closed
+   */
+  closeTab(tabIndex: number): Promise<Result<void>>;
+  
+  /**
+   * Switch to tab by index
+   * @param tabIndex - Target tab index
+   * @returns Promise resolving when tab is active
+   */
+  switchToTab(tabIndex: number): Promise<Result<void>>;
+  
+  /**
+   * Get all tabs information
+   * @returns Promise resolving to array of tab information
+   */
+  getAllTabs(): Promise<Result<TabInfo[]>>;
+}
+
+// src/services/interfaces/IFileService.ts
+export interface IFileService {
+  /**
+   * Upload files to web form
+   * @param selector - File input selector
+   * @param filePaths - Array of file paths to upload
+   * @param options - Upload options
+   * @returns Promise resolving when upload completes
+   */
+  uploadFiles(
+    selector: string, 
+    filePaths: string[], 
+    options?: UploadOptions
+  ): Promise<Result<UploadResult>>;
+  
+  /**
+   * Validate file path for security
+   * @param filePath - Path to validate
+   * @returns Promise resolving to validation result
+   */
+  validatePath(filePath: string): Promise<Result<string>>;
+  
+  /**
+   * Check if file exists and is accessible
+   * @param filePath - File path to check
+   * @returns Promise resolving to file status
+   */
+  checkFileAccess(filePath: string): Promise<Result<FileStatus>>;
+  
+  /**
+   * Get file metadata
+   * @param filePath - File path
+   * @returns Promise resolving to file metadata
+   */
+  getFileInfo(filePath: string): Promise<Result<FileInfo>>;
+}
+
+// src/services/interfaces/INetworkService.ts
+export interface INetworkService {
+  /**
+   * Start network monitoring
+   * @param options - Monitoring options
+   * @returns Promise resolving when monitoring starts
+   */
+  startMonitoring(options?: MonitoringOptions): Promise<Result<void>>;
+  
+  /**
+   * Stop network monitoring
+   * @returns Promise resolving when monitoring stops
+   */
+  stopMonitoring(): Promise<Result<void>>;
+  
+  /**
+   * Get network events since monitoring started
+   * @param format - Output format (json, har)
+   * @returns Promise resolving to network events
+   */
+  getEvents(format?: 'json' | 'har'): Promise<Result<NetworkEvent[]>>;
+  
+  /**
+   * Clear stored network events
+   * @returns Promise resolving when events are cleared
+   */
+  clearEvents(): Promise<Result<void>>;
+  
+  /**
+   * Export events to file
+   * @param filePath - Output file path
+   * @param format - Export format
+   * @returns Promise resolving when export completes
+   */
+  exportEvents(filePath: string, format: 'json' | 'har'): Promise<Result<void>>;
+}
+```
+
+## Configuration Schema
+
+### Core Configuration System
+
+The refactored architecture requires a comprehensive configuration system to manage performance settings, security policies, and service behaviors across different environments.
+
+#### Configuration Structure
+
+```typescript
+// src/config/Configuration.ts
+export interface MacChromeCLIConfig {
+  /** Performance-related configuration */
+  performance: PerformanceConfig;
+  
+  /** Security policies and validation rules */
+  security: SecurityConfig;
+  
+  /** Service-specific configuration */
+  services: ServicesConfig;
+  
+  /** Environment-specific settings */
+  environment: EnvironmentConfig;
+  
+  /** Logging and monitoring configuration */
+  monitoring: MonitoringConfig;
+  
+  /** Feature flags and experimental options */
+  features: FeatureConfig;
+}
+
+export interface PerformanceConfig {
+  /** Cache configuration for different data types */
+  cache: {
+    /** AppleScript result cache settings */
+    appleScript: {
+      maxSize: number;        // Maximum cache entries (default: 50)
+      ttl: number;           // TTL in seconds (default: 900)
+      cleanupInterval: number; // Cleanup interval in seconds (default: 300)
+    };
+    
+    /** Element coordinate cache settings */
+    coordinates: {
+      maxSize: number;        // Maximum cache entries (default: 100)
+      ttl: number;           // TTL in seconds (default: 30)
+      cleanupInterval: number; // Cleanup interval in seconds (default: 60)
+    };
+    
+    /** Network event cache settings */
+    network: {
+      maxEvents: number;      // Maximum stored events (default: 1000)
+      maxMemory: number;      // Maximum memory usage in MB (default: 50)
+      compressionEnabled: boolean; // Enable event compression (default: true)
+    };
+    
+    /** DOM snapshot cache settings */
+    snapshots: {
+      maxSize: number;        // Maximum cache entries (default: 10)
+      ttl: number;           // TTL in seconds (default: 60)
+      maxDepth: number;       // Maximum DOM depth to cache (default: 5)
+    };
+  };
+  
+  /** Timeout configuration for different operations */
+  timeouts: {
+    appleScript: number;      // AppleScript execution timeout (default: 5000ms)
+    navigation: number;       // Page navigation timeout (default: 30000ms)
+    elementWait: number;      // Element availability wait (default: 10000ms)
+    screenshot: number;       // Screenshot capture timeout (default: 5000ms)
+    upload: number;          // File upload timeout (default: 30000ms)
+  };
+  
+  /** Resource limits */
+  limits: {
+    maxConcurrentOperations: number; // Max parallel operations (default: 5)
+    maxMemoryUsage: number;   // Max memory usage in MB (default: 200)
+    maxProcesses: number;     // Max background processes (default: 3)
+    maxFileSize: number;      // Max upload file size in MB (default: 100)
+  };
+  
+  /** Retry and backoff strategies */
+  retry: {
+    maxAttempts: number;      // Maximum retry attempts (default: 3)
+    baseDelay: number;        // Base delay between retries in ms (default: 1000)
+    maxDelay: number;         // Maximum delay between retries in ms (default: 10000)
+    backoffStrategy: 'linear' | 'exponential' | 'fixed'; // Backoff strategy
+  };
+  
+  /** Image and media optimization */
+  media: {
+    webp: {
+      quality: number;        // WebP quality (default: 80)
+      effort: number;         // Compression effort (default: 4)
+      progressive: boolean;   // Progressive encoding (default: true)
+    };
+    
+    screenshots: {
+      maxWidth: number;       // Maximum screenshot width (default: 1920)
+      maxHeight: number;      // Maximum screenshot height (default: 1080)
+      format: 'png' | 'webp' | 'jpeg'; // Default format (default: 'webp')
+      previewMaxSize: number; // Preview size limit in bytes (default: 512000)
+    };
+  };
+}
+
+export interface SecurityConfig {
+  /** Data sanitization rules */
+  sanitization: {
+    /** Enable automatic sanitization */
+    enabled: boolean;
+    
+    /** Sanitization level for different data types */
+    levels: {
+      headers: 'basic' | 'strict' | 'paranoid';
+      body: 'basic' | 'strict' | 'paranoid';
+      urls: 'basic' | 'strict' | 'paranoid';
+      javascript: 'basic' | 'strict' | 'paranoid';
+    };
+    
+    /** Custom sanitization patterns */
+    customPatterns: Array<{
+      name: string;
+      pattern: string;        // Regex pattern as string
+      replacement: string;
+      enabled: boolean;
+    }>;
+    
+    /** Sensitive header detection */
+    sensitiveHeaders: string[];
+    
+    /** Sensitive URL parameter detection */
+    sensitiveParams: string[];
+    
+    /** Log sanitization actions */
+    logActions: boolean;
+  };
+  
+  /** File system security */
+  fileSystem: {
+    /** Allowed file upload directories */
+    allowedUploadPaths: string[];
+    
+    /** Allowed file extensions for uploads */
+    allowedExtensions: string[];
+    
+    /** Maximum file size in bytes */
+    maxFileSize: number;
+    
+    /** Enable path traversal protection */
+    pathTraversalProtection: boolean;
+    
+    /** Temporary file cleanup interval in seconds */
+    tempFileCleanup: number;
+  };
+  
+  /** JavaScript execution security */
+  javascript: {
+    /** Enable JavaScript validation */
+    validationEnabled: boolean;
+    
+    /** Blocked JavaScript patterns */
+    blockedPatterns: string[];
+    
+    /** Allowed DOM APIs */
+    allowedAPIs: string[];
+    
+    /** Enable eval() protection */
+    blockEval: boolean;
+    
+    /** Maximum script execution time */
+    maxExecutionTime: number;
+  };
+  
+  /** Network security */
+  network: {
+    /** Enable HTTPS-only mode */
+    httpsOnly: boolean;
+    
+    /** Allowed domains for navigation */
+    allowedDomains: string[];
+    
+    /** Block dangerous file types in downloads */
+    blockedDownloadTypes: string[];
+    
+    /** Enable certificate validation */
+    validateCertificates: boolean;
+  };
+}
+
+export interface ServicesConfig {
+  /** AppleScript service configuration */
+  appleScript: {
+    /** Permission check interval in seconds */
+    permissionCheckInterval: number;
+    
+    /** Enable result caching */
+    cachingEnabled: boolean;
+    
+    /** Script validation level */
+    validationLevel: 'none' | 'basic' | 'strict';
+    
+    /** Maximum script length */
+    maxScriptLength: number;
+  };
+  
+  /** Chrome service configuration */
+  chrome: {
+    /** Browser detection method */
+    detectionMethod: 'applescript' | 'process' | 'both';
+    
+    /** Startup wait time in milliseconds */
+    startupWait: number;
+    
+    /** Tab switching delay in milliseconds */
+    tabSwitchDelay: number;
+    
+    /** Enable browser health monitoring */
+    healthMonitoring: boolean;
+  };
+  
+  /** Cache service configuration */
+  cache: {
+    /** Cache implementation type */
+    implementation: 'memory' | 'file' | 'hybrid';
+    
+    /** Persistent cache directory */
+    persistentDirectory?: string;
+    
+    /** Enable cache compression */
+    compressionEnabled: boolean;
+    
+    /** Cache statistics collection */
+    collectStatistics: boolean;
+  };
+  
+  /** Network service configuration */
+  network: {
+    /** Event buffer size */
+    bufferSize: number;
+    
+    /** Enable event compression */
+    compressionEnabled: boolean;
+    
+    /** Event retention time in seconds */
+    retentionTime: number;
+    
+    /** Export batch size */
+    exportBatchSize: number;
+  };
+  
+  /** File service configuration */
+  file: {
+    /** Upload chunk size in bytes */
+    uploadChunkSize: number;
+    
+    /** Enable upload progress tracking */
+    progressTracking: boolean;
+    
+    /** Temporary directory for processing */
+    tempDirectory: string;
+    
+    /** Enable file type validation */
+    typeValidation: boolean;
+  };
+}
+
+export interface EnvironmentConfig {
+  /** Current environment */
+  environment: 'development' | 'production' | 'testing';
+  
+  /** Debug mode settings */
+  debug: {
+    /** Enable debug logging */
+    enabled: boolean;
+    
+    /** Debug log level */
+    level: 'trace' | 'debug' | 'info' | 'warn' | 'error';
+    
+    /** Enable verbose AppleScript output */
+    verboseAppleScript: boolean;
+    
+    /** Enable performance profiling */
+    performanceProfiling: boolean;
+  };
+  
+  /** Development-specific settings */
+  development: {
+    /** Enable hot reloading */
+    hotReload: boolean;
+    
+    /** Mock external services */
+    mockServices: boolean;
+    
+    /** Enable test helpers */
+    testHelpers: boolean;
+  };
+  
+  /** Production-specific settings */
+  production: {
+    /** Enable error reporting */
+    errorReporting: boolean;
+    
+    /** Error reporting endpoint */
+    errorReportingUrl?: string;
+    
+    /** Enable telemetry */
+    telemetryEnabled: boolean;
+    
+    /** Telemetry endpoint */
+    telemetryUrl?: string;
+  };
+}
+
+export interface MonitoringConfig {
+  /** Logging configuration */
+  logging: {
+    /** Log level */
+    level: 'trace' | 'debug' | 'info' | 'warn' | 'error';
+    
+    /** Log output destinations */
+    outputs: Array<'console' | 'file' | 'syslog'>;
+    
+    /** Log file path */
+    filePath?: string;
+    
+    /** Enable structured logging */
+    structured: boolean;
+    
+    /** Log rotation settings */
+    rotation: {
+      enabled: boolean;
+      maxSize: string;      // e.g., '10MB'
+      maxFiles: number;
+    };
+  };
+  
+  /** Metrics collection */
+  metrics: {
+    /** Enable metrics collection */
+    enabled: boolean;
+    
+    /** Metrics collection interval in seconds */
+    interval: number;
+    
+    /** Metrics to collect */
+    collect: {
+      performance: boolean;
+      memory: boolean;
+      cache: boolean;
+      errors: boolean;
+    };
+    
+    /** Metrics export */
+    export: {
+      enabled: boolean;
+      format: 'prometheus' | 'json' | 'csv';
+      endpoint?: string;
+    };
+  };
+  
+  /** Health monitoring */
+  health: {
+    /** Enable health checks */
+    enabled: boolean;
+    
+    /** Health check interval in seconds */
+    interval: number;
+    
+    /** Health check timeout in milliseconds */
+    timeout: number;
+    
+    /** Health check endpoints */
+    checks: {
+      chrome: boolean;
+      permissions: boolean;
+      diskSpace: boolean;
+      memory: boolean;
+    };
+  };
+}
+
+export interface FeatureConfig {
+  /** Experimental features */
+  experimental: {
+    /** Enable parallel command execution */
+    parallelExecution: boolean;
+    
+    /** Enable advanced caching strategies */
+    advancedCaching: boolean;
+    
+    /** Enable machine learning optimizations */
+    mlOptimizations: boolean;
+  };
+  
+  /** Beta features */
+  beta: {
+    /** Enable new screenshot formats */
+    newScreenshotFormats: boolean;
+    
+    /** Enable enhanced error recovery */
+    enhancedErrorRecovery: boolean;
+    
+    /** Enable plugin system */
+    pluginSystem: boolean;
+  };
+  
+  /** Legacy support */
+  legacy: {
+    /** Support deprecated command formats */
+    deprecatedCommands: boolean;
+    
+    /** Legacy output format compatibility */
+    legacyOutput: boolean;
+    
+    /** Maintain backward compatibility */
+    backwardCompatibility: boolean;
+  };
+}
+```
+
+#### Configuration Loading and Validation
+
+```typescript
+// src/config/ConfigurationLoader.ts
+export class ConfigurationLoader {
+  private static readonly DEFAULT_CONFIG_PATHS = [
+    './mac-chrome-cli.config.json',
+    '~/.mac-chrome-cli/config.json',
+    '/etc/mac-chrome-cli/config.json'
+  ];
+  
+  /**
+   * Load configuration from multiple sources with precedence
+   * @param configPath - Optional explicit config file path
+   * @returns Promise resolving to validated configuration
+   */
+  async loadConfiguration(configPath?: string): Promise<Result<MacChromeCLIConfig>> {
+    try {
+      // 1. Load default configuration
+      let config = this.getDefaultConfiguration();
+      
+      // 2. Load from config files (in precedence order)
+      const configPaths = configPath ? [configPath] : ConfigurationLoader.DEFAULT_CONFIG_PATHS;
+      
+      for (const path of configPaths) {
+        const fileConfig = await this.loadConfigFile(path);
+        if (fileConfig.kind === 'ok') {
+          config = this.mergeConfigurations(config, fileConfig.value);
+        }
+      }
+      
+      // 3. Apply environment variable overrides
+      config = this.applyEnvironmentOverrides(config);
+      
+      // 4. Validate final configuration
+      const validation = this.validateConfiguration(config);
+      if (validation.kind === 'error') {
+        return validation;
+      }
+      
+      return Result.ok(config);
+    } catch (error) {
+      return Result.error(error, ERROR_CODES.CONFIG_LOAD_FAILED);
+    }
+  }
+  
+  /**
+   * Get default configuration values
+   * @returns Default configuration object
+   */
+  private getDefaultConfiguration(): MacChromeCLIConfig {
+    return {
+      performance: {
+        cache: {
+          appleScript: { maxSize: 50, ttl: 900, cleanupInterval: 300 },
+          coordinates: { maxSize: 100, ttl: 30, cleanupInterval: 60 },
+          network: { maxEvents: 1000, maxMemory: 50, compressionEnabled: true },
+          snapshots: { maxSize: 10, ttl: 60, maxDepth: 5 }
+        },
+        timeouts: {
+          appleScript: 5000,
+          navigation: 30000,
+          elementWait: 10000,
+          screenshot: 5000,
+          upload: 30000
+        },
+        limits: {
+          maxConcurrentOperations: 5,
+          maxMemoryUsage: 200,
+          maxProcesses: 3,
+          maxFileSize: 100
+        },
+        retry: {
+          maxAttempts: 3,
+          baseDelay: 1000,
+          maxDelay: 10000,
+          backoffStrategy: 'exponential' as const
+        },
+        media: {
+          webp: { quality: 80, effort: 4, progressive: true },
+          screenshots: {
+            maxWidth: 1920,
+            maxHeight: 1080,
+            format: 'webp' as const,
+            previewMaxSize: 512000
+          }
+        }
+      },
+      security: {
+        sanitization: {
+          enabled: true,
+          levels: {
+            headers: 'strict' as const,
+            body: 'strict' as const,
+            urls: 'basic' as const,
+            javascript: 'strict' as const
+          },
+          customPatterns: [],
+          sensitiveHeaders: [
+            'authorization', 'cookie', 'x-api-key', 'x-auth-token',
+            'x-csrf-token', 'x-access-token', 'bearer'
+          ],
+          sensitiveParams: [
+            'password', 'token', 'key', 'secret', 'auth',
+            'api_key', 'access_token', 'refresh_token'
+          ],
+          logActions: false
+        },
+        fileSystem: {
+          allowedUploadPaths: [
+            process.env.HOME + '/Downloads',
+            process.env.HOME + '/Documents',
+            '/tmp'
+          ],
+          allowedExtensions: [
+            '.pdf', '.doc', '.docx', '.txt', '.rtf',
+            '.png', '.jpg', '.jpeg', '.gif', '.webp',
+            '.zip', '.csv', '.xlsx'
+          ],
+          maxFileSize: 104857600, // 100MB
+          pathTraversalProtection: true,
+          tempFileCleanup: 3600 // 1 hour
+        },
+        javascript: {
+          validationEnabled: true,
+          blockedPatterns: [
+            'eval\\s*\\(',
+            'Function\\s*\\(',
+            'setTimeout\\s*\\(',
+            'setInterval\\s*\\(',
+            'document\\.write'
+          ],
+          allowedAPIs: [
+            'document.querySelector',
+            'document.querySelectorAll',
+            'element.click',
+            'element.focus',
+            'element.value',
+            'window.scrollTo'
+          ],
+          blockEval: true,
+          maxExecutionTime: 5000
+        },
+        network: {
+          httpsOnly: false,
+          allowedDomains: [], // Empty means all domains allowed
+          blockedDownloadTypes: ['.exe', '.scr', '.bat', '.com', '.cmd'],
+          validateCertificates: true
+        }
+      },
+      services: {
+        appleScript: {
+          permissionCheckInterval: 300,
+          cachingEnabled: true,
+          validationLevel: 'basic' as const,
+          maxScriptLength: 10000
+        },
+        chrome: {
+          detectionMethod: 'both' as const,
+          startupWait: 2000,
+          tabSwitchDelay: 500,
+          healthMonitoring: true
+        },
+        cache: {
+          implementation: 'memory' as const,
+          persistentDirectory: undefined,
+          compressionEnabled: true,
+          collectStatistics: true
+        },
+        network: {
+          bufferSize: 1000,
+          compressionEnabled: true,
+          retentionTime: 3600,
+          exportBatchSize: 100
+        },
+        file: {
+          uploadChunkSize: 1048576, // 1MB
+          progressTracking: true,
+          tempDirectory: '/tmp/mac-chrome-cli',
+          typeValidation: true
+        }
+      },
+      environment: {
+        environment: (process.env.NODE_ENV as any) || 'development',
+        debug: {
+          enabled: process.env.NODE_ENV !== 'production',
+          level: 'info' as const,
+          verboseAppleScript: false,
+          performanceProfiling: false
+        },
+        development: {
+          hotReload: false,
+          mockServices: false,
+          testHelpers: true
+        },
+        production: {
+          errorReporting: false,
+          errorReportingUrl: undefined,
+          telemetryEnabled: false,
+          telemetryUrl: undefined
+        }
+      },
+      monitoring: {
+        logging: {
+          level: 'info' as const,
+          outputs: ['console' as const],
+          filePath: undefined,
+          structured: false,
+          rotation: {
+            enabled: false,
+            maxSize: '10MB',
+            maxFiles: 5
+          }
+        },
+        metrics: {
+          enabled: false,
+          interval: 60,
+          collect: {
+            performance: true,
+            memory: true,
+            cache: true,
+            errors: true
+          },
+          export: {
+            enabled: false,
+            format: 'json' as const,
+            endpoint: undefined
+          }
+        },
+        health: {
+          enabled: true,
+          interval: 30,
+          timeout: 5000,
+          checks: {
+            chrome: true,
+            permissions: true,
+            diskSpace: true,
+            memory: true
+          }
+        }
+      },
+      features: {
+        experimental: {
+          parallelExecution: false,
+          advancedCaching: false,
+          mlOptimizations: false
+        },
+        beta: {
+          newScreenshotFormats: false,
+          enhancedErrorRecovery: false,
+          pluginSystem: false
+        },
+        legacy: {
+          deprecatedCommands: true,
+          legacyOutput: true,
+          backwardCompatibility: true
+        }
+      }
+    };
+  }
+  
+  /**
+   * Apply environment variable overrides to configuration
+   * @param config - Base configuration
+   * @returns Configuration with environment overrides applied
+   */
+  private applyEnvironmentOverrides(config: MacChromeCLIConfig): MacChromeCLIConfig {
+    const overrides: Partial<MacChromeCLIConfig> = {};
+    
+    // Performance overrides
+    if (process.env.MAC_CHROME_CLI_CACHE_SIZE) {
+      overrides.performance = {
+        ...config.performance,
+        cache: {
+          ...config.performance.cache,
+          appleScript: {
+            ...config.performance.cache.appleScript,
+            maxSize: parseInt(process.env.MAC_CHROME_CLI_CACHE_SIZE, 10)
+          }
+        }
+      };
+    }
+    
+    if (process.env.MAC_CHROME_CLI_TIMEOUT) {
+      overrides.performance = {
+        ...config.performance,
+        timeouts: {
+          ...config.performance.timeouts,
+          appleScript: parseInt(process.env.MAC_CHROME_CLI_TIMEOUT, 10)
+        }
+      };
+    }
+    
+    // Security overrides
+    if (process.env.MAC_CHROME_CLI_SANITIZATION) {
+      const enabled = process.env.MAC_CHROME_CLI_SANITIZATION.toLowerCase() === 'true';
+      overrides.security = {
+        ...config.security,
+        sanitization: {
+          ...config.security.sanitization,
+          enabled
+        }
+      };
+    }
+    
+    // Debug overrides
+    if (process.env.MAC_CHROME_CLI_DEBUG) {
+      const enabled = process.env.MAC_CHROME_CLI_DEBUG.toLowerCase() === 'true';
+      overrides.environment = {
+        ...config.environment,
+        debug: {
+          ...config.environment.debug,
+          enabled
+        }
+      };
+    }
+    
+    if (process.env.MAC_CHROME_CLI_LOG_LEVEL) {
+      const level = process.env.MAC_CHROME_CLI_LOG_LEVEL as any;
+      overrides.monitoring = {
+        ...config.monitoring,
+        logging: {
+          ...config.monitoring.logging,
+          level
+        }
+      };
+    }
+    
+    return this.mergeConfigurations(config, overrides as MacChromeCLIConfig);
+  }
+  
+  /**
+   * Validate configuration object
+   * @param config - Configuration to validate
+   * @returns Validation result
+   */
+  private validateConfiguration(config: MacChromeCLIConfig): Result<void> {
+    const errors: string[] = [];
+    
+    // Validate performance limits
+    if (config.performance.cache.appleScript.maxSize < 1) {
+      errors.push('Performance cache maxSize must be at least 1');
+    }
+    
+    if (config.performance.timeouts.appleScript < 1000) {
+      errors.push('AppleScript timeout must be at least 1000ms');
+    }
+    
+    // Validate security settings
+    if (config.security.fileSystem.maxFileSize > 1073741824) { // 1GB
+      errors.push('Maximum file size cannot exceed 1GB');
+    }
+    
+    // Validate file paths
+    for (const path of config.security.fileSystem.allowedUploadPaths) {
+      if (!this.isValidPath(path)) {
+        errors.push(`Invalid upload path: ${path}`);
+      }
+    }
+    
+    // Validate environment settings
+    const validEnvironments = ['development', 'production', 'testing'];
+    if (!validEnvironments.includes(config.environment.environment)) {
+      errors.push(`Invalid environment: ${config.environment.environment}`);
+    }
+    
+    if (errors.length > 0) {
+      return Result.error(
+        new Error(`Configuration validation failed: ${errors.join(', ')}`),
+        ERROR_CODES.INVALID_CONFIGURATION
+      );
+    }
+    
+    return Result.ok(undefined);
+  }
+  
+  /**
+   * Merge two configuration objects with deep merging
+   * @param base - Base configuration
+   * @param override - Override configuration
+   * @returns Merged configuration
+   */
+  private mergeConfigurations(
+    base: MacChromeCLIConfig, 
+    override: Partial<MacChromeCLIConfig>
+  ): MacChromeCLIConfig {
+    // Implementation of deep merge logic
+    return {
+      ...base,
+      ...override,
+      performance: { ...base.performance, ...override.performance },
+      security: { ...base.security, ...override.security },
+      services: { ...base.services, ...override.services },
+      environment: { ...base.environment, ...override.environment },
+      monitoring: { ...base.monitoring, ...override.monitoring },
+      features: { ...base.features, ...override.features }
+    };
+  }
+  
+  /**
+   * Load configuration from file
+   * @param filePath - Configuration file path
+   * @returns Promise resolving to configuration or error
+   */
+  private async loadConfigFile(filePath: string): Promise<Result<Partial<MacChromeCLIConfig>>> {
+    try {
+      const content = await fs.readFile(filePath, 'utf-8');
+      const config = JSON.parse(content);
+      return Result.ok(config);
+    } catch (error) {
+      return Result.error(error, ERROR_CODES.CONFIG_FILE_NOT_FOUND);
+    }
+  }
+  
+  /**
+   * Validate file path
+   * @param path - Path to validate
+   * @returns Whether path is valid
+   */
+  private isValidPath(path: string): boolean {
+    try {
+      const resolved = require('path').resolve(path);
+      return resolved.startsWith('/') && !resolved.includes('..');
+    } catch {
+      return false;
+    }
+  }
+}
+
+/**
+ * Configuration change handler for runtime updates
+ */
+export class ConfigurationWatcher {
+  private readonly loader: ConfigurationLoader;
+  private currentConfig: MacChromeCLIConfig;
+  private watchers: Map<string, fs.FSWatcher> = new Map();
+  private changeCallbacks: Array<(config: MacChromeCLIConfig) => void> = [];
+  
+  constructor(loader: ConfigurationLoader, initialConfig: MacChromeCLIConfig) {
+    this.loader = loader;
+    this.currentConfig = initialConfig;
+  }
+  
+  /**
+   * Start watching configuration files for changes
+   * @param configPaths - Paths to watch
+   * @returns Promise resolving when watching starts
+   */
+  async startWatching(configPaths: string[]): Promise<Result<void>> {
+    try {
+      for (const path of configPaths) {
+        if (require('fs').existsSync(path)) {
+          const watcher = require('fs').watch(path, async () => {
+            await this.handleConfigChange();
+          });
+          this.watchers.set(path, watcher);
+        }
+      }
+      return Result.ok(undefined);
+    } catch (error) {
+      return Result.error(error, ERROR_CODES.CONFIG_WATCH_FAILED);
+    }
+  }
+  
+  /**
+   * Stop watching configuration files
+   * @returns Promise resolving when watching stops
+   */
+  async stopWatching(): Promise<Result<void>> {
+    try {
+      for (const watcher of this.watchers.values()) {
+        watcher.close();
+      }
+      this.watchers.clear();
+      return Result.ok(undefined);
+    } catch (error) {
+      return Result.error(error, ERROR_CODES.CONFIG_WATCH_STOP_FAILED);
+    }
+  }
+  
+  /**
+   * Register callback for configuration changes
+   * @param callback - Function to call when configuration changes
+   */
+  onConfigChange(callback: (config: MacChromeCLIConfig) => void): void {
+    this.changeCallbacks.push(callback);
+  }
+  
+  /**
+   * Handle configuration file changes
+   */
+  private async handleConfigChange(): Promise<void> {
+    const newConfig = await this.loader.loadConfiguration();
+    if (newConfig.kind === 'ok') {
+      this.currentConfig = newConfig.value;
+      for (const callback of this.changeCallbacks) {
+        try {
+          callback(this.currentConfig);
+        } catch (error) {
+          console.error('Error in config change callback:', error);
+        }
+      }
+    }
+  }
+}
+```
+
 ## Appendix A: File Structure After Refactoring
 
 ```
@@ -609,13 +2176,26 @@ src/
 │   │   └── BaseCommand.ts    # Abstract command class
 │   └── [existing commands]
 ├── services/                 # Business logic services
+│   ├── interfaces/           # Service interface definitions
+│   │   ├── IAppleScriptService.ts
+│   │   ├── ICacheService.ts
+│   │   ├── ICommandExecutor.ts
+│   │   ├── IDataSanitizer.ts
+│   │   ├── IChromeService.ts
+│   │   ├── IFileService.ts
+│   │   └── INetworkService.ts
 │   ├── AppleScriptService.ts
 │   ├── ChromeService.ts
 │   ├── FileService.ts
 │   └── NetworkService.ts
+├── config/                   # Configuration system
+│   ├── Configuration.ts      # Configuration interfaces
+│   ├── ConfigurationLoader.ts # Configuration loading and validation
+│   └── ConfigurationWatcher.ts # Runtime configuration updates
 ├── core/                     # Core utilities
 │   ├── Result.ts            # Result type pattern
 │   ├── ErrorCodes.ts        # Error constants
+│   ├── ServiceContainer.ts   # Dependency injection container
 │   └── Types.ts             # Shared types
 ├── security/                 # Security utilities
 │   ├── DataSanitizer.ts
