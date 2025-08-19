@@ -7,7 +7,10 @@ import { join } from 'path';
 function getPackageJsonPath(): string {
   // Since this is compiled to dist/commands/meta.js, 
   // package.json is at ../../package.json from there
-  return join(process.cwd(), 'package.json');
+  // Use import.meta.url to get the actual location of this module
+  const currentModuleDir = new URL('.', import.meta.url).pathname;
+  // Go up two directories from dist/commands/ to get to project root
+  return join(currentModuleDir, '..', '..', 'package.json');
 }
 
 export interface MetaInfo {
@@ -1089,7 +1092,6 @@ export function formatMetaOutput(metaResult: Result<MetaInfo, string>): string {
   }
 
   const meta = metaResult.data;
-  const completionPercentage = Math.round((meta.commands.implemented.length / meta.commands.total) * 100);
 
   return `
 🖥️  ${meta.name} v${meta.version}
@@ -1105,18 +1107,11 @@ export function formatMetaOutput(metaResult: Result<MetaInfo, string>): string {
    Required: ${meta.dependencies.external.filter(d => d.required).map(d => d.name).join(', ')}
    Optional: ${meta.dependencies.external.filter(d => !d.required).map(d => d.name).join(', ')}
 
-📊 Implementation Status:
-   Implemented: ${meta.commands.implemented.length}/${meta.commands.total} commands (${completionPercentage}%)
-   Categories: ${meta.commands.categories.length}
-
 ✨ Key Capabilities:
 ${meta.capabilities.map(cap => `   • ${cap}`).join('\n')}
 
 🔗 Repository: ${meta.repository}
 📄 License: ${meta.license}
-
-🚀 Ready Commands:
-${meta.commands.implemented.map(cmd => `   • ${cmd}`).join('\n')}
 `.trim();
 }
 
