@@ -173,7 +173,7 @@ export async function mouseClick(options: MouseOptions): Promise<MouseResult> {
       clickOptions.clickCount = options.clickCount;
     }
     
-    const uiResult = await clickAt(finalCoords.x, finalCoords.y, clickOptions);
+    const uiResult = await clickAt(finalCoords.x, finalCoords.y, { ...clickOptions, windowIndex: options.windowIndex || 1 });
     if (uiResult.success) {
       return ok({
         action: 'click',
@@ -347,7 +347,7 @@ export async function mouseMove(options: MouseOptions): Promise<MouseResult> {
     );
     
     // Perform mouse move
-    const uiResult = await moveTo(finalCoords.x, finalCoords.y);
+    const uiResult = await moveTo(finalCoords.x, finalCoords.y, { windowIndex: options.windowIndex || 1 });
     if (uiResult.success) {
       return ok({
         action: 'move',
@@ -433,7 +433,7 @@ export async function mouseDrag(
     );
     
     // Perform drag
-    const uiResult = await dragFromTo(fromCoords.x, fromCoords.y, toCoords.x, toCoords.y);
+    const uiResult = await dragFromTo(fromCoords.x, fromCoords.y, toCoords.x, toCoords.y, { windowIndex: fromOptions.windowIndex || 1 });
     if (uiResult.success) {
       return ok({
         action: 'drag',

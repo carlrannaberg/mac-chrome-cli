@@ -9,6 +9,7 @@ export interface KeyInputOptions {
   speed?: number;
   clear?: boolean;
   repeat?: number;
+  windowIndex?: number;
 }
 
 /**
@@ -188,7 +189,7 @@ export async function keyboardType(options: KeyInputOptions): Promise<KeyboardRe
     let lastResult: UIResult = error('Not yet executed', ERROR_CODES.UNKNOWN_ERROR);
     
     for (let i = 0; i < repeat; i++) {
-      lastResult = await typeText(options.text, { speed });
+      lastResult = await typeText(options.text, { speed, windowIndex: options.windowIndex || 1 });
       
       if (!lastResult.success) {
         break;
@@ -244,7 +245,7 @@ export async function keyboardCombo(options: KeyInputOptions): Promise<KeyboardR
     let lastResult: UIResult = error('Not yet executed', ERROR_CODES.UNKNOWN_ERROR);
     
     for (let i = 0; i < repeat; i++) {
-      lastResult = await sendKeys(normalizedCombo);
+      lastResult = await sendKeys(normalizedCombo, { windowIndex: options.windowIndex || 1 });
       
       if (!lastResult.success) {
         break;
@@ -291,7 +292,7 @@ export async function keyboardPress(options: KeyInputOptions): Promise<KeyboardR
     let lastResult: UIResult = error('Not yet executed', ERROR_CODES.UNKNOWN_ERROR);
     
     for (let i = 0; i < repeat; i++) {
-      lastResult = await pressKey(options.key);
+      lastResult = await pressKey(options.key, { windowIndex: options.windowIndex || 1 });
       
       if (!lastResult.success) {
         break;
@@ -316,9 +317,9 @@ export async function keyboardPress(options: KeyInputOptions): Promise<KeyboardR
 /**
  * Clear current field/selection
  */
-export async function keyboardClear(): Promise<KeyboardResult> {
+export async function keyboardClear(windowIndex: number = 1): Promise<KeyboardResult> {
   try {
-    const result = await clearField();
+    const result = await clearField({ windowIndex });
     
     return convertUIResult(result, 'clear', 'clear', 'clear', {});
     

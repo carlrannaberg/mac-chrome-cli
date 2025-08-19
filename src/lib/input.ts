@@ -139,7 +139,7 @@ async function focusElement(selector: string, windowIndex: number = 1): Promise<
   }
   
   // Click to focus
-  const clickResult = await clickAt(coordsResult.data.coordinates.x, coordsResult.data.coordinates.y);
+  const clickResult = await clickAt(coordsResult.data.coordinates.x, coordsResult.data.coordinates.y, { windowIndex });
   return clickResult.success;
 }
 
@@ -176,7 +176,7 @@ async function clearInputField(selector: string, windowIndex: number = 1): Promi
     // Method 2: Try UI clear (select all + delete)
     await focusElement(selector, windowIndex);
     await sleep(100);
-    const clearResult = await clearField();
+    const clearResult = await clearField({ windowIndex });
     return clearResult.success;
     
   } catch {

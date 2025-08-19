@@ -1,4 +1,5 @@
-import { execChromeJS, getActiveTab, focusChromeWindow } from './apple.js';
+import { execChromeJS, getActiveTab, focusChromeWindow, getAllTabs, focusTabByIndex, type ChromeTab } from './apple.js';
+import { findMatchingTabs, type TabMatchOptions } from './tab-manager.js';
 import { ERROR_CODES, type ErrorCode } from './util.js';
 
 export interface NavigationResult {
@@ -310,10 +311,12 @@ export async function getCurrentPageInfo(windowIndex: number = 1): Promise<Navig
 
 /**
  * Focus a Chrome tab by pattern matching title or URL
+ * Supports both exact and substring matching
  */
 export async function focusTabByPattern(
   pattern: string, 
-  windowIndex: number = 1
+  windowIndex: number = 1,
+  exactMatch: boolean = false
 ): Promise<NavigationResult> {
   try {
     // First focus the Chrome window
@@ -327,33 +330,74 @@ export async function focusTabByPattern(
       };
     }
     
-    // Get current tab info to check if it matches
-    const currentTab = await getActiveTab(windowIndex);
-    if (currentTab.success && currentTab.data) {
-      const tab = currentTab.data;
-      const titleMatch = tab.title.toLowerCase().includes(pattern.toLowerCase());
-      const urlMatch = tab.url.toLowerCase().includes(pattern.toLowerCase());
-      
-      if (titleMatch || urlMatch) {
-        return {
-          success: true,
-          action: 'focus_tab',
-          url: tab.url,
-          title: tab.title,
-          loading: tab.loading,
-          code: ERROR_CODES.OK
-        };
-      }
+    // Get all tabs in the window to search through them
+    const tabsResult = await getAllTabs(windowIndex);
+    if (!tabsResult.success) {
+      return {
+        success: false,
+        action: 'focus_tab',
+        error: tabsResult.error || 'Failed to get tabs from window',
+        code: tabsResult.code
+      };
     }
     
-    // If current tab doesn't match, we need to search through tabs
-    // For now, we'll return a not found error since chrome-cli dependency
-    // is optional and we'd need AppleScript to iterate through tabs
+    if (!tabsResult.data || tabsResult.data.length === 0) {
+      return {
+        success: false,
+        action: 'focus_tab',
+        error: 'No tabs found in the specified window',
+        code: ERROR_CODES.TARGET_NOT_FOUND
+      };
+    }
+    
+    // Use the dedicated tab matching utility
+    const matchOptions: TabMatchOptions = {
+      pattern,
+      exactMatch,
+      caseSensitive: false
+    };
+    
+    const matches = findMatchingTabs(tabsResult.data, matchOptions);
+    
+    if (matches.length === 0) {
+      return {
+        success: false,
+        action: 'focus_tab',
+        error: `Tab matching pattern "${pattern}" not found. Found ${tabsResult.data.length} tabs in window ${windowIndex}.`,
+        code: ERROR_CODES.TARGET_NOT_FOUND
+      };
+    }
+    
+    // Use the first match (could be enhanced to support multiple matches)
+    const matchedTab = matches[0];
+    
+    // Focus the matched tab
+    const focusTabResult = await focusTabByIndex(matchedTab.index, windowIndex);
+    if (!focusTabResult.success) {
+      return {
+        success: false,
+        action: 'focus_tab',
+        error: focusTabResult.error || 'Failed to focus matched tab',
+        code: focusTabResult.code
+      };
+    }
+    
+    if (!focusTabResult.data) {
+      return {
+        success: false,
+        action: 'focus_tab',
+        error: 'No tab data returned after focusing',
+        code: ERROR_CODES.UNKNOWN_ERROR
+      };
+    }
+    
     return {
-      success: false,
+      success: true,
       action: 'focus_tab',
-      error: `Tab matching pattern "${pattern}" not found in active window. Consider using chrome-cli for advanced tab management.`,
-      code: ERROR_CODES.TARGET_NOT_FOUND
+      url: focusTabResult.data.url,
+      title: focusTabResult.data.title,
+      loading: focusTabResult.data.loading,
+      code: ERROR_CODES.OK
     };
     
   } catch (error) {

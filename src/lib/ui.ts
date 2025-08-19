@@ -1,5 +1,6 @@
 import { execWithTimeout, ERROR_CODES, sleep, type ErrorCode } from './util.js';
 import { Result, ok, error } from '../core/index.js';
+import { focusChromeWindow } from './apple.js';
 
 export interface ClickOptions {
   button?: 'left' | 'right' | 'middle';
@@ -95,9 +96,15 @@ async function execCliclick(args: string[]): Promise<UIResult> {
 export async function clickAt(
   x: number, 
   y: number, 
-  options: ClickOptions = {}
+  options: ClickOptions & { windowIndex?: number } = {}
 ): Promise<UIResult> {
-  const { button = 'left', clickCount = 1 } = options;
+  const { button = 'left', clickCount = 1, windowIndex = 1 } = options;
+  
+  // Focus Chrome window before clicking
+  const focusResult = await ensureChromeWindowFocused(windowIndex);
+  if (!focusResult.success) {
+    return focusResult;
+  }
   
   let clickCommand: string;
   switch (button) {
@@ -150,7 +157,18 @@ export async function rightClickAt(x: number, y: number): Promise<UIResult> {
 /**
  * Move mouse to specific coordinates
  */
-export async function moveTo(x: number, y: number): Promise<UIResult> {
+export async function moveTo(
+  x: number, 
+  y: number, 
+  options: { windowIndex?: number } = {}
+): Promise<UIResult> {
+  const { windowIndex = 1 } = options;
+  
+  // Focus Chrome window before mouse movement
+  const focusResult = await ensureChromeWindowFocused(windowIndex);
+  if (!focusResult.success) {
+    return focusResult;
+  }
   const coords = `${Math.round(x)},${Math.round(y)}`;
   const result = await execCliclick(['m:' + coords]);
   
@@ -171,8 +189,16 @@ export async function dragFromTo(
   fromX: number, 
   fromY: number, 
   toX: number, 
-  toY: number
+  toY: number,
+  options: { windowIndex?: number } = {}
 ): Promise<UIResult> {
+  const { windowIndex = 1 } = options;
+  
+  // Focus Chrome window before dragging
+  const focusResult = await ensureChromeWindowFocused(windowIndex);
+  if (!focusResult.success) {
+    return focusResult;
+  }
   const fromCoords = `${Math.round(fromX)},${Math.round(fromY)}`;
   const toCoords = `${Math.round(toX)},${Math.round(toY)}`;
   
@@ -193,15 +219,41 @@ export async function dragFromTo(
 }
 
 /**
+ * Focus Chrome window before keyboard input
+ */
+async function ensureChromeWindowFocused(windowIndex: number = 1): Promise<UIResult> {
+  try {
+    const focusResult = await focusChromeWindow(windowIndex);
+    if (!focusResult.success) {
+      return error(
+        focusResult.error || 'Failed to focus Chrome window before keyboard input',
+        focusResult.code
+      );
+    }
+    return ok({ action: 'focus_chrome' }, focusResult.code);
+  } catch (err) {
+    return error(
+      `Failed to focus Chrome window: ${err}`,
+      ERROR_CODES.UNKNOWN_ERROR
+    );
+  }
+}
+
+/**
  * Type text with configurable speed
  */
 export async function typeText(
   text: string, 
-  options: KeyboardOptions = {}
+  options: KeyboardOptions & { windowIndex?: number } = {}
 ): Promise<UIResult> {
-  const { speed = 50 } = options;
+  const { speed = 50, windowIndex = 1 } = options;
   
   try {
+    // Focus Chrome window before typing
+    const focusResult = await ensureChromeWindowFocused(windowIndex);
+    if (!focusResult.success) {
+      return focusResult;
+    }
     // Escape special characters for cliclick
     const escapedText = text
       .replace(/\\/g, '\\\\')
@@ -235,8 +287,18 @@ export async function typeText(
 /**
  * Send key combination
  */
-export async function sendKeys(keyCombo: string): Promise<UIResult> {
+export async function sendKeys(
+  keyCombo: string,
+  options: { windowIndex?: number } = {}
+): Promise<UIResult> {
+  const { windowIndex = 1 } = options;
+  
   try {
+    // Focus Chrome window before sending keys
+    const focusResult = await ensureChromeWindowFocused(windowIndex);
+    if (!focusResult.success) {
+      return focusResult;
+    }
     // Convert key combination to cliclick format
     // Examples: cmd+shift+r -> cmd,shift,r
     const keys = keyCombo.toLowerCase()
@@ -266,8 +328,18 @@ export async function sendKeys(keyCombo: string): Promise<UIResult> {
 /**
  * Send individual key press
  */
-export async function pressKey(key: string): Promise<UIResult> {
+export async function pressKey(
+  key: string,
+  options: { windowIndex?: number } = {}
+): Promise<UIResult> {
+  const { windowIndex = 1 } = options;
+  
   try {
+    // Focus Chrome window before key press
+    const focusResult = await ensureChromeWindowFocused(windowIndex);
+    if (!focusResult.success) {
+      return focusResult;
+    }
     const result = await execCliclick(['kp:' + key.toLowerCase()]);
     
     if (result.success) {
@@ -289,17 +361,24 @@ export async function pressKey(key: string): Promise<UIResult> {
 /**
  * Clear text field (select all and delete)
  */
-export async function clearField(): Promise<UIResult> {
+export async function clearField(options: { windowIndex?: number } = {}): Promise<UIResult> {
+  const { windowIndex = 1 } = options;
+  
   try {
-    // Send Cmd+A (select all) then Delete
-    const selectResult = await sendKeys('cmd+a');
+    // Focus Chrome window before clearing field
+    const focusResult = await ensureChromeWindowFocused(windowIndex);
+    if (!focusResult.success) {
+      return focusResult;
+    }
+    // Send Cmd+A (select all) then Delete  
+    const selectResult = await sendKeys('cmd+a', { windowIndex });
     if (!selectResult.success) {
       return selectResult;
     }
     
     await sleep(100); // Brief pause
     
-    const deleteResult = await pressKey('delete');
+    const deleteResult = await pressKey('delete', { windowIndex });
     if (!deleteResult.success) {
       return deleteResult;
     }
@@ -319,8 +398,18 @@ export async function clearField(): Promise<UIResult> {
 /**
  * Copy text to clipboard and paste
  */
-export async function pasteText(text: string): Promise<UIResult> {
+export async function pasteText(
+  text: string,
+  options: { windowIndex?: number } = {}
+): Promise<UIResult> {
+  const { windowIndex = 1 } = options;
+  
   try {
+    // Focus Chrome window before pasting
+    const focusResult = await ensureChromeWindowFocused(windowIndex);
+    if (!focusResult.success) {
+      return focusResult;
+    }
     // Use pbcopy to copy text to clipboard
     const copyResult = await execWithTimeout('pbcopy', [], 5000);
     if (!copyResult.success) {
@@ -340,7 +429,7 @@ export async function pasteText(text: string): Promise<UIResult> {
     }
     
     // Send Cmd+V (paste)
-    const pasteResult = await sendKeys('cmd+v');
+    const pasteResult = await sendKeys('cmd+v', { windowIndex });
     if (!pasteResult.success) {
       return pasteResult;
     }

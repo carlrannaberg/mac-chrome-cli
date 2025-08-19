@@ -87,6 +87,8 @@ export enum ErrorCode {
   UI_AUTOMATION_FAILED = 92,
   COORDINATE_CALCULATION_FAILED = 93,
   SCREEN_CAPTURE_FAILED = 94,
+  MOUSE_CLICK_FAILED = 95,
+  KEYBOARD_INPUT_FAILED = 96,
 
   // Unknown/Catch-all Error
   UNKNOWN_ERROR = 99
@@ -638,6 +640,24 @@ export const ERROR_INFO: Record<ErrorCode, ErrorInfo> = {
     recoveryHint: 'Check screen recording permissions',
     retryable: true,
     userAction: true
+  },
+  [ErrorCode.MOUSE_CLICK_FAILED]: {
+    code: ErrorCode.MOUSE_CLICK_FAILED,
+    category: ErrorCategory.AUTOMATION,
+    message: 'Mouse click operation failed',
+    description: 'Failed to perform mouse click for element focusing',
+    recoveryHint: 'Check element visibility and accessibility permissions',
+    retryable: true,
+    userAction: false
+  },
+  [ErrorCode.KEYBOARD_INPUT_FAILED]: {
+    code: ErrorCode.KEYBOARD_INPUT_FAILED,
+    category: ErrorCategory.AUTOMATION,
+    message: 'Keyboard input operation failed',
+    description: 'Failed to input text using keyboard operations',
+    recoveryHint: 'Check accessibility permissions and element focus',
+    retryable: true,
+    userAction: false
   },
 
   // Unknown/Catch-all Error

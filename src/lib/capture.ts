@@ -1,9 +1,10 @@
 import { execWithTimeout, createWebPPreview, expandPath, ERROR_CODES, type ErrorCode } from './util.js';
-import { getChromeWindowBounds } from './apple.js';
+import { getChromeWindowBounds, execChromeJS } from './apple.js';
 import { selectorToScreen, validateElementVisibility } from './coords.js';
-import { existsSync, mkdirSync } from 'fs';
+import { existsSync, mkdirSync, statSync } from 'fs';
 import { dirname, join } from 'path';
 import { tmpdir } from 'os';
+import { spawn } from 'child_process';
 
 export interface ScreenshotOptions {
   outputPath?: string;
@@ -55,7 +56,259 @@ function ensureDirectoryExists(filePath: string): void {
 }
 
 /**
- * Take screenshot using macOS screencapture command
+ * Viewport coordinates information
+ */
+interface ViewportInfo {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  scrollX: number;
+  scrollY: number;
+  windowTitle?: string;
+}
+
+/**
+ * Image metadata information
+ */
+interface ImageMetadata {
+  width: number;
+  height: number;
+  size: number;
+  format: string;
+  path: string;
+}
+
+/**
+ * Get viewport information including coordinates and scroll position
+ * @private
+ */
+async function getViewportInfo(windowIndex: number = 1): Promise<ViewportInfo | null> {
+  try {
+    // Get Chrome window bounds
+    const windowBounds = await getChromeWindowBounds(windowIndex);
+    
+    if (!windowBounds.success || !windowBounds.data) {
+      return null;
+    }
+    
+    const bounds = windowBounds.data.bounds;
+    const windowTitle = windowBounds.data.title;
+    
+    // Get viewport dimensions from the browser
+    const viewportJS = `
+      (function() {
+        return {
+          width: window.innerWidth,
+          height: window.innerHeight,
+          scrollX: window.scrollX || window.pageXOffset,
+          scrollY: window.scrollY || window.pageYOffset
+        };
+      })();
+    `;
+    
+    const viewportResult = await execChromeJS(viewportJS, 1, windowIndex, 5000);
+    if (!viewportResult.success || !viewportResult.data) {
+      return null;
+    }
+    
+    const viewport = viewportResult.data as { width: number; height: number; scrollX: number; scrollY: number };
+    
+    // Calculate viewport area (excluding title bar and chrome UI)
+    const titleBarHeight = 24; // Standard macOS title bar
+    const chromeUIHeight = 75; // Approximate height of Chrome's address bar/tabs
+    
+    return {
+      x: bounds.x,
+      y: bounds.y + titleBarHeight + chromeUIHeight,
+      width: Math.min(viewport.width, bounds.width),
+      height: Math.min(viewport.height, bounds.height - titleBarHeight - chromeUIHeight),
+      scrollX: viewport.scrollX,
+      scrollY: viewport.scrollY,
+      windowTitle
+    };
+    
+  } catch (error) {
+    return null;
+  }
+}
+
+/**
+ * Capture screen using macOS screencapture command with proper error handling
+ * @private
+ */
+async function captureScreen(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  outputPath: string,
+  format: string = 'png'
+): Promise<ScreenshotResult> {
+  return new Promise((resolve) => {
+    try {
+      ensureDirectoryExists(outputPath);
+      
+      const args = [
+        '-x', // Don't play sound
+        '-R', // Capture rectangle
+        `${x},${y},${width},${height}`
+      ];
+      
+      // Add format-specific arguments
+      if (format === 'jpg') {
+        args.push('-t', 'jpg');
+      } else if (format === 'pdf') {
+        args.push('-t', 'pdf');
+      }
+      
+      args.push(outputPath);
+      
+      const child = spawn('screencapture', args, {
+        stdio: ['pipe', 'pipe', 'pipe']
+      });
+      
+      let stderr = '';
+      let timedOut = false;
+      
+      // 15 second timeout for screenshot capture
+      const timeout = setTimeout(() => {
+        timedOut = true;
+        child.kill('SIGTERM');
+        resolve({
+          success: false,
+          action: 'viewport_screenshot',
+          error: 'Screenshot capture timed out after 15 seconds',
+          code: ERROR_CODES.TIMEOUT
+        });
+      }, 15000);
+      
+      child.stderr?.on('data', (data) => {
+        stderr += data.toString();
+      });
+      
+      child.on('close', (code) => {
+        if (timedOut) return;
+        
+        clearTimeout(timeout);
+        
+        if (code !== 0) {
+          // Check for permission issues
+          if (stderr.includes('not authorized') || stderr.includes('permission') || 
+              stderr.includes('Screen Recording') || code === 1) {
+            resolve({
+              success: false,
+              action: 'viewport_screenshot',
+              error: 'Screen recording permission denied. Please grant permission in System Preferences > Privacy & Security > Screen Recording and restart the application.',
+              code: ERROR_CODES.PERMISSION_DENIED
+            });
+            return;
+          }
+          
+          resolve({
+            success: false,
+            action: 'viewport_screenshot',
+            error: stderr || `screencapture exited with code ${code}`,
+            code: ERROR_CODES.UNKNOWN_ERROR
+          });
+          return;
+        }
+        
+        // Verify file was created
+        if (!existsSync(outputPath)) {
+          resolve({
+            success: false,
+            action: 'viewport_screenshot',
+            error: 'Screenshot file was not created',
+            code: ERROR_CODES.UNKNOWN_ERROR
+          });
+          return;
+        }
+        
+        resolve({
+          success: true,
+          action: 'viewport_screenshot',
+          path: outputPath,
+          code: ERROR_CODES.OK
+        });
+      });
+      
+      child.on('error', (err) => {
+        if (timedOut) return;
+        
+        clearTimeout(timeout);
+        resolve({
+          success: false,
+          action: 'viewport_screenshot',
+          error: `Failed to execute screencapture: ${err.message}`,
+          code: ERROR_CODES.UNKNOWN_ERROR
+        });
+      });
+      
+    } catch (error) {
+      resolve({
+        success: false,
+        action: 'viewport_screenshot',
+        error: `Screenshot preparation failed: ${error}`,
+        code: ERROR_CODES.UNKNOWN_ERROR
+      });
+    }
+  });
+}
+
+/**
+ * Extract image metadata from captured screenshot
+ * @private
+ */
+async function getImageMetadata(imagePath: string): Promise<ImageMetadata | null> {
+  try {
+    if (!existsSync(imagePath)) {
+      return null;
+    }
+    
+    const stats = statSync(imagePath);
+    const format = imagePath.split('.').pop()?.toLowerCase() || 'unknown';
+    
+    // Try to get image dimensions using sips (System Image Processing)
+    try {
+      const sipsResult = await execWithTimeout('sips', ['-g', 'pixelWidth', '-g', 'pixelHeight', imagePath], 5000);
+      
+      if (sipsResult.success) {
+        const output = sipsResult.data.stdout;
+        const widthMatch = output.match(/pixelWidth: (\d+)/);
+        const heightMatch = output.match(/pixelHeight: (\d+)/);
+        
+        if (widthMatch && heightMatch && widthMatch[1] && heightMatch[1]) {
+          return {
+            width: parseInt(widthMatch[1], 10),
+            height: parseInt(heightMatch[1], 10),
+            size: stats.size,
+            format,
+            path: imagePath
+          };
+        }
+      }
+    } catch (sipsError) {
+      // Fall back to basic metadata if sips fails
+    }
+    
+    // Fallback: return basic file info without dimensions
+    return {
+      width: 0,
+      height: 0,
+      size: stats.size,
+      format,
+      path: imagePath
+    };
+    
+  } catch (error) {
+    return null;
+  }
+}
+
+/**
+ * Take screenshot using macOS screencapture command (legacy function for compatibility)
+ * @deprecated Use captureScreen instead for enhanced functionality
  */
 async function takeScreenshot(
   args: string[], 
@@ -129,66 +382,100 @@ async function takeScreenshot(
 }
 
 /**
- * Capture viewport screenshot
+ * Capture viewport screenshot with enhanced coordinate calculation and error handling
+ * 
+ * This implementation uses proper viewport coordinate calculation, dedicated screen capture
+ * with permission error handling, and metadata extraction as specified in SHOT-002.
+ * 
+ * @param options Screenshot options including format, quality, preview settings
+ * @param windowIndex Chrome window index (1-based)
+ * @returns Promise resolving to screenshot result with comprehensive error context
  */
 export async function captureViewport(
   options: ScreenshotOptions = {},
   windowIndex: number = 1
 ): Promise<ScreenshotResult> {
   try {
-    const windowBounds = await getChromeWindowBounds(windowIndex);
+    // Get accurate viewport information using enhanced coordinate calculation
+    const viewportInfo = await getViewportInfo(windowIndex);
     
-    if (!windowBounds.success || !windowBounds.data) {
+    if (!viewportInfo) {
       return {
         success: false,
         action: 'viewport_screenshot',
-        error: 'Failed to get Chrome window bounds',
+        error: 'Failed to get viewport information. Ensure Chrome is running and accessible.',
         code: ERROR_CODES.CHROME_NOT_FOUND
       };
     }
     
-    const bounds = windowBounds.data.bounds;
-    const outputPath = generateScreenshotPath(options.format, options.outputPath);
-    
-    // Calculate viewport area (excluding title bar and chrome)
-    const titleBarHeight = 24; // Standard macOS title bar
-    const chromeHeight = 75; // Approximate height of Chrome's address bar/tabs
-    
-    const viewportX = bounds.x;
-    const viewportY = bounds.y + titleBarHeight + chromeHeight;
-    const viewportWidth = bounds.width;
-    const viewportHeight = bounds.height - titleBarHeight - chromeHeight;
-    
-    const args = [
-      '-x', // Don't play sound
-      '-R', // Capture rectangle
-      `${viewportX},${viewportY},${viewportWidth},${viewportHeight}`
-    ];
-    
-    if (options.format === 'jpg') {
-      args.push('-t', 'jpg');
-    } else if (options.format === 'pdf') {
-      args.push('-t', 'pdf');
-    }
-    
-    const result = await takeScreenshot(args, outputPath, options);
-    
-    if (result.success) {
-      result.action = 'viewport_screenshot';
-      result.metadata = {
-        width: viewportWidth,
-        height: viewportHeight,
-        windowTitle: windowBounds.data.title
+    // Validate viewport dimensions
+    if (viewportInfo.width <= 0 || viewportInfo.height <= 0) {
+      return {
+        success: false,
+        action: 'viewport_screenshot',
+        error: `Invalid viewport dimensions: ${viewportInfo.width}x${viewportInfo.height}`,
+        code: ERROR_CODES.TARGET_NOT_FOUND
       };
     }
     
-    return result;
+    const outputPath = generateScreenshotPath(options.format, options.outputPath);
+    const format = options.format || 'png';
+    
+    // Use enhanced screen capture with proper error handling
+    const captureResult = await captureScreen(
+      viewportInfo.x,
+      viewportInfo.y,
+      viewportInfo.width,
+      viewportInfo.height,
+      outputPath,
+      format
+    );
+    
+    if (!captureResult.success) {
+      return captureResult;
+    }
+    
+    // Extract image metadata after successful capture
+    const metadata = await getImageMetadata(outputPath);
+    
+    const screenshotResult: ScreenshotResult = {
+      success: true,
+      action: 'viewport_screenshot',
+      path: outputPath,
+      code: ERROR_CODES.OK,
+      metadata: {
+        width: metadata?.width || viewportInfo.width,
+        height: metadata?.height || viewportInfo.height,
+        ...(viewportInfo.windowTitle && { windowTitle: viewportInfo.windowTitle })
+      }
+    };
+    
+    // Generate WebP preview when requested
+    if (options.preview !== false) {
+      try {
+        const maxSize = options.previewMaxSize || 1.5 * 1024 * 1024; // 1.5MB default
+        const webpPreview = await createWebPPreview(outputPath, maxSize);
+        
+        if (webpPreview.size > 0) { // Only add preview if generation was successful
+          screenshotResult.preview = {
+            base64: webpPreview.base64,
+            size: webpPreview.size
+          };
+        }
+      } catch (previewError) {
+        // Preview generation failure doesn't fail the screenshot
+        // Log warning but continue with successful screenshot
+        console.warn('WebP preview generation failed:', previewError);
+      }
+    }
+    
+    return screenshotResult;
     
   } catch (error) {
     return {
       success: false,
       action: 'viewport_screenshot',
-      error: `Viewport screenshot failed: ${error}`,
+      error: `Viewport screenshot failed: ${error instanceof Error ? error.message : String(error)}`,
       code: ERROR_CODES.UNKNOWN_ERROR
     };
   }

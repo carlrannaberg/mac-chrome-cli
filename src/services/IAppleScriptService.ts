@@ -285,6 +285,41 @@ export interface IAppleScriptService {
   focusChromeWindow(windowIndex?: number): Promise<AppleScriptResult<boolean>>;
   
   /**
+   * Retrieves all tabs in a Chrome window.
+   * 
+   * @param windowIndex - Optional window index (1-based, default: frontmost)
+   * @returns Promise resolving to array of all tabs in the specified window
+   * 
+   * @example
+   * ```typescript
+   * const tabsResult = await service.getAllTabs(1);
+   * if (tabsResult.success) {
+   *   tabsResult.data.forEach(tab => {
+   *     console.log(`Tab ${tab.id}: ${tab.title} - ${tab.url}`);
+   *   });
+   * }
+   * ```
+   */
+  getAllTabs(windowIndex?: number): Promise<AppleScriptResult<ChromeTab[]>>;
+  
+  /**
+   * Focuses a specific tab by its index in a Chrome window.
+   * 
+   * @param tabIndex - Tab index to focus (1-based)
+   * @param windowIndex - Optional window index (1-based, default: frontmost)
+   * @returns Promise resolving to the focused tab information
+   * 
+   * @example
+   * ```typescript
+   * const focusResult = await service.focusTabByIndex(3, 1);
+   * if (focusResult.success) {
+   *   console.log(`Focused tab: ${focusResult.data.title}`);
+   * }
+   * ```
+   */
+  focusTabByIndex(tabIndex: number, windowIndex?: number): Promise<AppleScriptResult<ChromeTab>>;
+  
+  /**
    * Executes multiple AppleScript operations in batch for improved performance.
    * 
    * This method optimizes multiple operations by reducing IPC overhead

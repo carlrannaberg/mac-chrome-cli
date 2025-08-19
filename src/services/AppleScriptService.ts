@@ -434,6 +434,64 @@ end tell`;
   }
 
   /**
+   * Get all tabs in a Chrome window using optimized script generation
+   */
+  async getAllTabs(windowIndex: number = 1): Promise<AppleScriptResult<ChromeTab[]>> {
+    // Import here to avoid circular dependencies
+    const { generateTabEnumerationScript } = await import('../lib/tab-manager.js');
+    const script = generateTabEnumerationScript(windowIndex);
+    
+    const result = await this.executeScript(script, 15000);
+    
+    if (!result.success) {
+      return error(result.error, result.code);
+    }
+
+    const output = result.data?.trim();
+    
+    if (output?.startsWith('ERROR:')) {
+      const errorMsg = output.substring(6).trim();
+      return error(errorMsg, errorMsg.includes('Chrome is not running') ? ERROR_CODES.CHROME_NOT_FOUND : ERROR_CODES.UNKNOWN_ERROR);
+    }
+
+    try {
+      const tabs = JSON.parse(output || '[]') as ChromeTab[];
+      return ok(tabs, ERROR_CODES.OK);
+    } catch (parseError) {
+      return error(`Failed to parse tab data: ${parseError}`, ERROR_CODES.UNKNOWN_ERROR);
+    }
+  }
+
+  /**
+   * Focus a tab by index in a Chrome window using optimized script generation
+   */
+  async focusTabByIndex(tabIndex: number, windowIndex: number = 1): Promise<AppleScriptResult<ChromeTab>> {
+    // Import here to avoid circular dependencies
+    const { generateTabFocusScript } = await import('../lib/tab-manager.js');
+    const script = generateTabFocusScript(tabIndex, windowIndex);
+    
+    const result = await this.executeScript(script, 10000);
+    
+    if (!result.success) {
+      return error(result.error, result.code);
+    }
+
+    const output = result.data?.trim();
+    
+    if (output?.startsWith('ERROR:')) {
+      const errorMsg = output.substring(6).trim();
+      return error(errorMsg, errorMsg.includes('Chrome is not running') ? ERROR_CODES.CHROME_NOT_FOUND : ERROR_CODES.UNKNOWN_ERROR);
+    }
+
+    try {
+      const tab = JSON.parse(output || '{}') as ChromeTab;
+      return ok(tab, ERROR_CODES.OK);
+    } catch (parseError) {
+      return error(`Failed to parse tab data: ${parseError}`, ERROR_CODES.UNKNOWN_ERROR);
+    }
+  }
+
+  /**
    * Execute batch AppleScript operations for better performance
    */
   async executeBatch<T = unknown>(

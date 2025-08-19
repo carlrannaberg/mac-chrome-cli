@@ -1,6 +1,13 @@
 import { Command } from 'commander';
 import { OutputFormatter, GlobalOptions } from './OutputFormatter.js';
 import { ERROR_CODES } from '../lib/util.js';
+import { ErrorCode } from '../core/ErrorCodes.js';
+import type { NavigationOptions } from '../commands/navigation.js';
+import type { ScreenshotOptions } from '../commands/screenshot.js';
+import type { MouseOptions } from '../commands/mouse.js';
+import type { KeyboardOptions } from '../commands/keyboard.js';
+import type { InputOptions, InputValueOptions, FormSubmitOptions } from '../commands/input.js';
+import type { TabFocusOptions, TabInfoOptions, TabListOptions, TabFocusIndexOptions } from '../commands/tab.js';
 
 /**
  * Central registry for all CLI commands
@@ -135,30 +142,163 @@ export class CommandRegistry {
       .command('go')
       .description('Navigate to URL')
       .requiredOption('--url <url>', 'URL to navigate to')
-      .action(async () => {
-        this.formatter.output(null, 'Navigation commands not yet implemented', ERROR_CODES.UNKNOWN_ERROR);
+      .option('--wait', 'wait for page load completion')
+      .option('--timeout <ms>', 'navigation timeout in milliseconds', '30000')
+      .option('--window <index>', 'target window index', '1')
+      .action(async (options) => {
+        try {
+          const { NavigationCommand } = await import('../commands/navigation.js');
+          const cmd = new NavigationCommand();
+          
+          const windowIndex = parseInt(options.window, 10);
+          const timeoutMs = parseInt(options.timeout, 10);
+          
+          if (isNaN(windowIndex) || windowIndex < 1) {
+            this.formatter.output(null, 'Invalid window index. Must be a positive integer.', ERROR_CODES.INVALID_INPUT);
+            return;
+          }
+          
+          if (isNaN(timeoutMs) || timeoutMs < 1000) {
+            this.formatter.output(null, 'Invalid timeout. Must be at least 1000ms.', ERROR_CODES.INVALID_INPUT);
+            return;
+          }
+          
+          const result = await cmd.go(options.url, {
+            windowIndex,
+            waitForLoad: options.wait,
+            timeoutMs
+          });
+          
+          if (result.success) {
+            this.formatter.output(result.data, undefined, result.code);
+          } else {
+            this.formatter.output(null, result.error, result.code);
+          }
+        } catch (error) {
+          this.formatter.output(null, `Navigation command failed: ${error}`, ERROR_CODES.UNKNOWN_ERROR);
+        }
       });
 
     navCmd
       .command('reload')
       .description('Reload current page')
       .option('--hard', 'perform hard reload (bypass cache)')
-      .action(async () => {
-        this.formatter.output(null, 'Navigation commands not yet implemented', ERROR_CODES.UNKNOWN_ERROR);
+      .option('--wait', 'wait for page load completion')
+      .option('--timeout <ms>', 'reload timeout in milliseconds', '30000')
+      .option('--window <index>', 'target window index', '1')
+      .action(async (options) => {
+        try {
+          const { NavigationCommand } = await import('../commands/navigation.js');
+          const cmd = new NavigationCommand();
+          
+          const windowIndex = parseInt(options.window, 10);
+          const timeoutMs = parseInt(options.timeout, 10);
+          
+          if (isNaN(windowIndex) || windowIndex < 1) {
+            this.formatter.output(null, 'Invalid window index. Must be a positive integer.', ERROR_CODES.INVALID_INPUT);
+            return;
+          }
+          
+          if (isNaN(timeoutMs) || timeoutMs < 1000) {
+            this.formatter.output(null, 'Invalid timeout. Must be at least 1000ms.', ERROR_CODES.INVALID_INPUT);
+            return;
+          }
+          
+          const result = await cmd.reload({
+            windowIndex,
+            waitForLoad: options.wait,
+            timeoutMs,
+            hardReload: options.hard
+          });
+          
+          if (result.success) {
+            this.formatter.output(result.data, undefined, result.code);
+          } else {
+            this.formatter.output(null, result.error, result.code);
+          }
+        } catch (error) {
+          this.formatter.output(null, `Reload command failed: ${error}`, ERROR_CODES.UNKNOWN_ERROR);
+        }
       });
 
     navCmd
       .command('back')
-      .description('Navigate back in history')
-      .action(async () => {
-        this.formatter.output(null, 'Navigation commands not yet implemented', ERROR_CODES.UNKNOWN_ERROR);
+      .description('Navigate back in browser history')
+      .option('--wait', 'wait for page load completion')
+      .option('--timeout <ms>', 'navigation timeout in milliseconds', '30000')
+      .option('--window <index>', 'target window index', '1')
+      .action(async (options) => {
+        try {
+          const { NavigationCommand } = await import('../commands/navigation.js');
+          const cmd = new NavigationCommand();
+          
+          const windowIndex = parseInt(options.window, 10);
+          const timeoutMs = parseInt(options.timeout, 10);
+          
+          if (isNaN(windowIndex) || windowIndex < 1) {
+            this.formatter.output(null, 'Invalid window index. Must be a positive integer.', ERROR_CODES.INVALID_INPUT);
+            return;
+          }
+          
+          if (isNaN(timeoutMs) || timeoutMs < 1000) {
+            this.formatter.output(null, 'Invalid timeout. Must be at least 1000ms.', ERROR_CODES.INVALID_INPUT);
+            return;
+          }
+          
+          const result = await cmd.back({
+            windowIndex,
+            waitForLoad: options.wait,
+            timeoutMs
+          });
+          
+          if (result.success) {
+            this.formatter.output(result.data, undefined, result.code);
+          } else {
+            this.formatter.output(null, result.error, result.code);
+          }
+        } catch (error) {
+          this.formatter.output(null, `Back navigation failed: ${error}`, ERROR_CODES.UNKNOWN_ERROR);
+        }
       });
 
     navCmd
       .command('forward')
-      .description('Navigate forward in history')
-      .action(async () => {
-        this.formatter.output(null, 'Navigation commands not yet implemented', ERROR_CODES.UNKNOWN_ERROR);
+      .description('Navigate forward in browser history')
+      .option('--wait', 'wait for page load completion')
+      .option('--timeout <ms>', 'navigation timeout in milliseconds', '30000')
+      .option('--window <index>', 'target window index', '1')
+      .action(async (options) => {
+        try {
+          const { NavigationCommand } = await import('../commands/navigation.js');
+          const cmd = new NavigationCommand();
+          
+          const windowIndex = parseInt(options.window, 10);
+          const timeoutMs = parseInt(options.timeout, 10);
+          
+          if (isNaN(windowIndex) || windowIndex < 1) {
+            this.formatter.output(null, 'Invalid window index. Must be a positive integer.', ERROR_CODES.INVALID_INPUT);
+            return;
+          }
+          
+          if (isNaN(timeoutMs) || timeoutMs < 1000) {
+            this.formatter.output(null, 'Invalid timeout. Must be at least 1000ms.', ERROR_CODES.INVALID_INPUT);
+            return;
+          }
+          
+          const result = await cmd.forward({
+            windowIndex,
+            waitForLoad: options.wait,
+            timeoutMs
+          });
+          
+          if (result.success) {
+            this.formatter.output(result.data, undefined, result.code);
+          } else {
+            this.formatter.output(null, result.error, result.code);
+          }
+        } catch (error) {
+          this.formatter.output(null, `Forward navigation failed: ${error}`, ERROR_CODES.UNKNOWN_ERROR);
+        }
       });
   }
 
@@ -167,12 +307,114 @@ export class CommandRegistry {
       .command('tab')
       .description('Tab management commands');
 
+    // Focus tab command
     tabCmd
       .command('focus')
-      .description('Focus tab by match criteria')
-      .option('--match <pattern>', 'pattern to match tab title or URL')
-      .action(async () => {
-        this.formatter.output(null, 'Tab commands not yet implemented', ERROR_CODES.UNKNOWN_ERROR);
+      .description('Focus tab by pattern matching title or URL')
+      .requiredOption('--pattern <pattern>', 'Pattern to match tab title or URL')
+      .option('--window-index <index>', 'Target window index', '1')
+      .option('--exact', 'Use exact matching instead of substring matching')
+      .action(async (options) => {
+        try {
+          const { TabCommand } = await import('../commands/tab.js');
+          const tabCommand = new TabCommand();
+          
+          const focusOptions: TabFocusOptions = {
+            pattern: options.pattern,
+            windowIndex: parseInt(options.windowIndex, 10),
+            exactMatch: options.exact
+          };
+          
+          const result = await tabCommand.focus(focusOptions);
+          
+          if (result.success) {
+            this.formatter.output(result.data);
+          } else {
+            this.formatter.output(null, result.error, result.code);
+          }
+        } catch (error) {
+          this.formatter.output(null, `Tab focus failed: ${error}`, ErrorCode.UNKNOWN_ERROR);
+        }
+      });
+
+    // Get active tab command
+    tabCmd
+      .command('active')
+      .description('Get information about the currently active tab')
+      .option('--window-index <index>', 'Target window index', '1')
+      .action(async (options) => {
+        try {
+          const { TabCommand } = await import('../commands/tab.js');
+          const tabCommand = new TabCommand();
+          
+          const infoOptions: TabInfoOptions = {
+            windowIndex: parseInt(options.windowIndex, 10)
+          };
+          
+          const result = await tabCommand.getActive(infoOptions);
+          
+          if (result.success) {
+            this.formatter.output(result.data);
+          } else {
+            this.formatter.output(null, result.error, result.code);
+          }
+        } catch (error) {
+          this.formatter.output(null, `Get active tab failed: ${error}`, ErrorCode.UNKNOWN_ERROR);
+        }
+      });
+
+    // List tabs command
+    tabCmd
+      .command('list')
+      .description('List all tabs in a Chrome window')
+      .option('--window-index <index>', 'Target window index', '1')
+      .action(async (options) => {
+        try {
+          const { TabCommand } = await import('../commands/tab.js');
+          const tabCommand = new TabCommand();
+          
+          const listOptions: TabListOptions = {
+            windowIndex: parseInt(options.windowIndex, 10)
+          };
+          
+          const result = await tabCommand.list(listOptions);
+          
+          if (result.success) {
+            this.formatter.output(result.data);
+          } else {
+            this.formatter.output(null, result.error, result.code);
+          }
+        } catch (error) {
+          this.formatter.output(null, `List tabs failed: ${error}`, ErrorCode.UNKNOWN_ERROR);
+        }
+      });
+
+    // Focus tab by index command
+    tabCmd
+      .command('focus-index')
+      .description('Focus tab by its index position')
+      .requiredOption('--tab-index <index>', 'Tab index to focus (1-based)')
+      .option('--window-index <index>', 'Target window index', '1')
+      .action(async (options) => {
+        try {
+          const { TabCommand } = await import('../commands/tab.js');
+          const tabCommand = new TabCommand();
+          
+          const focusIndexOptions: TabFocusIndexOptions = {
+            tabIndex: parseInt(options.tabIndex, 10),
+            windowIndex: parseInt(options.windowIndex, 10)
+          };
+          
+          const result = await tabCommand.focusByIndex(focusIndexOptions);
+          
+          if (result.success) {
+            this.formatter.output(result.data);
+          } else {
+            this.formatter.output(null, result.error, result.code);
+          }
+        } catch (error) {
+          this.formatter.output(null, `Focus tab by index failed: ${error}`, ErrorCode.UNKNOWN_ERROR);
+        }
       });
   }
 
@@ -181,26 +423,147 @@ export class CommandRegistry {
       .command('shot')
       .description('Screenshot capture commands');
 
+    // Viewport screenshot
     shotCmd
       .command('viewport')
-      .description('Capture viewport screenshot')
-      .action(async () => {
-        this.formatter.output(null, 'Screenshot commands not yet implemented', ERROR_CODES.UNKNOWN_ERROR);
+      .description('Capture viewport screenshot (visible browser content)')
+      .option('--out <path>', 'Output file path (auto-generated if not specified)')
+      .option('--format <format>', 'Image format (png|jpg|pdf)', 'png')
+      .option('--quality <quality>', 'JPEG quality 1-100 (jpg format only)', '90')
+      .option('--no-preview', 'Disable WebP preview generation')
+      .option('--preview-max <size>', 'Maximum preview size in bytes', '1572864')
+      .option('--window-index <index>', 'Target window index', '1')
+      .action(async (options) => {
+        try {
+          const { ScreenshotCommand } = await import('../commands/screenshot.js');
+          const screenshotCmd = new ScreenshotCommand();
+          
+          const screenshotOptions: ScreenshotOptions = {
+            outputPath: options.out,
+            format: options.format as 'png' | 'jpg' | 'pdf',
+            preview: options.preview,
+            windowIndex: parseInt(options.windowIndex, 10),
+            ...(options.quality && { quality: parseInt(options.quality, 10) }),
+            ...(options.previewMax && { previewMaxSize: parseInt(options.previewMax, 10) })
+          };
+          
+          const result = await screenshotCmd.viewport(screenshotOptions);
+          
+          if (result.success) {
+            this.formatter.output(result.data);
+          } else {
+            this.formatter.output(null, result.error, result.code);
+          }
+        } catch (error) {
+          this.formatter.output(null, `Screenshot failed: ${error}`, ErrorCode.UNKNOWN_ERROR);
+        }
       });
 
+    // Window screenshot
     shotCmd
       .command('window')
-      .description('Capture window screenshot')
-      .action(async () => {
-        this.formatter.output(null, 'Screenshot commands not yet implemented', ERROR_CODES.UNKNOWN_ERROR);
+      .description('Capture window screenshot (entire browser window with chrome)')
+      .option('--out <path>', 'Output file path (auto-generated if not specified)')
+      .option('--format <format>', 'Image format (png|jpg|pdf)', 'png')
+      .option('--quality <quality>', 'JPEG quality 1-100 (jpg format only)', '90')
+      .option('--no-preview', 'Disable WebP preview generation')
+      .option('--preview-max <size>', 'Maximum preview size in bytes', '1572864')
+      .option('--window-index <index>', 'Target window index', '1')
+      .action(async (options) => {
+        try {
+          const { ScreenshotCommand } = await import('../commands/screenshot.js');
+          const screenshotCmd = new ScreenshotCommand();
+          
+          const screenshotOptions: ScreenshotOptions = {
+            outputPath: options.out,
+            format: options.format as 'png' | 'jpg' | 'pdf',
+            preview: options.preview,
+            windowIndex: parseInt(options.windowIndex, 10),
+            ...(options.quality && { quality: parseInt(options.quality, 10) }),
+            ...(options.previewMax && { previewMaxSize: parseInt(options.previewMax, 10) })
+          };
+          
+          const result = await screenshotCmd.window(screenshotOptions);
+          
+          if (result.success) {
+            this.formatter.output(result.data);
+          } else {
+            this.formatter.output(null, result.error, result.code);
+          }
+        } catch (error) {
+          this.formatter.output(null, `Screenshot failed: ${error}`, ErrorCode.UNKNOWN_ERROR);
+        }
       });
 
+    // Element screenshot
     shotCmd
       .command('element')
-      .description('Capture element screenshot')
-      .requiredOption('--selector <selector>', 'CSS selector for element')
-      .action(async () => {
-        this.formatter.output(null, 'Screenshot commands not yet implemented', ERROR_CODES.UNKNOWN_ERROR);
+      .description('Capture screenshot of specific DOM element')
+      .requiredOption('--selector <selector>', 'CSS selector for target element')
+      .option('--out <path>', 'Output file path (auto-generated if not specified)')
+      .option('--format <format>', 'Image format (png|jpg|pdf)', 'png')
+      .option('--quality <quality>', 'JPEG quality 1-100 (jpg format only)', '90')
+      .option('--no-preview', 'Disable WebP preview generation')
+      .option('--preview-max <size>', 'Maximum preview size in bytes', '1572864')
+      .option('--window-index <index>', 'Target window index', '1')
+      .action(async (options) => {
+        try {
+          const { ScreenshotCommand } = await import('../commands/screenshot.js');
+          const screenshotCmd = new ScreenshotCommand();
+          
+          const screenshotOptions: ScreenshotOptions = {
+            outputPath: options.out,
+            format: options.format as 'png' | 'jpg' | 'pdf',
+            preview: options.preview,
+            windowIndex: parseInt(options.windowIndex, 10),
+            ...(options.quality && { quality: parseInt(options.quality, 10) }),
+            ...(options.previewMax && { previewMaxSize: parseInt(options.previewMax, 10) })
+          };
+          
+          const result = await screenshotCmd.element(options.selector, screenshotOptions);
+          
+          if (result.success) {
+            this.formatter.output(result.data);
+          } else {
+            this.formatter.output(null, result.error, result.code);
+          }
+        } catch (error) {
+          this.formatter.output(null, `Screenshot failed: ${error}`, ErrorCode.UNKNOWN_ERROR);
+        }
+      });
+
+    // Fullscreen screenshot
+    shotCmd
+      .command('fullscreen')
+      .description('Capture fullscreen screenshot (entire screen)')
+      .option('--out <path>', 'Output file path (auto-generated if not specified)')
+      .option('--format <format>', 'Image format (png|jpg|pdf)', 'png')
+      .option('--quality <quality>', 'JPEG quality 1-100 (jpg format only)', '90')
+      .option('--no-preview', 'Disable WebP preview generation')
+      .option('--preview-max <size>', 'Maximum preview size in bytes', '1572864')
+      .action(async (options) => {
+        try {
+          const { ScreenshotCommand } = await import('../commands/screenshot.js');
+          const screenshotCmd = new ScreenshotCommand();
+          
+          const screenshotOptions: ScreenshotOptions = {
+            outputPath: options.out,
+            format: options.format as 'png' | 'jpg' | 'pdf',
+            preview: options.preview,
+            ...(options.quality && { quality: parseInt(options.quality, 10) }),
+            ...(options.previewMax && { previewMaxSize: parseInt(options.previewMax, 10) })
+          };
+          
+          const result = await screenshotCmd.fullscreen(screenshotOptions);
+          
+          if (result.success) {
+            this.formatter.output(result.data);
+          } else {
+            this.formatter.output(null, result.error, result.code);
+          }
+        } catch (error) {
+          this.formatter.output(null, `Screenshot failed: ${error}`, ErrorCode.UNKNOWN_ERROR);
+        }
       });
   }
 
@@ -209,25 +572,194 @@ export class CommandRegistry {
       .command('mouse')
       .description('Mouse interaction commands');
 
+    // Click command
     mouseCmd
       .command('click')
       .description('Click at coordinates or element')
       .option('--selector <selector>', 'CSS selector for element')
       .option('--x <x>', 'X coordinate')
-      .option('--y <y>', 'Y coordinate')
-      .option('--button <button>', 'mouse button (left|right|middle)', 'left')
-      .action(async () => {
-        this.formatter.output(null, 'Mouse commands not yet implemented', ERROR_CODES.UNKNOWN_ERROR);
+      .option('--y <y>', 'Y coordinate') 
+      .option('--button <button>', 'Mouse button (left|right|middle)', 'left')
+      .option('--click-count <count>', 'Number of clicks', '1')
+      .option('--offset-x <x>', 'X offset from element center')
+      .option('--offset-y <y>', 'Y offset from element center')
+      .option('--window-index <index>', 'Target window index', '1')
+      .action(async (options) => {
+        try {
+          const { MouseCommand } = await import('../commands/mouse.js');
+          const mouseCommand = new MouseCommand();
+          
+          const mouseOptions: MouseOptions = {
+            selector: options.selector,
+            ...(options.x && { x: parseFloat(options.x) }),
+            ...(options.y && { y: parseFloat(options.y) }),
+            button: options.button as 'left' | 'right' | 'middle',
+            ...(options.clickCount && { clickCount: parseInt(options.clickCount, 10) }),
+            ...(options.offsetX && { offsetX: parseFloat(options.offsetX) }),
+            ...(options.offsetY && { offsetY: parseFloat(options.offsetY) }),
+            windowIndex: parseInt(options.windowIndex, 10)
+          };
+          
+          const result = await mouseCommand.click(mouseOptions);
+          
+          if (result.success) {
+            this.formatter.output(result.data);
+          } else {
+            this.formatter.output(null, result.error, result.code);
+          }
+        } catch (error) {
+          this.formatter.output(null, `Mouse click failed: ${error}`, ErrorCode.UNKNOWN_ERROR);
+        }
       });
 
+    // Double-click command
     mouseCmd
-      .command('move')
-      .description('Move mouse to coordinates or element')
+      .command('double-click')
+      .description('Double-click at coordinates or element')
       .option('--selector <selector>', 'CSS selector for element')
       .option('--x <x>', 'X coordinate')
       .option('--y <y>', 'Y coordinate')
-      .action(async () => {
-        this.formatter.output(null, 'Mouse commands not yet implemented', ERROR_CODES.UNKNOWN_ERROR);
+      .option('--offset-x <x>', 'X offset from element center')
+      .option('--offset-y <y>', 'Y offset from element center')
+      .option('--window-index <index>', 'Target window index', '1')
+      .action(async (options) => {
+        try {
+          const { MouseCommand } = await import('../commands/mouse.js');
+          const mouseCommand = new MouseCommand();
+          
+          const mouseOptions: MouseOptions = {
+            selector: options.selector,
+            ...(options.x && { x: parseFloat(options.x) }),
+            ...(options.y && { y: parseFloat(options.y) }),
+            ...(options.offsetX && { offsetX: parseFloat(options.offsetX) }),
+            ...(options.offsetY && { offsetY: parseFloat(options.offsetY) }),
+            windowIndex: parseInt(options.windowIndex, 10)
+          };
+          
+          const result = await mouseCommand.doubleClick(mouseOptions);
+          
+          if (result.success) {
+            this.formatter.output(result.data);
+          } else {
+            this.formatter.output(null, result.error, result.code);
+          }
+        } catch (error) {
+          this.formatter.output(null, `Mouse double-click failed: ${error}`, ErrorCode.UNKNOWN_ERROR);
+        }
+      });
+
+    // Right-click command
+    mouseCmd
+      .command('right-click')
+      .description('Right-click (context menu) at coordinates or element')
+      .option('--selector <selector>', 'CSS selector for element')
+      .option('--x <x>', 'X coordinate')
+      .option('--y <y>', 'Y coordinate')
+      .option('--offset-x <x>', 'X offset from element center')
+      .option('--offset-y <y>', 'Y offset from element center')
+      .option('--window-index <index>', 'Target window index', '1')
+      .action(async (options) => {
+        try {
+          const { MouseCommand } = await import('../commands/mouse.js');
+          const mouseCommand = new MouseCommand();
+          
+          const mouseOptions: MouseOptions = {
+            selector: options.selector,
+            ...(options.x && { x: parseFloat(options.x) }),
+            ...(options.y && { y: parseFloat(options.y) }),
+            ...(options.offsetX && { offsetX: parseFloat(options.offsetX) }),
+            ...(options.offsetY && { offsetY: parseFloat(options.offsetY) }),
+            windowIndex: parseInt(options.windowIndex, 10)
+          };
+          
+          const result = await mouseCommand.rightClick(mouseOptions);
+          
+          if (result.success) {
+            this.formatter.output(result.data);
+          } else {
+            this.formatter.output(null, result.error, result.code);
+          }
+        } catch (error) {
+          this.formatter.output(null, `Mouse right-click failed: ${error}`, ErrorCode.UNKNOWN_ERROR);
+        }
+      });
+
+    // Move/hover command
+    mouseCmd
+      .command('move')
+      .description('Move mouse to coordinates or element (hover)')
+      .option('--selector <selector>', 'CSS selector for element')
+      .option('--x <x>', 'X coordinate')
+      .option('--y <y>', 'Y coordinate')
+      .option('--offset-x <x>', 'X offset from element center')
+      .option('--offset-y <y>', 'Y offset from element center')
+      .option('--window-index <index>', 'Target window index', '1')
+      .action(async (options) => {
+        try {
+          const { MouseCommand } = await import('../commands/mouse.js');
+          const mouseCommand = new MouseCommand();
+          
+          const mouseOptions: MouseOptions = {
+            selector: options.selector,
+            ...(options.x && { x: parseFloat(options.x) }),
+            ...(options.y && { y: parseFloat(options.y) }),
+            ...(options.offsetX && { offsetX: parseFloat(options.offsetX) }),
+            ...(options.offsetY && { offsetY: parseFloat(options.offsetY) }),
+            windowIndex: parseInt(options.windowIndex, 10)
+          };
+          
+          const result = await mouseCommand.move(mouseOptions);
+          
+          if (result.success) {
+            this.formatter.output(result.data);
+          } else {
+            this.formatter.output(null, result.error, result.code);
+          }
+        } catch (error) {
+          this.formatter.output(null, `Mouse move failed: ${error}`, ErrorCode.UNKNOWN_ERROR);
+        }
+      });
+
+    // Drag command
+    mouseCmd
+      .command('drag')
+      .description('Drag from one location to another')
+      .requiredOption('--from-selector <selector>', 'CSS selector for source element')
+      .option('--from-x <x>', 'Source X coordinate (if not using from-selector)')
+      .option('--from-y <y>', 'Source Y coordinate (if not using from-selector)')
+      .requiredOption('--to-selector <selector>', 'CSS selector for target element')
+      .option('--to-x <x>', 'Target X coordinate (if not using to-selector)')
+      .option('--to-y <y>', 'Target Y coordinate (if not using to-selector)')
+      .option('--window-index <index>', 'Target window index', '1')
+      .action(async (options) => {
+        try {
+          const { MouseCommand } = await import('../commands/mouse.js');
+          const mouseCommand = new MouseCommand();
+          
+          const fromOptions: MouseOptions = {
+            selector: options.fromSelector,
+            ...(options.fromX && { x: parseFloat(options.fromX) }),
+            ...(options.fromY && { y: parseFloat(options.fromY) }),
+            windowIndex: parseInt(options.windowIndex, 10)
+          };
+          
+          const toOptions: MouseOptions = {
+            selector: options.toSelector,
+            ...(options.toX && { x: parseFloat(options.toX) }),
+            ...(options.toY && { y: parseFloat(options.toY) }),
+            windowIndex: parseInt(options.windowIndex, 10)
+          };
+          
+          const result = await mouseCommand.drag(fromOptions, toOptions);
+          
+          if (result.success) {
+            this.formatter.output(result.data);
+          } else {
+            this.formatter.output(null, result.error, result.code);
+          }
+        } catch (error) {
+          this.formatter.output(null, `Mouse drag failed: ${error}`, ErrorCode.UNKNOWN_ERROR);
+        }
       });
   }
 
@@ -236,21 +768,137 @@ export class CommandRegistry {
       .command('keyboard')
       .description('Keyboard input commands');
 
+    // Type command
     keyboardCmd
       .command('type')
       .description('Type text')
-      .requiredOption('--text <text>', 'text to type')
-      .option('--speed <ms>', 'delay between characters in ms', '50')
-      .action(async () => {
-        this.formatter.output(null, 'Keyboard commands not yet implemented', ERROR_CODES.UNKNOWN_ERROR);
+      .requiredOption('--text <text>', 'Text to type')
+      .option('--speed <ms>', 'Delay between characters in ms', '50')
+      .option('--clear', 'Clear field before typing')
+      .option('--repeat <count>', 'Number of times to repeat', '1')
+      .action(async (options) => {
+        try {
+          const { KeyboardCommand } = await import('../commands/keyboard.js');
+          const keyboardCommand = new KeyboardCommand();
+          
+          const keyboardOptions: KeyboardOptions = {
+            text: options.text,
+            speed: parseInt(options.speed, 10),
+            clear: options.clear,
+            ...(options.repeat && { repeat: parseInt(options.repeat, 10) })
+          };
+          
+          const result = await keyboardCommand.type(keyboardOptions);
+          
+          if (result.success) {
+            this.formatter.output(result.data);
+          } else {
+            this.formatter.output(null, result.error, result.code);
+          }
+        } catch (error) {
+          this.formatter.output(null, `Keyboard type failed: ${error}`, ErrorCode.UNKNOWN_ERROR);
+        }
       });
 
+    // Key combination command
     keyboardCmd
-      .command('keys')
+      .command('combo')
       .description('Send key combination')
-      .requiredOption('--combo <combo>', 'key combination (e.g., cmd+shift+r)')
+      .requiredOption('--combo <combo>', 'Key combination (e.g., cmd+s, ctrl+c)')
+      .option('--repeat <count>', 'Number of times to repeat', '1')
+      .action(async (options) => {
+        try {
+          const { KeyboardCommand } = await import('../commands/keyboard.js');
+          const keyboardCommand = new KeyboardCommand();
+          
+          const keyboardOptions: KeyboardOptions = {
+            combo: options.combo,
+            ...(options.repeat && { repeat: parseInt(options.repeat, 10) })
+          };
+          
+          const result = await keyboardCommand.combo(keyboardOptions);
+          
+          if (result.success) {
+            this.formatter.output(result.data);
+          } else {
+            this.formatter.output(null, result.error, result.code);
+          }
+        } catch (error) {
+          this.formatter.output(null, `Keyboard combo failed: ${error}`, ErrorCode.UNKNOWN_ERROR);
+        }
+      });
+
+    // Press key command
+    keyboardCmd
+      .command('press')
+      .description('Press a special key')
+      .requiredOption('--key <key>', 'Key to press (e.g., Enter, Tab, Escape)')
+      .option('--repeat <count>', 'Number of times to repeat', '1')
+      .action(async (options) => {
+        try {
+          const { KeyboardCommand } = await import('../commands/keyboard.js');
+          const keyboardCommand = new KeyboardCommand();
+          
+          const keyboardOptions: KeyboardOptions = {
+            key: options.key,
+            ...(options.repeat && { repeat: parseInt(options.repeat, 10) })
+          };
+          
+          const result = await keyboardCommand.press(keyboardOptions);
+          
+          if (result.success) {
+            this.formatter.output(result.data);
+          } else {
+            this.formatter.output(null, result.error, result.code);
+          }
+        } catch (error) {
+          this.formatter.output(null, `Keyboard press failed: ${error}`, ErrorCode.UNKNOWN_ERROR);
+        }
+      });
+
+    // Clear command
+    keyboardCmd
+      .command('clear')
+      .description('Clear the current input field')
       .action(async () => {
-        this.formatter.output(null, 'Keyboard commands not yet implemented', ERROR_CODES.UNKNOWN_ERROR);
+        try {
+          const { KeyboardCommand } = await import('../commands/keyboard.js');
+          const keyboardCommand = new KeyboardCommand();
+          
+          const result = await keyboardCommand.clear();
+          
+          if (result.success) {
+            this.formatter.output(result.data);
+          } else {
+            this.formatter.output(null, result.error, result.code);
+          }
+        } catch (error) {
+          this.formatter.output(null, `Keyboard clear failed: ${error}`, ErrorCode.UNKNOWN_ERROR);
+        }
+      });
+
+    // Shortcut command
+    keyboardCmd
+      .command('shortcut')
+      .description('Execute a predefined keyboard shortcut')
+      .requiredOption('--name <name>', 'Shortcut name (copy, paste, cut, undo, redo, etc.)')
+      .option('--repeat <count>', 'Number of times to repeat', '1')
+      .action(async (options) => {
+        try {
+          const { KeyboardCommand } = await import('../commands/keyboard.js');
+          const keyboardCommand = new KeyboardCommand();
+          
+          const repeat = parseInt(options.repeat, 10);
+          const result = await keyboardCommand.shortcut(options.name, repeat);
+          
+          if (result.success) {
+            this.formatter.output(result.data);
+          } else {
+            this.formatter.output(null, result.error, result.code);
+          }
+        } catch (error) {
+          this.formatter.output(null, `Keyboard shortcut failed: ${error}`, ErrorCode.UNKNOWN_ERROR);
+        }
       });
   }
 
@@ -259,14 +907,137 @@ export class CommandRegistry {
       .command('input')
       .description('Form input commands');
 
+    // Fill input field
     inputCmd
       .command('fill')
-      .description('Fill input field')
-      .requiredOption('--selector <selector>', 'CSS selector for input')
-      .requiredOption('--value <value>', 'value to fill')
-      .option('--clear', 'clear field before filling')
-      .action(async () => {
-        this.formatter.output(null, 'Input commands not yet implemented', ERROR_CODES.UNKNOWN_ERROR);
+      .description('Fill input field with value')
+      .requiredOption('--selector <selector>', 'CSS selector for input element')
+      .requiredOption('--value <value>', 'Value to enter into the input')
+      .option('--no-clear', 'Do not clear existing content before filling')
+      .option('--method <method>', 'Input method (auto|paste|type|js)', 'auto')
+      .option('--speed <ms>', 'Typing speed in milliseconds (for type method)', '50')
+      .option('--window <index>', 'Target window index', '1')
+      .option('--mask-secret', 'Mask value in logs (for sensitive data)')
+      .option('--json', 'Output result as JSON')
+      .action(async (options) => {
+        try {
+          const { InputCommand } = await import('../commands/input.js');
+          const inputCommand = new InputCommand();
+          
+          const inputOptions: InputOptions = {
+            selector: options.selector,
+            value: options.value,
+            clear: !options.noClear, // Invert the flag - default is true (clear), --no-clear makes it false
+            method: options.method as 'auto' | 'paste' | 'type' | 'js',
+            speed: parseInt(options.speed, 10),
+            windowIndex: parseInt(options.window, 10),
+            maskSecret: options.maskSecret
+          };
+          
+          const result = await inputCommand.fill(inputOptions);
+          
+          if (options.json) {
+            if (result.success) {
+              this.formatter.outputJSON(result.data, undefined, result.code);
+            } else {
+              this.formatter.outputJSON(null, result.error, result.code);
+            }
+          } else {
+            if (result.success) {
+              this.formatter.output(result.data, undefined, result.code);
+            } else {
+              this.formatter.output(null, result.error, result.code);
+            }
+          }
+        } catch (error) {
+          if (options.json) {
+            this.formatter.outputJSON(null, `Input fill failed: ${error}`, ErrorCode.UNKNOWN_ERROR);
+          } else {
+            this.formatter.output(null, `Input fill failed: ${error}`, ErrorCode.UNKNOWN_ERROR);
+          }
+        }
+      });
+
+    // Get input value
+    inputCmd
+      .command('get-value')
+      .description('Get current value of input field')
+      .requiredOption('--selector <selector>', 'CSS selector for input element')
+      .option('--window <index>', 'Target window index', '1')
+      .option('--json', 'Output result as JSON')
+      .action(async (options) => {
+        try {
+          const { InputCommand } = await import('../commands/input.js');
+          const inputCommand = new InputCommand();
+          
+          const valueOptions: InputValueOptions = {
+            selector: options.selector,
+            windowIndex: parseInt(options.window, 10)
+          };
+          
+          const result = await inputCommand.getValue(valueOptions);
+          
+          if (options.json) {
+            if (result.success) {
+              this.formatter.outputJSON(result.data, undefined, result.code);
+            } else {
+              this.formatter.outputJSON(null, result.error, result.code);
+            }
+          } else {
+            if (result.success) {
+              this.formatter.output(result.data, undefined, result.code);
+            } else {
+              this.formatter.output(null, result.error, result.code);
+            }
+          }
+        } catch (error) {
+          if (options.json) {
+            this.formatter.outputJSON(null, `Get input value failed: ${error}`, ErrorCode.UNKNOWN_ERROR);
+          } else {
+            this.formatter.output(null, `Get input value failed: ${error}`, ErrorCode.UNKNOWN_ERROR);
+          }
+        }
+      });
+
+    // Submit form
+    inputCmd
+      .command('submit')
+      .description('Submit form')
+      .requiredOption('--selector <selector>', 'CSS selector for form or submit button')
+      .option('--window <index>', 'Target window index', '1')
+      .option('--json', 'Output result as JSON')
+      .action(async (options) => {
+        try {
+          const { InputCommand } = await import('../commands/input.js');
+          const inputCommand = new InputCommand();
+          
+          const submitOptions: FormSubmitOptions = {
+            selector: options.selector,
+            windowIndex: parseInt(options.window, 10)
+          };
+          
+          const result = await inputCommand.submit(submitOptions);
+          
+          if (options.json) {
+            if (result.success) {
+              this.formatter.outputJSON(result.data, undefined, result.code);
+            } else {
+              this.formatter.outputJSON(null, result.error, result.code);
+            }
+          } else {
+            if (result.success) {
+              this.formatter.output(result.data, undefined, result.code);
+            } else {
+              this.formatter.output(null, result.error, result.code);
+            }
+          }
+        } catch (error) {
+          if (options.json) {
+            this.formatter.outputJSON(null, `Form submit failed: ${error}`, ErrorCode.UNKNOWN_ERROR);
+          } else {
+            this.formatter.output(null, `Form submit failed: ${error}`, ErrorCode.UNKNOWN_ERROR);
+          }
+        }
       });
   }
 

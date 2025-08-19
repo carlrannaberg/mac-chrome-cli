@@ -90,3 +90,17 @@ export async function isChromeRunning(): Promise<boolean> {
 export async function focusChromeWindow(windowIndex: number = 1): Promise<JavaScriptResult<boolean>> {
   return appleScriptService.focusChromeWindow(windowIndex);
 }
+
+/**
+ * Get all tabs in a Chrome window
+ */
+export async function getAllTabs(windowIndex: number = 1): Promise<JavaScriptResult<ChromeTab[]>> {
+  return appleScriptService.getAllTabs(windowIndex);
+}
+
+/**
+ * Focus a tab by index in a Chrome window
+ */
+export async function focusTabByIndex(tabIndex: number, windowIndex: number = 1): Promise<JavaScriptResult<ChromeTab>> {
+  return appleScriptService.focusTabByIndex(tabIndex, windowIndex);
+}

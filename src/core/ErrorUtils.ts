@@ -14,6 +14,22 @@ import { formatErrorJSON, formatErrorText, type ErrorDisplayOptions } from './Er
 import { withRetry, type RetryOptions } from './RetryHandler.js';
 
 /**
+ * Interface for custom errors with error code information
+ */
+interface CustomError extends Error {
+  errorCode: ErrorCode;
+  recoveryHint: 'retry' | 'permission' | 'check_target' | 'not_recoverable';
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * Type guard to check if an error is a custom error with error code
+ */
+function isCustomError(error: Error): error is CustomError {
+  return 'errorCode' in error && 'recoveryHint' in error && error.name === 'ScreenshotError';
+}
+
+/**
  * Common error creation patterns
  */
 export class ErrorUtils {
@@ -124,17 +140,29 @@ export class ErrorUtils {
   ): Result<T, Error> {
     const err = exception instanceof Error ? exception : new Error(String(exception));
     
+    // Check if this is a custom error with error code information
+    let errorCode = defaultCode;
+    let recoveryHint: 'retry' | 'permission' | 'check_target' | 'not_recoverable' | 'retry_with_delay' | 'user_action' = 'retry';
+    let customMetadata: Record<string, unknown> = {};
+    
+    if (isCustomError(err)) {
+      errorCode = err.errorCode;
+      recoveryHint = err.recoveryHint;
+      customMetadata = err.metadata || {};
+    }
+    
     const context: ResultContext = {
-      recoveryHint: 'retry',
+      recoveryHint,
       metadata: {
         operation,
         originalMessage: err.message,
-        exceptionType: exception?.constructor.name || 'unknown'
+        exceptionType: exception?.constructor.name || 'unknown',
+        ...customMetadata
       },
       ...(err.stack && { stackTrace: err.stack })
     };
     
-    return error(err, defaultCode, context);
+    return error(err, errorCode, context);
   }
   
   /**
