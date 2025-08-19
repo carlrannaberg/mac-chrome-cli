@@ -58,7 +58,7 @@ describe('Tab Command', () => {
       const result = await tabCommand.focus({ match: '   ' });
       
       expect(result.success).toBe(false);
-      expect(result.error).toContain('Pattern cannot be empty');
+      expect(result.error).toContain('Match pattern cannot be empty');
       expect(result.code).toBe(ErrorCode.INVALID_INPUT);
     });
 

@@ -11,6 +11,10 @@
 
 import { ScreenshotCommand, type ScreenshotOptions, type ScreenshotData } from '../screenshot.js';
 import { ErrorCode } from '../../core/ErrorCodes.js';
+import type { IServiceContainer } from '../../di/ServiceContainer.js';
+import type { IRateLimiterService } from '../../di/IRateLimiterService.js';
+import { SERVICE_TOKENS } from '../../di/ServiceTokens.js';
+import { Result, ok } from '../../core/Result.js';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -46,9 +50,55 @@ const mockMkdirSync = fs.mkdirSync as jest.MockedFunction<typeof fs.mkdirSync>;
 
 describe('ScreenshotCommand', () => {
   let screenshotCmd: ScreenshotCommand;
+  let mockContainer: jest.Mocked<IServiceContainer>;
+  let mockRateLimiter: jest.Mocked<IRateLimiterService>;
   
   beforeEach(() => {
-    screenshotCmd = new ScreenshotCommand();
+    // Create mock rate limiter service
+    mockRateLimiter = {
+      checkLimit: jest.fn().mockResolvedValue({
+        allowed: true,
+        remaining: 10,
+        resetTimeMs: 60000,
+        retryAfterMs: 0,
+        rule: 'default'
+      }),
+      recordUsage: jest.fn().mockResolvedValue(),
+      configureLimit: jest.fn().mockResolvedValue(),
+      adjustLimit: jest.fn().mockResolvedValue(),
+      getStats: jest.fn().mockResolvedValue({
+        totalChecked: 0,
+        allowed: 0,
+        denied: 0,
+        allowRate: 1.0
+      }),
+      checkAndRecord: jest.fn().mockResolvedValue({
+        allowed: true,
+        remaining: 10,
+        resetTimeMs: 60000,
+        retryAfterMs: 0,
+        rule: 'default'
+      }),
+      destroy: jest.fn().mockResolvedValue()
+    };
+
+    // Create mock service container
+    mockContainer = {
+      resolve: jest.fn().mockImplementation((token) => {
+        if (token === SERVICE_TOKENS.RateLimiterService) {
+          return Promise.resolve(ok(mockRateLimiter));
+        }
+        return Promise.resolve(ok({}));
+      }),
+      registerSingleton: jest.fn(),
+      registerTransient: jest.fn(),
+      registerFactory: jest.fn(),
+      isRegistered: jest.fn().mockReturnValue(true),
+      createScope: jest.fn(),
+      dispose: jest.fn().mockResolvedValue()
+    };
+
+    screenshotCmd = new ScreenshotCommand(mockContainer);
     
     // Reset all mocks
     mockCaptureViewport.mockClear();

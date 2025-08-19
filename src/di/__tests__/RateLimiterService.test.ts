@@ -96,8 +96,8 @@ describe('RateLimiterService', () => {
     
     it('should refill tokens over time', async () => {
       await rateLimiter.configureLimit('test.refill', {
-        maxOperations: 10,
-        windowMs: 100, // 10 operations per 100ms = 0.1 operations per ms
+        maxOperations: 5,
+        windowMs: 100, // 5 operations per 100ms = 0.05 operations per ms
         algorithm: 'token_bucket',
         burstSize: 5
       });
@@ -337,6 +337,9 @@ describe('RateLimiterService', () => {
     });
     
     it('should handle operations without limits gracefully', async () => {
+      // Remove global default rule to test true unlimited behavior
+      await rateLimiter.removeLimit('*');
+      
       const result = await rateLimiter.checkLimit('unlimited.operation');
       
       expect(result.allowed).toBe(true);

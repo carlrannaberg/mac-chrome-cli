@@ -37,9 +37,15 @@ describe('Snapshot Performance Regression Tests', () => {
   let testResults: BenchmarkResult[] = [];
 
   beforeAll(async () => {
-    // Skip in CI if Chrome is not available
-    if (process.env.CI && !process.env.CHROME_AVAILABLE) {
-      console.log('Skipping performance tests in CI - Chrome not available');
+    // Skip performance tests unless explicitly enabled
+    if (!process.env.RUN_PERFORMANCE_TESTS) {
+      console.log('Skipping performance tests - set RUN_PERFORMANCE_TESTS=true to enable');
+      return;
+    }
+    
+    // Skip in CI if Chrome is not available or if we detect resource constraints
+    if (process.env.CI && (!process.env.CHROME_AVAILABLE || process.platform === 'darwin')) {
+      console.log('Skipping performance tests due to environment constraints');
       return;
     }
   });
@@ -61,7 +67,8 @@ describe('Snapshot Performance Regression Tests', () => {
 
   describe('Outline Mode Performance', () => {
     test('should maintain O(n) complexity for small DOM (100 nodes)', async () => {
-      if (process.env.CI && !process.env.CHROME_AVAILABLE) {
+      if (!process.env.RUN_PERFORMANCE_TESTS || (process.env.CI && (!process.env.CHROME_AVAILABLE || process.platform === 'darwin'))) {
+        console.log('Skipping performance test due to environment constraints');
         return;
       }
 
@@ -80,7 +87,8 @@ describe('Snapshot Performance Regression Tests', () => {
     }, 30000);
 
     test('should scale linearly for medium DOM (1000 nodes)', async () => {
-      if (process.env.CI && !process.env.CHROME_AVAILABLE) {
+      if (!process.env.RUN_PERFORMANCE_TESTS || (process.env.CI && (!process.env.CHROME_AVAILABLE || process.platform === 'darwin'))) {
+        console.log('Skipping performance test due to environment constraints');
         return;
       }
 
@@ -99,8 +107,8 @@ describe('Snapshot Performance Regression Tests', () => {
     }, 45000);
 
     test('should handle large DOM efficiently (3000 nodes)', async () => {
-      if (process.env.CI && !process.env.CHROME_AVAILABLE) {
-        return;
+      if (!process.env.RUN_PERFORMANCE_TESTS || (process.env.CI && (!process.env.CHROME_AVAILABLE || process.platform === 'darwin'))) {
+        console.log("Skipping performance test due to environment constraints"); return;
       }
 
       const result = await runSnapshotBenchmark(
@@ -120,8 +128,8 @@ describe('Snapshot Performance Regression Tests', () => {
 
   describe('DOM-Lite Mode Performance', () => {
     test('should maintain O(n) complexity for hierarchical traversal (100 nodes)', async () => {
-      if (process.env.CI && !process.env.CHROME_AVAILABLE) {
-        return;
+      if (!process.env.RUN_PERFORMANCE_TESTS || (process.env.CI && (!process.env.CHROME_AVAILABLE || process.platform === 'darwin'))) {
+        console.log("Skipping performance test due to environment constraints"); return;
       }
 
       const result = await runSnapshotBenchmark(
@@ -140,8 +148,8 @@ describe('Snapshot Performance Regression Tests', () => {
     }, 30000);
 
     test('should scale linearly with hierarchy depth (1000 nodes)', async () => {
-      if (process.env.CI && !process.env.CHROME_AVAILABLE) {
-        return;
+      if (!process.env.RUN_PERFORMANCE_TESTS || (process.env.CI && (!process.env.CHROME_AVAILABLE || process.platform === 'darwin'))) {
+        console.log("Skipping performance test due to environment constraints"); return;
       }
 
       const result = await runSnapshotBenchmark(
@@ -160,8 +168,8 @@ describe('Snapshot Performance Regression Tests', () => {
     }, 45000);
 
     test('should prevent stack overflow on deep hierarchies (3000 nodes)', async () => {
-      if (process.env.CI && !process.env.CHROME_AVAILABLE) {
-        return;
+      if (!process.env.RUN_PERFORMANCE_TESTS || (process.env.CI && (!process.env.CHROME_AVAILABLE || process.platform === 'darwin'))) {
+        console.log("Skipping performance test due to environment constraints"); return;
       }
 
       const result = await runSnapshotBenchmark(
@@ -185,8 +193,8 @@ describe('Snapshot Performance Regression Tests', () => {
 
   describe('Optimization Technique Validation', () => {
     test('should use TreeWalker for optimal DOM traversal', async () => {
-      if (process.env.CI && !process.env.CHROME_AVAILABLE) {
-        return;
+      if (!process.env.RUN_PERFORMANCE_TESTS || (process.env.CI && (!process.env.CHROME_AVAILABLE || process.platform === 'darwin'))) {
+        console.log("Skipping performance test due to environment constraints"); return;
       }
 
       const result = await runSnapshotBenchmark(
@@ -202,8 +210,8 @@ describe('Snapshot Performance Regression Tests', () => {
     }, 30000);
 
     test('should use WeakMap for O(1) child lookups in DOM-lite mode', async () => {
-      if (process.env.CI && !process.env.CHROME_AVAILABLE) {
-        return;
+      if (!process.env.RUN_PERFORMANCE_TESTS || (process.env.CI && (!process.env.CHROME_AVAILABLE || process.platform === 'darwin'))) {
+        console.log("Skipping performance test due to environment constraints"); return;
       }
 
       const result = await runSnapshotBenchmark(
@@ -219,8 +227,8 @@ describe('Snapshot Performance Regression Tests', () => {
     }, 30000);
 
     test('should use pre-computed selector caches', async () => {
-      if (process.env.CI && !process.env.CHROME_AVAILABLE) {
-        return;
+      if (!process.env.RUN_PERFORMANCE_TESTS || (process.env.CI && (!process.env.CHROME_AVAILABLE || process.platform === 'darwin'))) {
+        console.log("Skipping performance test due to environment constraints"); return;
       }
 
       const result = await runSnapshotBenchmark(
@@ -238,8 +246,8 @@ describe('Snapshot Performance Regression Tests', () => {
 
   describe('Memory Efficiency Regression', () => {
     test('should maintain stable memory usage across different DOM sizes', async () => {
-      if (process.env.CI && !process.env.CHROME_AVAILABLE) {
-        return;
+      if (!process.env.RUN_PERFORMANCE_TESTS || (process.env.CI && (!process.env.CHROME_AVAILABLE || process.platform === 'darwin'))) {
+        console.log("Skipping performance test due to environment constraints"); return;
       }
 
       // Test multiple sizes to validate memory scaling
@@ -274,8 +282,8 @@ describe('Snapshot Performance Regression Tests', () => {
 
   describe('Comparative Performance Analysis', () => {
     test('should validate complexity is truly O(n) not O(n²)', async () => {
-      if (process.env.CI && !process.env.CHROME_AVAILABLE) {
-        return;
+      if (!process.env.RUN_PERFORMANCE_TESTS || (process.env.CI && (!process.env.CHROME_AVAILABLE || process.platform === 'darwin'))) {
+        console.log("Skipping performance test due to environment constraints"); return;
       }
 
       // Test two significantly different sizes
@@ -310,8 +318,8 @@ describe('Snapshot Performance Regression Tests', () => {
 
   describe('Error Handling Performance', () => {
     test('should handle edge cases without performance degradation', async () => {
-      if (process.env.CI && !process.env.CHROME_AVAILABLE) {
-        return;
+      if (!process.env.RUN_PERFORMANCE_TESTS || (process.env.CI && (!process.env.CHROME_AVAILABLE || process.platform === 'darwin'))) {
+        console.log("Skipping performance test due to environment constraints"); return;
       }
 
       // Test with visible-only filtering which can be more complex

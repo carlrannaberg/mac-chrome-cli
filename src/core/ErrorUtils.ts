@@ -26,7 +26,7 @@ interface CustomError extends Error {
  * Type guard to check if an error is a custom error with error code
  */
 function isCustomError(error: Error): error is CustomError {
-  return 'errorCode' in error && 'recoveryHint' in error && error.name === 'ScreenshotError';
+  return 'errorCode' in error && 'recoveryHint' in error && (error.name === 'ScreenshotError' || error.name === 'TabCommandError');
 }
 
 /**

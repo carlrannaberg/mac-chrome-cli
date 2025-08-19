@@ -18,6 +18,27 @@ import type { IRateLimiterService } from '../di/IRateLimiterService.js';
 import { SERVICE_TOKENS } from '../di/ServiceTokens.js';
 
 /**
+ * Interface for errors that carry error code information
+ */
+interface ErrorWithCode {
+  errorCode: ErrorCode;
+  recoveryHint: 'retry' | 'permission' | 'check_target' | 'not_recoverable';
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * Type guard to check if an error has error code information
+ */
+function isErrorWithCode(err: unknown): err is ErrorWithCode {
+  return err !== null && 
+         typeof err === 'object' && 
+         'errorCode' in err && 
+         'recoveryHint' in err &&
+         typeof (err as Record<string, unknown>).errorCode === 'number' &&
+         typeof (err as Record<string, unknown>).recoveryHint === 'string';
+}
+
+/**
  * Options for rate-limited command execution
  */
 export interface RateLimitedCommandOptions extends BaseCommandOptions {
@@ -209,20 +230,30 @@ export abstract class RateLimitedCommandBase extends ServiceAwareCommand {
       const errorMessage = err instanceof Error ? err.message : String(err);
       let errorCode = ErrorCode.UNKNOWN_ERROR;
       let recoveryHint: 'retry' | 'permission' | 'check_target' | 'not_recoverable' = 'retry';
+      let metadata: Record<string, unknown> = { operation: operationId, originalError: errorMessage };
       
-      // Map common error patterns to appropriate error codes
-      if (errorMessage.toLowerCase().includes('permission')) {
-        errorCode = ErrorCode.PERMISSION_DENIED;
-        recoveryHint = 'permission';
-      } else if (errorMessage.toLowerCase().includes('timeout')) {
-        errorCode = ErrorCode.TIMEOUT;
-        recoveryHint = 'retry';
-      } else if (errorMessage.toLowerCase().includes('not found')) {
-        errorCode = ErrorCode.TARGET_NOT_FOUND;
-        recoveryHint = 'check_target';
-      } else if (errorMessage.toLowerCase().includes('chrome')) {
-        errorCode = ErrorCode.CHROME_NOT_RUNNING;
-        recoveryHint = 'not_recoverable';
+      // Check if this is a custom error with preserved error code
+      if (isErrorWithCode(err)) {
+        errorCode = err.errorCode;
+        recoveryHint = err.recoveryHint;
+        if (err.metadata) {
+          metadata = { ...metadata, ...err.metadata };
+        }
+      } else {
+        // Map common error patterns to appropriate error codes
+        if (errorMessage.toLowerCase().includes('permission')) {
+          errorCode = ErrorCode.PERMISSION_DENIED;
+          recoveryHint = 'permission';
+        } else if (errorMessage.toLowerCase().includes('timeout')) {
+          errorCode = ErrorCode.TIMEOUT;
+          recoveryHint = 'retry';
+        } else if (errorMessage.toLowerCase().includes('not found')) {
+          errorCode = ErrorCode.TARGET_NOT_FOUND;
+          recoveryHint = 'check_target';
+        } else if (errorMessage.toLowerCase().includes('chrome')) {
+          errorCode = ErrorCode.CHROME_NOT_RUNNING;
+          recoveryHint = 'not_recoverable';
+        }
       }
       
       return error(
@@ -231,7 +262,7 @@ export abstract class RateLimitedCommandBase extends ServiceAwareCommand {
         {
           recoveryHint,
           durationMs: Date.now() - startTime,
-          metadata: { operation: operationId, originalError: errorMessage }
+          metadata
         }
       );
     }
@@ -296,6 +327,117 @@ export abstract class RateLimitedCommandBase extends ServiceAwareCommand {
  * Rate-limited browser command base with Chrome-specific functionality
  */
 export abstract class RateLimitedBrowserCommandBase extends RateLimitedCommandBase {
+  
+  /**
+   * Validate CSS selector format
+   */
+  protected validateSelector(selector: string): Result<void, string> {
+    if (!selector || typeof selector !== 'string') {
+      return error('Selector is required', ErrorCode.INVALID_INPUT, {
+        recoveryHint: 'check_target',
+        metadata: { parameter: 'selector', provided: selector }
+      });
+    }
+    
+    if (selector.trim().length === 0) {
+      return error('Selector cannot be empty', ErrorCode.INVALID_INPUT, {
+        recoveryHint: 'check_target',
+        metadata: { parameter: 'selector', provided: selector }
+      });
+    }
+    
+    // Basic CSS selector validation
+    try {
+      // Validate selector syntax without browser dependency
+      // Common invalid patterns
+      if (selector.includes('::') && !selector.match(/::(before|after|first-line|first-letter)/)) {
+        throw new Error('Invalid pseudo-element');
+      }
+      if (selector.includes('[') && !selector.includes(']')) {
+        throw new Error('Unclosed attribute selector');
+      }
+    } catch {
+      return error(
+        'Invalid CSS selector syntax',
+        ErrorCode.INVALID_INPUT,
+        {
+          recoveryHint: 'check_target',
+          metadata: { parameter: 'selector', provided: selector }
+        }
+      );
+    }
+    
+    return ok(undefined);
+  }
+  
+  /**
+   * Execute command with standard error handling and retry logic
+   */
+  protected async executeCommand<T>(
+    operation: () => Promise<T>,
+    operationName: string,
+    retryOptions?: { maxAttempts?: number }
+  ): Promise<Result<T, string>> {
+    const startTime = Date.now();
+    const maxAttempts = retryOptions?.maxAttempts || 1;
+    
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const data = await operation();
+        return withContext(
+          ok(data),
+          {
+            durationMs: Date.now() - startTime,
+            metadata: { operation: operationName, attempt }
+          }
+        );
+      } catch (err) {
+        if (attempt === maxAttempts) {
+          const errorMessage = err instanceof Error ? err.message : String(err);
+          let errorCode = ErrorCode.UNKNOWN_ERROR;
+          let recoveryHint: 'retry' | 'permission' | 'check_target' | 'not_recoverable' = 'retry';
+          
+          // Map common error patterns to appropriate error codes
+          if (errorMessage.toLowerCase().includes('permission')) {
+            errorCode = ErrorCode.PERMISSION_DENIED;
+            recoveryHint = 'permission';
+          } else if (errorMessage.toLowerCase().includes('timeout')) {
+            errorCode = ErrorCode.TIMEOUT;
+            recoveryHint = 'retry';
+          } else if (errorMessage.toLowerCase().includes('not found')) {
+            errorCode = ErrorCode.TARGET_NOT_FOUND;
+            recoveryHint = 'check_target';
+          } else if (errorMessage.toLowerCase().includes('chrome')) {
+            errorCode = ErrorCode.CHROME_NOT_RUNNING;
+            recoveryHint = 'not_recoverable';
+          }
+          
+          return error(
+            errorMessage,
+            errorCode,
+            {
+              recoveryHint,
+              durationMs: Date.now() - startTime,
+              metadata: { operation: operationName, attempt, originalError: errorMessage }
+            }
+          );
+        }
+        // Wait before retrying
+        await new Promise(resolve => setTimeout(resolve, 500 * attempt));
+      }
+    }
+    
+    // This should never be reached, but TypeScript needs it
+    return error(
+      'Unexpected error in executeCommand',
+      ErrorCode.UNKNOWN_ERROR,
+      {
+        recoveryHint: 'retry',
+        durationMs: Date.now() - startTime,
+        metadata: { operation: operationName }
+      }
+    );
+  }
   
   /**
    * Execute JavaScript with rate limiting and browser-specific error handling
@@ -409,7 +551,7 @@ export const RateLimitUtils = {
    */
   createResourceIntensiveConfig(operationType: 'screenshot' | 'snapshot' | 'file' | 'network') {
     const configs = {
-      screenshot: { maxOperations: 10, windowMs: 60000, algorithm: 'token_bucket' as const, burstSize: 3 },
+      screenshot: { maxOperations: 10, windowMs: 60000, algorithm: 'token_bucket' as const, burstSize: 15 },
       snapshot: { maxOperations: 20, windowMs: 60000, algorithm: 'sliding_window' as const },
       file: { maxOperations: 5, windowMs: 60000, algorithm: 'fixed_window' as const },
       network: { maxOperations: 50, windowMs: 60000, algorithm: 'leaky_bucket' as const }

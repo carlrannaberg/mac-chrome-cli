@@ -211,7 +211,13 @@ export class ScreenshotCommand extends RateLimitedBrowserCommandBase {
         const convertedResult = this.convertLibResult(libResult, 'viewport_screenshot', startTime);
         
         if (!convertedResult.success) {
-          throw new Error(convertedResult.error);
+          const customError = new ScreenshotError(
+            convertedResult.error,
+            convertedResult.code,
+            convertedResult.context?.recoveryHint as 'retry' | 'permission' | 'check_target' | 'not_recoverable' || 'retry',
+            convertedResult.context?.metadata as Record<string, unknown>
+          );
+          throw customError;
         }
         
         return convertedResult.data;
@@ -427,7 +433,13 @@ export class ScreenshotCommand extends RateLimitedBrowserCommandBase {
         const convertedResult = this.convertLibResult(libResult, 'element_screenshot', startTime);
         
         if (!convertedResult.success) {
-          throw new Error(convertedResult.error);
+          const customError = new ScreenshotError(
+            convertedResult.error,
+            convertedResult.code,
+            convertedResult.context?.recoveryHint as 'retry' | 'permission' | 'check_target' | 'not_recoverable' || 'retry',
+            convertedResult.context?.metadata as Record<string, unknown>
+          );
+          throw customError;
         }
         
         return convertedResult.data;
@@ -708,7 +720,7 @@ export class ScreenshotCommand extends RateLimitedBrowserCommandBase {
       let recoveryHint: 'retry' | 'permission' | 'check_target' | 'not_recoverable' = 'retry';
       
       switch (libResult.code) {
-        case 30: // PERMISSION_DENIED from legacy ERROR_CODES
+        case 30: // PERMISSION_DENIED from legacy ERROR_CODES - map to SCREEN_RECORDING_DENIED for screenshots
           errorCode = ErrorCode.SCREEN_RECORDING_DENIED;
           recoveryHint = 'permission';
           break;

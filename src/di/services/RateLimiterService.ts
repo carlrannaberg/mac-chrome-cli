@@ -110,7 +110,7 @@ export class RateLimiterService implements IRateLimiterService {
       maxOperations: 10,
       windowMs: 60000,
       algorithm: 'token_bucket',
-      burstSize: 3,
+      burstSize: 15,
       ruleId: 'screenshot_limits'
     });
     
@@ -197,6 +197,11 @@ export class RateLimiterService implements IRateLimiterService {
     
     if (result.allowed) {
       await this.recordUsage(operation, weight, metadata);
+      // Update remaining to reflect post-operation state
+      return {
+        ...result,
+        remaining: Math.max(0, result.remaining - weight)
+      };
     }
     
     return result;
@@ -231,7 +236,8 @@ export class RateLimiterService implements IRateLimiterService {
   }
   
   async getLimit(operation: string): Promise<RateLimitRule | undefined> {
-    return this.findApplicableRule(operation);
+    // Return only explicitly configured rules, not global defaults
+    return this.rules.get(operation);
   }
   
   async getAllLimits(): Promise<Map<string, RateLimitRule>> {
