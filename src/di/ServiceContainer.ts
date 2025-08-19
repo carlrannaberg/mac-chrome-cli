@@ -167,7 +167,12 @@ export class ServiceContainer implements IServiceContainer {
     
     const descriptor = this.services.get(token.name);
     if (!descriptor) {
-      return { success: false, error: `Service '${token.name}' is not registered` };
+      return { 
+        success: false, 
+        error: `Service '${token.name}' is not registered`,
+        code: 99, // UNKNOWN_ERROR
+        timestamp: new Date().toISOString()
+      };
     }
     
     // Only cache concurrent resolution promises for singletons to avoid duplicate work
@@ -177,11 +182,21 @@ export class ServiceContainer implements IServiceContainer {
       if (cachedPromise) {
         try {
           const result = await cachedPromise as T;
-          return { success: true, data: result };
+          return { 
+            success: true, 
+            data: result,
+            code: 0, // SUCCESS
+            timestamp: new Date().toISOString()
+          };
         } catch (err) {
           this.resolutionCache.delete(token.name);
           const errorMessage = err instanceof Error ? err.message : String(err);
-          return { success: false, error: `Failed to resolve cached service '${token.name}': ${errorMessage}` };
+          return { 
+            success: false, 
+            error: `Failed to resolve cached service '${token.name}': ${errorMessage}`,
+            code: 99, // UNKNOWN_ERROR
+            timestamp: new Date().toISOString()
+          };
         }
       }
     }
@@ -206,14 +221,24 @@ export class ServiceContainer implements IServiceContainer {
         this.initializationOrder.push(token.name);
       }
       
-      return { success: true, data: result };
+      return { 
+        success: true, 
+        data: result,
+        code: 0, // SUCCESS
+        timestamp: new Date().toISOString()
+      };
     } catch (err) {
       // Remove failed resolution from cache
       if (descriptor.lifetime === ServiceLifetime.Singleton) {
         this.resolutionCache.delete(token.name);
       }
       const errorMessage = err instanceof Error ? err.message : String(err);
-      return { success: false, error: `Failed to resolve service '${token.name}': ${errorMessage}` };
+      return { 
+        success: false, 
+        error: `Failed to resolve service '${token.name}': ${errorMessage}`,
+        code: 99, // UNKNOWN_ERROR
+        timestamp: new Date().toISOString()
+      };
     }
   }
 

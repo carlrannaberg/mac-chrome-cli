@@ -75,14 +75,14 @@ export function error<E>(
 /**
  * Type guard to check if result is successful
  */
-export function isOk<T, E>(result: Result<T, E>): result is Result<T, never> {
+export function isOk<T, E>(result: Result<T, E>): result is { success: true; data: T; error?: never; code: ErrorCode; timestamp: string; context?: ResultContext } {
   return result.success;
 }
 
 /**
  * Type guard to check if result is an error
  */
-export function isError<T, E>(result: Result<T, E>): result is Result<never, E> {
+export function isError<T, E>(result: Result<T, E>): result is { success: false; data?: never; error: E; code: ErrorCode; timestamp: string; context?: ResultContext } {
   return !result.success;
 }
 
@@ -96,13 +96,16 @@ export function map<T, U, E>(
   if (isOk(result)) {
     return ok(mapper(result.data), result.code, result.context);
   }
-  return {
+  const errorResult: Result<U, E> = {
     success: false,
     error: result.error,
     code: result.code,
-    timestamp: result.timestamp,
-    context: result.context
-  } as Result<U, E>;
+    timestamp: result.timestamp
+  };
+  if (result.context !== undefined) {
+    errorResult.context = result.context;
+  }
+  return errorResult;
 }
 
 /**
@@ -115,7 +118,16 @@ export function flatMap<T, U, E>(
   if (isOk(result)) {
     return mapper(result.data);
   }
-  return result as Result<never, E> as Result<U, E>;
+  const errorResult: Result<U, E> = {
+    success: false,
+    error: result.error,
+    code: result.code,
+    timestamp: result.timestamp
+  };
+  if (result.context !== undefined) {
+    errorResult.context = result.context;
+  }
+  return errorResult;
 }
 
 /**
@@ -128,7 +140,16 @@ export function mapError<T, E, F>(
   if (isError(result)) {
     return error(mapper(result.error), result.code, result.context);
   }
-  return result as Result<T, never> as Result<T, F>;
+  const successResult: Result<T, F> = {
+    success: true,
+    data: result.data,
+    code: result.code,
+    timestamp: result.timestamp
+  };
+  if (result.context !== undefined) {
+    successResult.context = result.context;
+  }
+  return successResult;
 }
 
 /**

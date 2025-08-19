@@ -60,11 +60,12 @@ export class ConfigurationService implements IConfigurationService {
    */
   set<T>(keyPath: string, value: T): void {
     const keys = keyPath.split('.');
-    let current: Record<string, unknown> = this.config as Record<string, unknown>;
+    let current: Record<string, unknown> = this.config as unknown as Record<string, unknown>;
 
     // Navigate to the parent of the target key
     for (let i = 0; i < keys.length - 1; i++) {
       const key = keys[i];
+      if (!key) continue; // Skip empty keys
       if (!(key in current) || typeof current[key] !== 'object' || current[key] === null) {
         current[key] = {};
       }
@@ -73,7 +74,9 @@ export class ConfigurationService implements IConfigurationService {
 
     // Set the value
     const lastKey = keys[keys.length - 1];
-    current[lastKey] = value;
+    if (lastKey) {
+      current[lastKey] = value;
+    }
   }
 
   /**

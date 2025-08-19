@@ -15,9 +15,13 @@ export class LoggerService implements ILoggerService {
       level: options.level ?? LogLevelEnum.INFO,
       enableConsole: options.enableConsole ?? true,
       enableFile: options.enableFile ?? false,
-      filePath: options.filePath,
       maxEntries: options.maxEntries ?? 1000
     };
+    
+    // Only add filePath if it's provided to avoid undefined assignment
+    if (options.filePath !== undefined) {
+      this.options.filePath = options.filePath;
+    }
   }
 
   /**
@@ -66,11 +70,19 @@ export class LoggerService implements ILoggerService {
     const entry: LogEntry = {
       level,
       message,
-      timestamp: Date.now(),
-      context,
-      metadata,
-      error
+      timestamp: Date.now()
     };
+    
+    // Add optional properties only if they are defined to avoid undefined assignment with exactOptionalPropertyTypes
+    if (context !== undefined) {
+      entry.context = context;
+    }
+    if (metadata !== undefined) {
+      entry.metadata = metadata;
+    }
+    if (error !== undefined) {
+      entry.error = error;
+    }
 
     // Add to entries collection
     this.entries.push(entry);

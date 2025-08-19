@@ -9,7 +9,7 @@
  */
 
 import { Result, ok, error, isOk, withContext, type ResultContext, type RecoveryStrategy } from './Result.js';
-import { ErrorCode, getErrorInfo, isRetryableError, requiresUserAction } from './ErrorCodes.js';
+import { ErrorCode, isRetryableError, requiresUserAction } from './ErrorCodes.js';
 import { sleep } from '../lib/util.js';
 
 /**
@@ -291,7 +291,6 @@ export function withRetrySupport<Args extends any[], T, E>(
  * Check if an error should trigger a specific recovery strategy
  */
 export function getRecoveryStrategy(errorCode: ErrorCode): RecoveryStrategy {
-  // const errorInfo = getErrorInfo(errorCode); // Unused
   
   if (requiresUserAction(errorCode)) {
     return 'user_action';

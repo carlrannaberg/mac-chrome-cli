@@ -35,7 +35,7 @@ export async function registerServices(container: IServiceContainer): Promise<vo
       }
       const config = configResult.data;
       
-      const loggingConfig = config.get('logging');
+      const loggingConfig = config.get<{ level?: string; enableConsole?: boolean; enableFile?: boolean; maxEntries?: number }>('logging');
       return new LoggerService({
         level: getLogLevel(loggingConfig?.level),
         enableConsole: loggingConfig?.enableConsole ?? true,
@@ -74,7 +74,7 @@ export async function registerServices(container: IServiceContainer): Promise<vo
       }
       const config = configResult.data;
       
-      const perfConfig = config.get('performance');
+      const perfConfig = config.get<{ maxBenchmarks?: number }>('performance');
       return new PerformanceService({
         maxBenchmarks: perfConfig?.maxBenchmarks ?? 1000
       });
@@ -96,7 +96,7 @@ export async function registerServices(container: IServiceContainer): Promise<vo
   // AppleScript service - depends on data sanitizer and performance service
   container.registerSingleton(
     SERVICE_TOKENS.AppleScriptService,
-    async (serviceContainer) => {
+    async (_serviceContainer) => {
       // The current AppleScriptService creates its own NetworkDataSanitizer
       // For now, we'll use the existing implementation but register it as a service
       return new AppleScriptService();
