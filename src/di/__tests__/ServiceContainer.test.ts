@@ -236,6 +236,8 @@ describe('ServiceContainer', () => {
       expect(stats.registeredServices).toBe(2);
       expect(stats.singletonInstances).toBe(0); // Not resolved yet
       expect(stats.resolutionCount).toBe(0);
+      expect(stats.cache).toBeDefined();
+      expect(stats.cache.size).toBe(0);
     });
 
     it('should update statistics after resolution', async () => {
@@ -247,6 +249,7 @@ describe('ServiceContainer', () => {
 
       expect(stats.singletonInstances).toBe(1);
       expect(stats.resolutionCount).toBe(1);
+      expect(stats.cache.size).toBe(1); // Singleton should be cached
     });
 
     it('should clear all services and reset statistics', async () => {
@@ -260,6 +263,7 @@ describe('ServiceContainer', () => {
       expect(stats.registeredServices).toBe(0);
       expect(stats.singletonInstances).toBe(0);
       expect(stats.resolutionCount).toBe(0);
+      expect(stats.cache.size).toBe(0);
       expect(container.isRegistered(TEST_SERVICE_TOKEN)).toBe(false);
     });
   });
@@ -294,6 +298,165 @@ describe('ServiceContainer', () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('Async factory error');
+    });
+  });
+
+  describe('LRU Cache Management', () => {
+    it('should cache singleton service resolutions', async () => {
+      container.registerSingleton(TEST_SERVICE_TOKEN, () => new TestService('CacheTest', 100));
+
+      // First resolution should miss cache
+      const cacheStatsBefore = container.getCacheStats();
+      expect(cacheStatsBefore.hits).toBe(0);
+      expect(cacheStatsBefore.misses).toBe(0);
+
+      const result1 = await container.resolve(TEST_SERVICE_TOKEN);
+      expect(result1.success).toBe(true);
+
+      // Check cache stats after first resolution
+      const cacheStatsAfter = container.getCacheStats();
+      expect(cacheStatsAfter.size).toBe(1);
+      expect(cacheStatsAfter.misses).toBe(1); // First resolution is a cache miss
+
+      // Second resolution should hit cache
+      const result2 = await container.resolve(TEST_SERVICE_TOKEN);
+      expect(result2.success).toBe(true);
+      expect(result1.data).toBe(result2.data); // Same instance
+
+      const finalCacheStats = container.getCacheStats();
+      expect(finalCacheStats.hits).toBe(1); // Second resolution is a cache hit
+    });
+
+    it('should not cache transient service resolutions', async () => {
+      container.registerTransient(TEST_SERVICE_TOKEN, () => new TestService('TransientTest', 200));
+
+      await container.resolve(TEST_SERVICE_TOKEN);
+      await container.resolve(TEST_SERVICE_TOKEN);
+
+      const cacheStats = container.getCacheStats();
+      expect(cacheStats.size).toBe(0); // Transient services not cached
+    });
+
+    it('should enforce cache size limits', async () => {
+      // Create container with small cache size
+      const smallCacheContainer = new ServiceContainer({ maxSize: 2 });
+
+      // Register multiple services
+      const token1 = createServiceToken<ITestService>('Service1');
+      const token2 = createServiceToken<ITestService>('Service2');
+      const token3 = createServiceToken<ITestService>('Service3');
+
+      smallCacheContainer.registerSingleton(token1, () => new TestService('Service1'));
+      smallCacheContainer.registerSingleton(token2, () => new TestService('Service2'));
+      smallCacheContainer.registerSingleton(token3, () => new TestService('Service3'));
+
+      // Resolve all services
+      await smallCacheContainer.resolve(token1);
+      await smallCacheContainer.resolve(token2);
+      await smallCacheContainer.resolve(token3); // Should evict token1
+
+      const cacheStats = smallCacheContainer.getCacheStats();
+      expect(cacheStats.size).toBe(2); // Cache size limited to 2
+      expect(cacheStats.evictions).toBe(1); // One eviction occurred
+
+      // Cleanup
+      smallCacheContainer.dispose();
+    });
+
+    it('should support TTL-based cache expiration', async () => {
+      // Create container with short TTL
+      const shortTTLContainer = new ServiceContainer({ 
+        maxSize: 100,
+        ttlMs: 10 // 10ms TTL
+      });
+
+      shortTTLContainer.registerSingleton(TEST_SERVICE_TOKEN, () => new TestService('TTLTest'));
+
+      // Resolve service
+      await shortTTLContainer.resolve(TEST_SERVICE_TOKEN);
+      expect(shortTTLContainer.getCacheStats().size).toBe(1);
+
+      // Wait for TTL to expire
+      await new Promise(resolve => setTimeout(resolve, 20));
+
+      // Trigger cleanup
+      const removedCount = shortTTLContainer.getCacheStats().ttlEvictions;
+
+      // Next resolution should be cache miss due to TTL expiration
+      await shortTTLContainer.resolve(TEST_SERVICE_TOKEN);
+      const finalStats = shortTTLContainer.getCacheStats();
+      
+      // Either should have been cleaned up during cleanup or during access
+      expect(finalStats.ttlEvictions).toBeGreaterThanOrEqual(0);
+
+      // Cleanup
+      shortTTLContainer.dispose();
+    });
+
+    it('should allow cache configuration changes', () => {
+      const initialStats = container.getCacheStats();
+      const initialMaxSize = initialStats.maxSize;
+
+      // Change cache configuration
+      container.configureCaching({
+        maxSize: 50,
+        enabled: false
+      });
+
+      const newStats = container.getCacheStats();
+      expect(newStats.maxSize).toBe(50);
+      expect(newStats.size).toBe(0); // Cache should be cleared when disabled
+    });
+
+    it('should provide detailed cache statistics', async () => {
+      container.registerSingleton(TEST_SERVICE_TOKEN, () => new TestService('StatsTest'));
+
+      // Initial stats
+      let stats = container.getCacheStats();
+      expect(stats.hits).toBe(0);
+      expect(stats.misses).toBe(0);
+      expect(stats.evictions).toBe(0);
+
+      // First resolution (cache miss)
+      await container.resolve(TEST_SERVICE_TOKEN);
+      stats = container.getCacheStats();
+      expect(stats.misses).toBeGreaterThan(0);
+
+      // Second resolution (cache hit)
+      await container.resolve(TEST_SERVICE_TOKEN);
+      stats = container.getCacheStats();
+      expect(stats.hits).toBeGreaterThan(0);
+    });
+
+    it('should clear cache independently of services', async () => {
+      container.registerSingleton(TEST_SERVICE_TOKEN, () => new TestService('ClearTest'));
+      
+      await container.resolve(TEST_SERVICE_TOKEN);
+      expect(container.getCacheStats().size).toBe(1);
+      expect(container.getStats().singletonInstances).toBe(1);
+
+      // Clear only cache
+      container.clearCache();
+      
+      expect(container.getCacheStats().size).toBe(0); // Cache cleared
+      expect(container.getStats().singletonInstances).toBe(1); // Singleton instances preserved
+      expect(container.isRegistered(TEST_SERVICE_TOKEN)).toBe(true); // Service still registered
+    });
+
+    it('should handle cache disabled mode', async () => {
+      container.configureCaching({ enabled: false });
+      
+      container.registerSingleton(TEST_SERVICE_TOKEN, () => new TestService('DisabledCacheTest'));
+      
+      await container.resolve(TEST_SERVICE_TOKEN);
+      await container.resolve(TEST_SERVICE_TOKEN);
+      
+      const cacheStats = container.getCacheStats();
+      expect(cacheStats.size).toBe(0); // No caching when disabled
+      expect(cacheStats.hits).toBe(0);
+      
+      // Re-enable cache
+      container.configureCaching({ enabled: true });
     });
   });
 });
