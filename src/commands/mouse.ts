@@ -92,6 +92,16 @@ export interface MouseMoveOptions {
 export type MouseOptions = MouseClickOptions;
 
 /**
+ * Internal mouse action type for consolidated processing
+ */
+type MouseActionType = 'click' | 'right-click' | 'double-click';
+
+/**
+ * Internal interface for mouse action functions
+ */
+type MouseActionFunction = (options: LibMouseOptions) => Promise<Result<MouseActionData, string>>;
+
+/**
  * Mouse command implementation providing comprehensive mouse interaction capabilities
  * 
  * Integrates with the existing mouse library while providing enhanced validation,
@@ -106,82 +116,7 @@ export class MouseCommand extends BrowserCommandBase {
    * Perform a mouse click action with automatic element scrolling
    */
   async click(options: MouseClickOptions): Promise<Result<MouseActionData, string>> {
-    const validationResult = this.validateMouseOptions(options);
-    if (!validationResult.success) {
-      return error(validationResult.error, ErrorCode.INVALID_INPUT);
-    }
-    
-    // If selector provided, scroll element into view and validate visibility
-    if (options.selector) {
-      // Automatically scroll element into view before clicking
-      const scrollResult = await this.scrollElementIntoView(
-        options.selector,
-        options.windowIndex || 1
-      );
-      
-      
-      const visibilityResult = await validateElementVisibility(
-        options.selector, 
-        options.windowIndex || 1
-      );
-      
-      if (!visibilityResult.success) {
-        return error(`Element validation failed: ${visibilityResult.error}`, ErrorCode.JAVASCRIPT_ERROR, {
-          recoveryHint: this.determineMouseRecoveryStrategy(ErrorCode.JAVASCRIPT_ERROR),
-          metadata: { selector: options.selector, operation: 'click' }
-        });
-      }
-      
-      if (!visibilityResult.data?.visible) {
-        return error(`Element "${options.selector}" is not visible`, ErrorCode.ELEMENT_NOT_VISIBLE, {
-          recoveryHint: this.determineMouseRecoveryStrategy(ErrorCode.ELEMENT_NOT_VISIBLE),
-          metadata: { selector: options.selector, operation: 'click' }
-        });
-      }
-      
-      if (!visibilityResult.data?.clickable) {
-        return error(`Element "${options.selector}" is not clickable`, ErrorCode.ELEMENT_NOT_INTERACTABLE, {
-          recoveryHint: this.determineMouseRecoveryStrategy(ErrorCode.ELEMENT_NOT_INTERACTABLE),
-          metadata: { selector: options.selector, operation: 'click' }
-        });
-      }
-    }
-    
-    // Convert to MouseOptions format for the existing mouse library
-    const mouseOptions: LibMouseOptions = {
-      ...(options.selector && { selector: options.selector }),
-      ...(options.x !== undefined && { x: options.x }),
-      ...(options.y !== undefined && { y: options.y }),
-      ...(options.button && { button: options.button }),
-      ...(options.offsetX !== undefined && { offsetX: options.offsetX }),
-      ...(options.offsetY !== undefined && { offsetY: options.offsetY }),
-      ...(options.windowIndex && { windowIndex: options.windowIndex })
-    };
-    
-    return this.executeBrowserCommand(
-      async () => {
-        const result = await mouseClick(mouseOptions);
-        if (result.success && result.data) {
-          return result.data;
-        }
-        // Determine appropriate error code and recovery strategy
-        const errorCode = result.code || ErrorCode.UNKNOWN_ERROR;
-        const errorWithRecovery = error(
-          result.error || 'Mouse click failed',
-          errorCode,
-          {
-            recoveryHint: this.determineMouseRecoveryStrategy(errorCode),
-            metadata: { 
-              selector: options.selector, 
-              coordinates: options.x !== undefined && options.y !== undefined ? { x: options.x, y: options.y } : undefined,
-              operation: 'click' 
-            }
-          }
-        );
-        throw new Error(errorWithRecovery.error);
-      },
-      'mouse-click'
-    );
+    return this.performMouseAction(options, 'click', mouseClick);
   }
   
   /**
@@ -272,88 +207,25 @@ export class MouseCommand extends BrowserCommandBase {
    * Perform a double-click action with automatic element scrolling
    */
   async doubleClick(options: MouseClickOptions): Promise<Result<MouseActionData, string>> {
-    const validationResult = this.validateMouseOptions(options);
-    if (!validationResult.success) {
-      return error(validationResult.error, ErrorCode.INVALID_INPUT);
-    }
-    
-    // If selector provided, scroll element into view and validate visibility
-    if (options.selector) {
-      // Automatically scroll element into view before double-clicking
-      const scrollResult = await this.scrollElementIntoView(
-        options.selector,
-        options.windowIndex || 1
-      );
-      
-      
-      const visibilityResult = await validateElementVisibility(
-        options.selector, 
-        options.windowIndex || 1
-      );
-      
-      if (!visibilityResult.success) {
-        return error(`Element validation failed: ${visibilityResult.error}`, ErrorCode.JAVASCRIPT_ERROR, {
-          recoveryHint: this.determineMouseRecoveryStrategy(ErrorCode.JAVASCRIPT_ERROR),
-          metadata: { selector: options.selector, operation: 'double-click' }
-        });
-      }
-      
-      if (!visibilityResult.data?.visible) {
-        return error(`Element "${options.selector}" is not visible`, ErrorCode.ELEMENT_NOT_VISIBLE, {
-          recoveryHint: this.determineMouseRecoveryStrategy(ErrorCode.ELEMENT_NOT_VISIBLE),
-          metadata: { selector: options.selector, operation: 'double-click' }
-        });
-      }
-      
-      if (!visibilityResult.data?.clickable) {
-        return error(`Element "${options.selector}" is not clickable`, ErrorCode.ELEMENT_NOT_INTERACTABLE, {
-          recoveryHint: this.determineMouseRecoveryStrategy(ErrorCode.ELEMENT_NOT_INTERACTABLE),
-          metadata: { selector: options.selector, operation: 'double-click' }
-        });
-      }
-    }
-    
-    // Convert to MouseOptions format for the existing mouse library
-    const mouseOptions: LibMouseOptions = {
-      ...(options.selector && { selector: options.selector }),
-      ...(options.x !== undefined && { x: options.x }),
-      ...(options.y !== undefined && { y: options.y }),
-      ...(options.button && { button: options.button }),
-      ...(options.offsetX !== undefined && { offsetX: options.offsetX }),
-      ...(options.offsetY !== undefined && { offsetY: options.offsetY }),
-      ...(options.windowIndex && { windowIndex: options.windowIndex })
-    };
-    
-    return this.executeBrowserCommand(
-      async () => {
-        const result = await mouseDoubleClick(mouseOptions);
-        if (result.success && result.data) {
-          return result.data;
-        }
-        // Determine appropriate error code and recovery strategy
-        const errorCode = result.code || ErrorCode.UNKNOWN_ERROR;
-        const errorWithRecovery = error(
-          result.error || 'Mouse double-click failed',
-          errorCode,
-          {
-            recoveryHint: this.determineMouseRecoveryStrategy(errorCode),
-            metadata: { 
-              selector: options.selector, 
-              coordinates: options.x !== undefined && options.y !== undefined ? { x: options.x, y: options.y } : undefined,
-              operation: 'double-click' 
-            }
-          }
-        );
-        throw new Error(errorWithRecovery.error);
-      },
-      'mouse-double-click'
-    );
+    return this.performMouseAction(options, 'double-click', mouseDoubleClick);
   }
   
   /**
    * Perform a right-click (context menu) action with automatic element scrolling
    */
   async rightClick(options: MouseClickOptions): Promise<Result<MouseActionData, string>> {
+    return this.performMouseAction(options, 'right-click', mouseRightClick);
+  }
+  
+  /**
+   * Perform a mouse action with unified validation, scrolling, and error handling
+   */
+  private async performMouseAction(
+    options: MouseClickOptions,
+    actionType: MouseActionType,
+    actionFunction: MouseActionFunction
+  ): Promise<Result<MouseActionData, string>> {
+    // Validate input options
     const validationResult = this.validateMouseOptions(options);
     if (!validationResult.success) {
       return error(validationResult.error, ErrorCode.INVALID_INPUT);
@@ -361,42 +233,95 @@ export class MouseCommand extends BrowserCommandBase {
     
     // If selector provided, scroll element into view and validate visibility
     if (options.selector) {
-      // Automatically scroll element into view before right-clicking
-      const scrollResult = await this.scrollElementIntoView(
+      const elementValidationResult = await this.validateAndPrepareElement(
         options.selector,
-        options.windowIndex || 1
+        options.windowIndex || 1,
+        actionType
       );
       
-      
-      const visibilityResult = await validateElementVisibility(
-        options.selector, 
-        options.windowIndex || 1
-      );
-      
-      if (!visibilityResult.success) {
-        return error(`Element validation failed: ${visibilityResult.error}`, ErrorCode.JAVASCRIPT_ERROR, {
-          recoveryHint: this.determineMouseRecoveryStrategy(ErrorCode.JAVASCRIPT_ERROR),
-          metadata: { selector: options.selector, operation: 'right-click' }
-        });
-      }
-      
-      if (!visibilityResult.data?.visible) {
-        return error(`Element "${options.selector}" is not visible`, ErrorCode.ELEMENT_NOT_VISIBLE, {
-          recoveryHint: this.determineMouseRecoveryStrategy(ErrorCode.ELEMENT_NOT_VISIBLE),
-          metadata: { selector: options.selector, operation: 'right-click' }
-        });
-      }
-      
-      if (!visibilityResult.data?.clickable) {
-        return error(`Element "${options.selector}" is not clickable`, ErrorCode.ELEMENT_NOT_INTERACTABLE, {
-          recoveryHint: this.determineMouseRecoveryStrategy(ErrorCode.ELEMENT_NOT_INTERACTABLE),
-          metadata: { selector: options.selector, operation: 'right-click' }
-        });
+      if (!elementValidationResult.success) {
+        return elementValidationResult;
       }
     }
     
     // Convert to MouseOptions format for the existing mouse library
-    const mouseOptions: LibMouseOptions = {
+    const mouseOptions = this.convertToLibMouseOptions(options);
+    
+    // Execute the mouse action with unified error handling
+    return this.executeBrowserCommand(
+      async () => {
+        const result = await actionFunction(mouseOptions);
+        if (result.success && result.data) {
+          return result.data;
+        }
+        
+        // Determine appropriate error code and recovery strategy
+        const errorCode = result.code || ErrorCode.UNKNOWN_ERROR;
+        const actionName = this.getActionDisplayName(actionType);
+        const errorWithRecovery = error(
+          result.error || `Mouse ${actionName} failed`,
+          errorCode,
+          {
+            recoveryHint: this.determineMouseRecoveryStrategy(errorCode),
+            metadata: { 
+              selector: options.selector, 
+              coordinates: options.x !== undefined && options.y !== undefined ? { x: options.x, y: options.y } : undefined,
+              operation: actionType 
+            }
+          }
+        );
+        throw new Error(errorWithRecovery.error);
+      },
+      `mouse-${actionType}`
+    );
+  }
+  
+  /**
+   * Validate element visibility and prepare it for mouse interaction
+   */
+  private async validateAndPrepareElement(
+    selector: string,
+    windowIndex: number,
+    actionType: MouseActionType
+  ): Promise<Result<void, string>> {
+    // Automatically scroll element into view
+    const scrollResult = await this.scrollElementIntoView(selector, windowIndex);
+    if (!scrollResult.success) {
+      return scrollResult;
+    }
+    
+    // Validate element visibility and interactability
+    const visibilityResult = await validateElementVisibility(selector, windowIndex);
+    
+    if (!visibilityResult.success) {
+      return error(`Element validation failed: ${visibilityResult.error}`, ErrorCode.JAVASCRIPT_ERROR, {
+        recoveryHint: this.determineMouseRecoveryStrategy(ErrorCode.JAVASCRIPT_ERROR),
+        metadata: { selector, operation: actionType }
+      });
+    }
+    
+    if (!visibilityResult.data?.visible) {
+      return error(`Element "${selector}" is not visible`, ErrorCode.ELEMENT_NOT_VISIBLE, {
+        recoveryHint: this.determineMouseRecoveryStrategy(ErrorCode.ELEMENT_NOT_VISIBLE),
+        metadata: { selector, operation: actionType }
+      });
+    }
+    
+    if (!visibilityResult.data?.clickable) {
+      return error(`Element "${selector}" is not clickable`, ErrorCode.ELEMENT_NOT_INTERACTABLE, {
+        recoveryHint: this.determineMouseRecoveryStrategy(ErrorCode.ELEMENT_NOT_INTERACTABLE),
+        metadata: { selector, operation: actionType }
+      });
+    }
+    
+    return ok(undefined);
+  }
+  
+  /**
+   * Convert command options to library mouse options format
+   */
+  private convertToLibMouseOptions(options: MouseClickOptions): LibMouseOptions {
+    return {
       ...(options.selector && { selector: options.selector }),
       ...(options.x !== undefined && { x: options.x }),
       ...(options.y !== undefined && { y: options.y }),
@@ -405,31 +330,18 @@ export class MouseCommand extends BrowserCommandBase {
       ...(options.offsetY !== undefined && { offsetY: options.offsetY }),
       ...(options.windowIndex && { windowIndex: options.windowIndex })
     };
-    
-    return this.executeBrowserCommand(
-      async () => {
-        const result = await mouseRightClick(mouseOptions);
-        if (result.success && result.data) {
-          return result.data;
-        }
-        // Determine appropriate error code and recovery strategy
-        const errorCode = result.code || ErrorCode.UNKNOWN_ERROR;
-        const errorWithRecovery = error(
-          result.error || 'Mouse right-click failed',
-          errorCode,
-          {
-            recoveryHint: this.determineMouseRecoveryStrategy(errorCode),
-            metadata: { 
-              selector: options.selector, 
-              coordinates: options.x !== undefined && options.y !== undefined ? { x: options.x, y: options.y } : undefined,
-              operation: 'right-click' 
-            }
-          }
-        );
-        throw new Error(errorWithRecovery.error);
-      },
-      'mouse-right-click'
-    );
+  }
+  
+  /**
+   * Get display name for mouse action type
+   */
+  private getActionDisplayName(actionType: MouseActionType): string {
+    switch (actionType) {
+      case 'click': return 'click';
+      case 'double-click': return 'double-click';
+      case 'right-click': return 'right-click';
+      default: return actionType;
+    }
   }
   
   /**
