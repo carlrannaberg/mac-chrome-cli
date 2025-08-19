@@ -45,16 +45,16 @@ describe('Snapshot Command', () => {
 
       mockExecChromeJS.mockResolvedValue({
         success: true,
-        result: mockSnapshot,
+        data: mockSnapshot,
         code: ERROR_CODES.OK
       });
 
       const result = await captureOutline();
       
       expect(result.success).toBe(true);
-      expect(result.result?.ok).toBe(true);
-      expect(result.result?.nodes).toHaveLength(1);
-      expect(result.result?.nodes[0].role).toBe('button');
+      expect(result.data?.ok).toBe(true);
+      expect(result.data?.nodes).toHaveLength(1);
+      expect(result.data?.nodes[0].role).toBe('button');
       expect(mockExecChromeJS).toHaveBeenCalledWith(
         expect.stringContaining('outline'),
         1,
@@ -79,14 +79,14 @@ describe('Snapshot Command', () => {
 
       mockExecChromeJS.mockResolvedValue({
         success: true,
-        result: mockSnapshot,
+        data: mockSnapshot,
         code: ERROR_CODES.OK
       });
 
       const result = await captureOutline({ visibleOnly: true });
       
       expect(result.success).toBe(true);
-      expect(result.result?.meta?.visibleOnly).toBe(true);
+      expect(result.data?.meta?.visibleOnly).toBe(true);
     });
 
     it('should handle Chrome execution failures', async () => {
@@ -132,15 +132,15 @@ describe('Snapshot Command', () => {
 
       mockExecChromeJS.mockResolvedValue({
         success: true,
-        result: mockSnapshot,
+        data: mockSnapshot,
         code: ERROR_CODES.OK
       });
 
       const result = await captureDomLite();
       
       expect(result.success).toBe(true);
-      expect(result.result?.cmd).toBe('snapshot.dom-lite');
-      expect(result.result?.meta?.maxDepth).toBe(10);
+      expect(result.data?.cmd).toBe('snapshot.dom-lite');
+      expect(result.data?.meta?.maxDepth).toBe(10);
       expect(mockExecChromeJS).toHaveBeenCalledWith(
         expect.stringContaining('dom-lite'),
         1,
@@ -166,14 +166,14 @@ describe('Snapshot Command', () => {
 
       mockExecChromeJS.mockResolvedValue({
         success: true,
-        result: mockSnapshot,
+        data: mockSnapshot,
         code: ERROR_CODES.OK
       });
 
       const result = await captureDomLite({ maxDepth: 5, visibleOnly: false });
       
       expect(result.success).toBe(true);
-      expect(result.result?.meta?.maxDepth).toBe(5);
+      expect(result.data?.meta?.maxDepth).toBe(5);
     });
   });
 
@@ -203,8 +203,9 @@ describe('Snapshot Command', () => {
 
       const jsResult = {
         success: true,
-        result: mockSnapshot,
-        code: ERROR_CODES.OK
+        data: mockSnapshot,
+        code: ERROR_CODES.OK,
+        timestamp: '2024-01-01T00:00:00.000Z'
       };
 
       const formatted = formatSnapshotResult(jsResult);
@@ -221,7 +222,8 @@ describe('Snapshot Command', () => {
       const jsResult = {
         success: false,
         error: 'Snapshot failed',
-        code: ERROR_CODES.UNKNOWN_ERROR
+        code: ERROR_CODES.UNKNOWN_ERROR,
+        timestamp: '2024-01-01T00:00:00.000Z'
       };
 
       const formatted = formatSnapshotResult(jsResult);
@@ -237,8 +239,9 @@ describe('Snapshot Command', () => {
     it('should handle missing result data', () => {
       const jsResult = {
         success: true,
-        result: null,
-        code: ERROR_CODES.OK
+        data: null,
+        code: ERROR_CODES.OK,
+        timestamp: '2024-01-01T00:00:00.000Z'
       };
 
       const formatted = formatSnapshotResult(jsResult);

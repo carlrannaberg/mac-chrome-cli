@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import { OutputFormatter, GlobalOptions } from './OutputFormatter.js';
 import { CommandRegistry } from './CommandRegistry.js';
-import { ErrorCode, error } from '../core/index.js';
+import { ErrorCode } from '../core/index.js';
 import { createFormattedResponse, ErrorUtils } from '../core/ErrorUtils.js';
 
 /**
@@ -59,7 +59,7 @@ export class MacChromeCLI {
       );
       
       const globalOpts = this.program.opts() as GlobalOptions;
-      const formatted = createFormattedResponse(errorResult, { json: globalOpts.json });
+      const formatted = createFormattedResponse(errorResult, { json: globalOpts.json ?? false });
       
       if (formatted.isError) {
         console.error(formatted.output);
@@ -102,7 +102,7 @@ export class MacChromeCLI {
       
       const globalOpts = this.program.opts() as GlobalOptions;
       const formatted = createFormattedResponse(errorResult, { 
-        json: globalOpts.json,
+        json: globalOpts.json ?? false,
         detailed: true,
         includeRecovery: true
       });

@@ -51,7 +51,7 @@ export function ok<T>(data: T, code: ErrorCode = 0, context?: ResultContext): Re
     data,
     code,
     timestamp: new Date().toISOString(),
-    context
+    ...(context !== undefined && { context })
   };
 }
 
@@ -68,7 +68,7 @@ export function error<E>(
     error,
     code,
     timestamp: new Date().toISOString(),
-    context
+    ...(context !== undefined && { context })
   };
 }
 
@@ -96,7 +96,13 @@ export function map<T, U, E>(
   if (isOk(result)) {
     return ok(mapper(result.data), result.code, result.context);
   }
-  return result as Result<U, E>;
+  return {
+    success: false,
+    error: result.error,
+    code: result.code,
+    timestamp: result.timestamp,
+    context: result.context
+  } as Result<U, E>;
 }
 
 /**
@@ -109,7 +115,7 @@ export function flatMap<T, U, E>(
   if (isOk(result)) {
     return mapper(result.data);
   }
-  return result as Result<U, E>;
+  return result as Result<never, E> as Result<U, E>;
 }
 
 /**
@@ -122,7 +128,7 @@ export function mapError<T, E, F>(
   if (isError(result)) {
     return error(mapper(result.error), result.code, result.context);
   }
-  return result as Result<T, F>;
+  return result as Result<T, never> as Result<T, F>;
 }
 
 /**
@@ -183,8 +189,8 @@ export async function fromPromise<T>(
     const data = await promise;
     return ok(data);
   } catch (err) {
-    const error = err instanceof Error ? err : new Error(String(err));
-    return error(error, code);
+    const errorValue = err instanceof Error ? err : new Error(String(err));
+    return error(errorValue, code);
   }
 }
 
@@ -203,7 +209,7 @@ export function combine<T extends readonly unknown[], E>(
     data.push(result.data);
   }
   
-  return ok(data as T);
+  return ok(data as unknown as T);
 }
 
 /**
@@ -217,8 +223,8 @@ export async function tryAsync<T>(
     const data = await operation();
     return ok(data);
   } catch (err) {
-    const error = err instanceof Error ? err : new Error(String(err));
-    return error(error, code);
+    const errorValue = err instanceof Error ? err : new Error(String(err));
+    return error(errorValue, code);
   }
 }
 
@@ -233,8 +239,8 @@ export function trySync<T>(
     const data = operation();
     return ok(data);
   } catch (err) {
-    const error = err instanceof Error ? err : new Error(String(err));
-    return error(error, code);
+    const errorValue = err instanceof Error ? err : new Error(String(err));
+    return error(errorValue, code);
   }
 }
 

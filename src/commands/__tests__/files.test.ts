@@ -138,13 +138,15 @@ describe('Files Command Integration Tests', () => {
         // Mock successful file input verification
         mockExecChromeJS.mockResolvedValueOnce({
           success: true,
-          result: { exists: true }
+          data: { exists: true }
         });
 
         // Mock successful file input click
         mockExecChromeJS.mockResolvedValueOnce({
           success: true,
-          result: true
+          data: true,
+          code: ERROR_CODES.OK,
+          timestamp: '2024-01-01T00:00:00.000Z'
         });
 
         // Mock successful AppleScript execution
@@ -163,10 +165,12 @@ describe('Files Command Integration Tests', () => {
         // Mock successful file verification
         mockExecChromeJS.mockResolvedValueOnce({
           success: true,
-          result: {
+          data: {
             fileCount: 1,
             files: ['document.txt']
-          }
+          },
+          code: ERROR_CODES.OK,
+          timestamp: '2024-01-01T00:00:00.000Z'
         });
 
         const result = await uploadFiles({
@@ -223,13 +227,15 @@ describe('Files Command Integration Tests', () => {
         // Mock successful file input verification
         mockExecChromeJS.mockResolvedValueOnce({
           success: true,
-          result: { exists: true }
+          data: { exists: true }
         });
 
         // Mock successful file input click
         mockExecChromeJS.mockResolvedValueOnce({
           success: true,
-          result: true
+          data: true,
+          code: ERROR_CODES.OK,
+          timestamp: '2024-01-01T00:00:00.000Z'
         });
 
         // Mock successful AppleScript executions for each file
@@ -252,10 +258,12 @@ describe('Files Command Integration Tests', () => {
         // Mock successful file verification
         mockExecChromeJS.mockResolvedValueOnce({
           success: true,
-          result: {
+          data: {
             fileCount: 2,
             files: ['document.txt', 'report.pdf']
-          }
+          },
+          code: ERROR_CODES.OK,
+          timestamp: '2024-01-01T00:00:00.000Z'
         });
 
         const multiplePaths = `${validFiles.txt},${validFiles.pdf}`;
@@ -303,11 +311,11 @@ describe('Files Command Integration Tests', () => {
         try {
           // Mock successful operations for this test
           mockExecChromeJS
-            .mockResolvedValueOnce({ success: true, result: { exists: true } })
-            .mockResolvedValueOnce({ success: true, result: true })
+            .mockResolvedValueOnce({ success: true, data: { exists: true }, code: ERROR_CODES.OK, timestamp: '2024-01-01T00:00:00.000Z' })
+            .mockResolvedValueOnce({ success: true, data: true, code: ERROR_CODES.OK, timestamp: '2024-01-01T00:00:00.000Z' })
             .mockResolvedValueOnce({
               success: true,
-              result: { fileCount: 1, files: ['test-upload.txt'] }
+              data: { fileCount: 1, files: ['test-upload.txt'] }
             });
           mockExecWithTimeout.mockResolvedValueOnce({
             success: true,
@@ -337,7 +345,9 @@ describe('Files Command Integration Tests', () => {
       test('should fail if element is not found', async () => {
         mockExecChromeJS.mockResolvedValueOnce({
           success: true,
-          result: { exists: false, error: 'Element not found' }
+          data: { exists: false, error: 'Element not found' },
+          code: ERROR_CODES.OK,
+          timestamp: '2024-01-01T00:00:00.000Z'
         });
 
         const result = await uploadFiles({
@@ -354,7 +364,7 @@ describe('Files Command Integration Tests', () => {
       test('should fail if element is not a file input', async () => {
         mockExecChromeJS.mockResolvedValueOnce({
           success: true,
-          result: { exists: false, error: 'Element is not a file input' }
+          data: { exists: false, error: 'Element is not a file input' }
         });
 
         const result = await uploadFiles({
@@ -371,7 +381,7 @@ describe('Files Command Integration Tests', () => {
       test('should fail if element is hidden', async () => {
         mockExecChromeJS.mockResolvedValueOnce({
           success: true,
-          result: { exists: false, error: 'File input is hidden' }
+          data: { exists: false, error: 'File input is hidden' }
         });
 
         const result = await uploadFiles({
@@ -389,8 +399,8 @@ describe('Files Command Integration Tests', () => {
     describe('AppleScript execution failures', () => {
       test('should handle AppleScript permission errors', async () => {
         mockExecChromeJS
-          .mockResolvedValueOnce({ success: true, result: { exists: true } })
-          .mockResolvedValueOnce({ success: true, result: true });
+          .mockResolvedValueOnce({ success: true, data: { exists: true }, code: ERROR_CODES.OK, timestamp: '2024-01-01T00:00:00.000Z' })
+          .mockResolvedValueOnce({ success: true, data: true, code: ERROR_CODES.OK, timestamp: '2024-01-01T00:00:00.000Z' });
         
         mockExecWithTimeout.mockResolvedValueOnce({
           success: false,
@@ -412,8 +422,8 @@ describe('Files Command Integration Tests', () => {
 
       test('should handle AppleScript execution errors', async () => {
         mockExecChromeJS
-          .mockResolvedValueOnce({ success: true, result: { exists: true } })
-          .mockResolvedValueOnce({ success: true, result: true });
+          .mockResolvedValueOnce({ success: true, data: { exists: true }, code: ERROR_CODES.OK, timestamp: '2024-01-01T00:00:00.000Z' })
+          .mockResolvedValueOnce({ success: true, data: true, code: ERROR_CODES.OK, timestamp: '2024-01-01T00:00:00.000Z' });
         
         mockExecWithTimeout.mockResolvedValueOnce({
           success: false,
@@ -468,7 +478,7 @@ describe('Files Command Integration Tests', () => {
       test('should accept valid files for drag and drop', async () => {
         mockExecChromeJS.mockResolvedValueOnce({
           success: true,
-          result: {
+          data: {
             success: true,
             files: ['document.txt'],
             message: 'Drag and drop events dispatched'
@@ -512,7 +522,7 @@ describe('Files Command Integration Tests', () => {
       test('should fail if dropzone element is not found', async () => {
         mockExecChromeJS.mockResolvedValueOnce({
           success: true,
-          result: { success: false, error: 'Dropzone element not found' }
+          data: { success: false, error: 'Dropzone element not found' }
         });
 
         const result = await dragDropFiles({

@@ -1,5 +1,5 @@
-import { Result, ok, error, ErrorCode } from '../core/index.js';
-import { ErrorUtils, executeWithContext } from '../core/ErrorUtils.js';
+import { Result, mapError } from '../core/index.js';
+import { executeWithContext } from '../core/ErrorUtils.js';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
@@ -928,7 +928,7 @@ async function getMacOSVersion(): Promise<string | undefined> {
   try {
     const { execWithTimeout } = await import('../lib/util.js');
     const result = await execWithTimeout('sw_vers', ['-productVersion'], 5000);
-    return result.success ? result.stdout.trim() : undefined;
+    return result.success ? result.data.stdout.trim() : undefined;
   } catch {
     return undefined;
   }
@@ -938,7 +938,7 @@ async function getMacOSVersion(): Promise<string | undefined> {
  * Get comprehensive meta information about the CLI
  */
 export async function getMetaInfo(): Promise<Result<MetaInfo, string>> {
-  return executeWithContext(async () => {
+  const result = await executeWithContext(async () => {
     const packageInfo = getPackageInfo();
     const commandInfo = getImplementedCommands();
     const capabilities = getCapabilities();
@@ -968,24 +968,30 @@ export async function getMetaInfo(): Promise<Result<MetaInfo, string>> {
 
     return metaInfo;
   }, 'gather-meta-info');
+  
+  return mapError(result, (err) => err.message);
 }
 
 /**
  * Get detailed command information
  */
 export async function getCommands(): Promise<Result<CommandInfo[], string>> {
-  return executeWithContext(async () => {
+  const result = await executeWithContext(async () => {
     return getCommandRegistry();
   }, 'gather-command-info');
+  
+  return mapError(result, (err) => err.message);
 }
 
 /**
  * Get permission requirements
  */
 export async function getPermissions(): Promise<Result<PermissionInfo[], string>> {
-  return executeWithContext(async () => {
+  const result = await executeWithContext(async () => {
     return getPermissionRequirements();
   }, 'gather-permission-info');
+  
+  return mapError(result, (err) => err.message);
 }
 
 /**
@@ -1009,7 +1015,7 @@ export interface CliStats {
 }
 
 export async function getCliStats(): Promise<Result<CliStats, string>> {
-  return executeWithContext(async () => {
+  const result = await executeWithContext(async () => {
     const stats: CliStats = {
       uptime: process.uptime(),
       startTime: new Date(Date.now() - process.uptime() * 1000).toISOString(),
@@ -1024,16 +1030,45 @@ export async function getCliStats(): Promise<Result<CliStats, string>> {
     
     return stats;
   }, 'gather-cli-stats');
+  
+  return mapError(result, (err) => err.message);
+}
+
+/**
+ * Performance statistics data structure
+ */
+export interface PerformanceStats {
+  cacheStats: {
+    scriptCache: { size: number; maxSize: number };
+    coordsCache: { size: number; maxSize: number };
+    webpCache: { size: number; maxSize: number };
+  };
+  connectionPool: { activeConnections: number; maxConnections: number };
+  memory: {
+    rss: number;
+    heapTotal: number; 
+    heapUsed: number;
+    external: number;
+  };
+}
+
+/**
+ * Performance information result
+ */
+export interface PerformanceInfo {
+  stats: PerformanceStats;
+  recommendations: string[];
+  timestamp: string;
 }
 
 /**
  * Get performance statistics and recommendations
  */
-export async function getPerformanceInfo(): Promise<Result<{ stats: unknown; recommendations: unknown; timestamp: string }, string>> {
-  return executeWithContext(async () => {
+export async function getPerformanceInfo(): Promise<Result<PerformanceInfo, string>> {
+  const result = await executeWithContext(async () => {
     const { getPerformanceStats, getPerformanceRecommendations } = await import('../lib/performance.js');
     
-    const performanceInfo = {
+    const performanceInfo: PerformanceInfo = {
       stats: getPerformanceStats(),
       recommendations: getPerformanceRecommendations(),
       timestamp: new Date().toISOString()
@@ -1041,6 +1076,8 @@ export async function getPerformanceInfo(): Promise<Result<{ stats: unknown; rec
 
     return performanceInfo;
   }, 'gather-performance-info');
+  
+  return mapError(result, (err) => err.message);
 }
 
 /**

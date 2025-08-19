@@ -58,13 +58,13 @@ describe('Performance Regression Tests', () => {
     // Setup standard mock responses for consistent timing
     mockExecChromeJS.mockResolvedValue({
       success: true,
-      result: { x: 100, y: 200, width: 50, height: 30 },
+      data: { x: 100, y: 200, width: 50, height: 30 },
       code: ERROR_CODES.OK
     });
 
     mockGetChromeWindowBounds.mockResolvedValue({
       success: true,
-      result: {
+      data: {
         id: 1,
         title: 'Test Window',
         bounds: { x: 100, y: 100, width: 1920, height: 1080 },
@@ -166,8 +166,9 @@ describe('Performance Regression Tests', () => {
 
       mockExecChromeJS.mockResolvedValue({
         success: true,
-        result: mockSnapshotResult,
-        code: ERROR_CODES.OK
+        data: mockSnapshotResult,
+        code: ERROR_CODES.OK,
+        timestamp: new Date().toISOString()
       });
 
       const { result, duration } = await testUtils.performance.measureExecutionTime(async () => {
@@ -203,8 +204,9 @@ describe('Performance Regression Tests', () => {
 
       mockExecChromeJS.mockResolvedValue({
         success: true,
-        result: mockDomResult,
-        code: ERROR_CODES.OK
+        data: mockDomResult,
+        code: ERROR_CODES.OK,
+        timestamp: new Date().toISOString()
       });
 
       const { result, duration } = await testUtils.performance.measureExecutionTime(async () => {
@@ -296,8 +298,9 @@ describe('Performance Regression Tests', () => {
 
       mockExecChromeJS.mockResolvedValue({
         success: true,
-        result: largeSnapshot,
-        code: ERROR_CODES.OK
+        data: largeSnapshot,
+        code: ERROR_CODES.OK,
+        timestamp: new Date().toISOString()
       });
 
       const { result, duration } = await testUtils.performance.measureExecutionTime(async () => {
@@ -445,7 +448,7 @@ describe('Performance Regression Tests', () => {
         await new Promise(resolve => setTimeout(resolve, bottleneckThreshold + 100));
         return {
           success: true,
-          result: 'slow result',
+          data: 'slow result',
           code: ERROR_CODES.OK
         };
       });

@@ -291,7 +291,7 @@ export function withRetrySupport<Args extends any[], T, E>(
  * Check if an error should trigger a specific recovery strategy
  */
 export function getRecoveryStrategy(errorCode: ErrorCode): RecoveryStrategy {
-  const errorInfo = getErrorInfo(errorCode);
+  // const errorInfo = getErrorInfo(errorCode); // Unused
   
   if (requiresUserAction(errorCode)) {
     return 'user_action';

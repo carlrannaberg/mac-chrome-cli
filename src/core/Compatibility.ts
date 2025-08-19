@@ -21,15 +21,15 @@ export function toLegacyResult<T>(result: Result<T, string>): {
 } {
   if (isOk(result)) {
     return {
-      success: true,
-      data: result.data,
+      success: true as const,
+      ...(result.data !== undefined && { data: result.data }),
       code: result.code,
       timestamp: result.timestamp
     };
   } else {
     return {
-      success: false,
-      error: result.error,
+      success: false as const,
+      ...(result.error !== undefined && { error: result.error }),
       code: result.code,
       timestamp: result.timestamp
     };
@@ -64,19 +64,18 @@ export function toLegacyExecResult(result: Result<{ stdout: string; stderr: stri
 } {
   if (isOk(result)) {
     return {
-      success: true,
-      stdout: result.data.stdout,
-      stderr: result.data.stderr,
+      success: true as const,
+      stdout: result.data?.stdout || '',
+      stderr: result.data?.stderr || '',
       code: result.code,
-      command: result.data.command
+      ...(result.data?.command && { command: result.data.command })
     };
   } else {
     return {
-      success: false,
+      success: false as const,
       stdout: '',
-      stderr: result.error,
-      code: result.code,
-      command: undefined
+      stderr: result.error || '',
+      code: result.code
     };
   }
 }
@@ -92,8 +91,8 @@ export function toLegacyJavaScriptResult<T>(result: Result<T, string>): {
 } {
   if (isOk(result)) {
     return {
-      success: true,
-      result: result.data,
+      success: true as const,
+      ...(result.data !== undefined && { result: result.data }),
       code: result.code
     };
   } else {
@@ -130,8 +129,8 @@ export function toLegacyFileUploadResult(result: Result<{ filesUploaded: string[
   if (isOk(result)) {
     return {
       success: true,
-      filesUploaded: result.data.filesUploaded,
-      totalFiles: result.data.totalFiles,
+      filesUploaded: result.data?.filesUploaded || [],
+      totalFiles: result.data?.totalFiles || 0,
       code: result.code
     };
   } else {
@@ -158,8 +157,8 @@ export function toLegacyUIResult(result: Result<{ action: string; coordinates?: 
   if (isOk(result)) {
     return {
       success: true,
-      action: result.data.action,
-      coordinates: result.data.coordinates,
+      action: result.data?.action || 'unknown',
+      ...(result.data?.coordinates && { coordinates: result.data.coordinates }),
       code: result.code
     };
   } else {

@@ -48,58 +48,86 @@ describe('Command Integration Tests', () => {
         // which chrome-cli (missing)
         .mockResolvedValueOnce({
           success: false,
-          stdout: '',
-          stderr: 'chrome-cli: command not found',
-          code: ERROR_CODES.UNKNOWN_ERROR
+          error: 'chrome-cli: command not found',
+          code: ERROR_CODES.UNKNOWN_ERROR,
+          timestamp: '2024-01-01T00:00:00.000Z'
         })
         // which cliclick (installed)
         .mockResolvedValueOnce({
           success: true,
-          stdout: '/usr/local/bin/cliclick',
-          stderr: '',
-          code: ERROR_CODES.OK
+          data: {
+            stdout: '/usr/local/bin/cliclick',
+            stderr: '',
+            command: 'which cliclick'
+          },
+          code: ERROR_CODES.OK,
+          timestamp: '2024-01-01T00:00:00.000Z'
         })
         // cliclick version
         .mockResolvedValueOnce({
           success: true,
-          stdout: 'cliclick 4.0.1',
-          stderr: '',
-          code: ERROR_CODES.OK
+          data: {
+            stdout: 'cliclick 4.0.1',
+            stderr: '',
+            command: 'cliclick -V'
+          },
+          code: ERROR_CODES.OK,
+          timestamp: '2024-01-01T00:00:00.000Z'
         })
         // AppleScript permission test
         .mockResolvedValueOnce({
           success: true,
-          stdout: 'test',
-          stderr: '',
-          code: ERROR_CODES.OK
+          data: {
+            stdout: 'test',
+            stderr: '',
+            command: 'osascript -e test'
+          },
+          code: ERROR_CODES.OK,
+          timestamp: '2024-01-01T00:00:00.000Z'
         })
         // Screen recording test
         .mockResolvedValueOnce({
           success: true,
-          stdout: '',
-          stderr: '',
-          code: ERROR_CODES.OK
+          data: {
+            stdout: '',
+            stderr: '',
+            command: 'screencapture'
+          },
+          code: ERROR_CODES.OK,
+          timestamp: '2024-01-01T00:00:00.000Z'
         })
         // Cleanup screenshot
         .mockResolvedValueOnce({
           success: true,
-          stdout: '',
-          stderr: '',
-          code: ERROR_CODES.OK
+          data: {
+            stdout: '',
+            stderr: '',
+            command: 'rm'
+          },
+          code: ERROR_CODES.OK,
+          timestamp: '2024-01-01T00:00:00.000Z'
         })
         // Chrome version check
         .mockResolvedValueOnce({
           success: true,
-          stdout: 'Google Chrome 120.0.6099.129',
-          stderr: '',
-          code: ERROR_CODES.OK
+          data: {
+            stdout: 'Google Chrome 120.0.6099.129',
+            stderr: '',
+            command: 'open -Ra Google Chrome --args --version'
+          },
+          code: ERROR_CODES.OK,
+          timestamp: '2024-01-01T00:00:00.000Z'
         })
         // macOS version
         .mockResolvedValueOnce({
           success: true,
-          stdout: '14.2.1',
-          stderr: '',
-          code: ERROR_CODES.OK
+          data: {
+            stdout: '14.2.1',
+            stderr: '',
+            command: 'sw_vers -productVersion'
+          },
+          code: ERROR_CODES.OK,
+          timestamp: '2024-01-01T00:00:00.000Z'
         });
 
       mockIsChromeRunning.mockResolvedValue(true);
@@ -216,15 +244,15 @@ describe('Command Integration Tests', () => {
     it('should handle partial failures gracefully', async () => {
       // Mock mixed success/failure scenarios
       mockExecWithTimeout
-        .mockResolvedValueOnce({ success: true, stdout: '/bin/chrome-cli', stderr: '', code: ERROR_CODES.OK })
+        .mockResolvedValueOnce({ success: true, data: { stdout: '/bin/chrome-cli', stderr: '', command: 'which chrome-cli' }, code: ERROR_CODES.OK, timestamp: '2024-01-01T00:00:00.000Z' })
         .mockRejectedValueOnce(new Error('Network timeout')) // Chrome-CLI version fails
-        .mockResolvedValueOnce({ success: true, stdout: '/bin/cliclick', stderr: '', code: ERROR_CODES.OK })
-        .mockResolvedValueOnce({ success: true, stdout: 'cliclick 4.0', stderr: '', code: ERROR_CODES.OK })
-        .mockResolvedValueOnce({ success: true, stdout: 'test', stderr: '', code: ERROR_CODES.OK })
-        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', code: ERROR_CODES.OK })
-        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', code: ERROR_CODES.OK })
+        .mockResolvedValueOnce({ success: true, data: { stdout: '/bin/cliclick', stderr: '', command: 'which cliclick' }, code: ERROR_CODES.OK, timestamp: '2024-01-01T00:00:00.000Z' })
+        .mockResolvedValueOnce({ success: true, data: { stdout: 'cliclick 4.0', stderr: '', command: 'cliclick -V' }, code: ERROR_CODES.OK, timestamp: '2024-01-01T00:00:00.000Z' })
+        .mockResolvedValueOnce({ success: true, data: { stdout: 'test', stderr: '', command: 'osascript -e test' }, code: ERROR_CODES.OK, timestamp: '2024-01-01T00:00:00.000Z' })
+        .mockResolvedValueOnce({ success: true, data: { stdout: '', stderr: '', command: 'screencapture' }, code: ERROR_CODES.OK, timestamp: '2024-01-01T00:00:00.000Z' })
+        .mockResolvedValueOnce({ success: true, data: { stdout: '', stderr: '', command: 'rm' }, code: ERROR_CODES.OK, timestamp: '2024-01-01T00:00:00.000Z' })
         .mockRejectedValueOnce(new Error('Chrome check failed'))
-        .mockResolvedValueOnce({ success: true, stdout: '13.0.0', stderr: '', code: ERROR_CODES.OK });
+        .mockResolvedValueOnce({ success: true, data: { stdout: '13.0.0', stderr: '', command: 'sw_vers -productVersion' }, code: ERROR_CODES.OK, timestamp: '2024-01-01T00:00:00.000Z' });
 
       mockIsChromeRunning.mockResolvedValue(true);
 
@@ -558,7 +586,7 @@ describe('Command Integration Tests', () => {
       it('should format successful snapshot result', () => {
         const mockJSResult = {
           success: true,
-          result: {
+          data: {
             ok: true,
             cmd: 'snapshot.outline',
             nodes: [],
@@ -570,19 +598,21 @@ describe('Command Integration Tests', () => {
               visibleOnly: false
             }
           },
-          code: ERROR_CODES.OK
+          code: ERROR_CODES.OK,
+          timestamp: '2024-01-01T00:00:00.000Z'
         };
 
         const result = formatSnapshotResult(mockJSResult);
 
-        expect(result).toEqual(mockJSResult.result);
+        expect(result).toEqual(mockJSResult.data);
       });
 
       it('should format failed JavaScript execution', () => {
         const mockJSResult = {
           success: false,
           error: 'Chrome not accessible',
-          code: ERROR_CODES.CHROME_NOT_FOUND
+          code: ERROR_CODES.CHROME_NOT_FOUND,
+          timestamp: '2024-01-01T00:00:00.000Z'
         };
 
         const result = formatSnapshotResult(mockJSResult);

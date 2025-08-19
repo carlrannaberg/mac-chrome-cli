@@ -1,6 +1,6 @@
 import { typeText, sendKeys, pressKey, clearField, type UIResult } from './ui.js';
 import { ERROR_CODES, validateInput, sleep, type ErrorCode } from './util.js';
-import { Result, ok, error, type ResultContext } from '../core/index.js';
+import { Result, ok, error } from '../core/index.js';
 
 export interface KeyInputOptions {
   text?: string;
@@ -90,27 +90,20 @@ function convertUIResult(
   method: 'type' | 'combo' | 'key' | 'clear',
   options: KeyInputOptions
 ): KeyboardResult {
-  const result: KeyboardResult = {
-    success: uiResult.success,
-    action,
-    input,
-    method,
-    code: uiResult.code
-  };
-  
-  if (options.speed !== undefined) {
-    result.speed = options.speed;
+  if (uiResult.success) {
+    return ok({
+      action,
+      input,
+      method,
+      ...(options.speed !== undefined && { speed: options.speed }),
+      ...(options.repeat !== undefined && { repeat: options.repeat })
+    }, uiResult.code);
   }
   
-  if (options.repeat !== undefined) {
-    result.repeat = options.repeat;
-  }
-  
-  if (uiResult.error !== undefined) {
-    result.error = uiResult.error;
-  }
-  
-  return result;
+  return error(
+    uiResult.error || 'Keyboard operation failed',
+    uiResult.code
+  );
 }
 
 /**
@@ -176,31 +169,23 @@ export async function keyboardType(options: KeyInputOptions): Promise<KeyboardRe
   try {
     const validation = validateKeyInputOptions(options);
     if (!validation.valid) {
-      return {
-        success: false,
-        action: 'type',
-        input: options.text || '',
-        method: 'type',
-        error: validation.error || 'Validation failed',
-        code: ERROR_CODES.INVALID_INPUT
-      };
+      return error(
+        validation.error || 'Validation failed',
+        ERROR_CODES.INVALID_INPUT
+      );
     }
     
     if (!options.text) {
-      return {
-        success: false,
-        action: 'type',
-        input: '',
-        method: 'type',
-        error: 'No text provided',
-        code: ERROR_CODES.INVALID_INPUT
-      };
+      return error(
+        'No text provided',
+        ERROR_CODES.INVALID_INPUT
+      );
     }
     
     const speed = options.speed || 50;
     const repeat = options.repeat || 1;
     
-    let lastResult: UIResult = { success: false, action: 'type', code: ERROR_CODES.UNKNOWN_ERROR };
+    let lastResult: UIResult = error('Not yet executed', ERROR_CODES.UNKNOWN_ERROR);
     
     for (let i = 0; i < repeat; i++) {
       lastResult = await typeText(options.text, { speed });
@@ -217,15 +202,11 @@ export async function keyboardType(options: KeyInputOptions): Promise<KeyboardRe
     
     return convertUIResult(lastResult, 'type', options.text, 'type', options);
     
-  } catch (error) {
-    return {
-      success: false,
-      action: 'type',
-      input: options.text || '',
-      method: 'type',
-      error: `Keyboard type failed: ${error}`,
-      code: ERROR_CODES.UNKNOWN_ERROR
-    };
+  } catch (err) {
+    return error(
+      `Keyboard type failed: ${err}`,
+      ERROR_CODES.UNKNOWN_ERROR
+    );
   }
 }
 
@@ -236,43 +217,31 @@ export async function keyboardCombo(options: KeyInputOptions): Promise<KeyboardR
   try {
     const validation = validateKeyInputOptions(options);
     if (!validation.valid) {
-      return {
-        success: false,
-        action: 'combo',
-        input: options.combo || '',
-        method: 'combo',
-        error: validation.error || 'Validation failed',
-        code: ERROR_CODES.INVALID_INPUT
-      };
+      return error(
+        validation.error || 'Validation failed',
+        ERROR_CODES.INVALID_INPUT
+      );
     }
     
     if (!options.combo) {
-      return {
-        success: false,
-        action: 'combo',
-        input: '',
-        method: 'combo',
-        error: 'No key combination provided',
-        code: ERROR_CODES.INVALID_INPUT
-      };
+      return error(
+        'No key combination provided',
+        ERROR_CODES.INVALID_INPUT
+      );
     }
     
     const comboValidation = validateKeyCombo(options.combo);
     if (!comboValidation.valid) {
-      return {
-        success: false,
-        action: 'combo',
-        input: options.combo,
-        method: 'combo',
-        error: comboValidation.error || 'Invalid key combination',
-        code: ERROR_CODES.INVALID_INPUT
-      };
+      return error(
+        comboValidation.error || 'Invalid key combination',
+        ERROR_CODES.INVALID_INPUT
+      );
     }
     
     const normalizedCombo = normalizeKeyCombo(options.combo);
     const repeat = options.repeat || 1;
     
-    let lastResult: UIResult = { success: false, action: 'combo', code: ERROR_CODES.UNKNOWN_ERROR };
+    let lastResult: UIResult = error('Not yet executed', ERROR_CODES.UNKNOWN_ERROR);
     
     for (let i = 0; i < repeat; i++) {
       lastResult = await sendKeys(normalizedCombo);
@@ -289,15 +258,11 @@ export async function keyboardCombo(options: KeyInputOptions): Promise<KeyboardR
     
     return convertUIResult(lastResult, 'combo', options.combo, 'combo', options);
     
-  } catch (error) {
-    return {
-      success: false,
-      action: 'combo',
-      input: options.combo || '',
-      method: 'combo',
-      error: `Keyboard combo failed: ${error}`,
-      code: ERROR_CODES.UNKNOWN_ERROR
-    };
+  } catch (err) {
+    return error(
+      `Keyboard combo failed: ${err}`,
+      ERROR_CODES.UNKNOWN_ERROR
+    );
   }
 }
 
@@ -308,30 +273,22 @@ export async function keyboardPress(options: KeyInputOptions): Promise<KeyboardR
   try {
     const validation = validateKeyInputOptions(options);
     if (!validation.valid) {
-      return {
-        success: false,
-        action: 'press',
-        input: options.key || '',
-        method: 'key',
-        error: validation.error || 'Validation failed',
-        code: ERROR_CODES.INVALID_INPUT
-      };
+      return error(
+        validation.error || 'Validation failed',
+        ERROR_CODES.INVALID_INPUT
+      );
     }
     
     if (!options.key) {
-      return {
-        success: false,
-        action: 'press',
-        input: '',
-        method: 'key',
-        error: 'No key provided',
-        code: ERROR_CODES.INVALID_INPUT
-      };
+      return error(
+        'No key provided',
+        ERROR_CODES.INVALID_INPUT
+      );
     }
     
     const repeat = options.repeat || 1;
     
-    let lastResult: UIResult = { success: false, action: 'press', code: ERROR_CODES.UNKNOWN_ERROR };
+    let lastResult: UIResult = error('Not yet executed', ERROR_CODES.UNKNOWN_ERROR);
     
     for (let i = 0; i < repeat; i++) {
       lastResult = await pressKey(options.key);
@@ -348,15 +305,11 @@ export async function keyboardPress(options: KeyInputOptions): Promise<KeyboardR
     
     return convertUIResult(lastResult, 'press', options.key, 'key', options);
     
-  } catch (error) {
-    return {
-      success: false,
-      action: 'press',
-      input: options.key || '',
-      method: 'key',
-      error: `Keyboard press failed: ${error}`,
-      code: ERROR_CODES.UNKNOWN_ERROR
-    };
+  } catch (err) {
+    return error(
+      `Keyboard press failed: ${err}`,
+      ERROR_CODES.UNKNOWN_ERROR
+    );
   }
 }
 
@@ -369,15 +322,11 @@ export async function keyboardClear(): Promise<KeyboardResult> {
     
     return convertUIResult(result, 'clear', 'clear', 'clear', {});
     
-  } catch (error) {
-    return {
-      success: false,
-      action: 'clear',
-      input: 'clear',
-      method: 'clear',
-      error: `Keyboard clear failed: ${error}`,
-      code: ERROR_CODES.UNKNOWN_ERROR
-    };
+  } catch (err) {
+    return error(
+      `Keyboard clear failed: ${err}`,
+      ERROR_CODES.UNKNOWN_ERROR
+    );
   }
 }
 

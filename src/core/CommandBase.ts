@@ -8,7 +8,8 @@
  * - Retry logic integration
  */
 
-import { Result, ok, error, ErrorCode } from './Result.js';
+import { Result, ok, mapError } from './Result.js';
+import { ErrorCode } from './ErrorCodes.js';
 import { ErrorUtils, validateInputParam, executeWithContext } from './ErrorUtils.js';
 import { withRetry, type RetryOptions } from './RetryHandler.js';
 
@@ -103,7 +104,7 @@ export abstract class CommandBase {
    * Validate base command options
    */
   protected validateBaseOptions(options: BaseCommandOptions): Result<void, string> {
-    return this.validateParams(options, {
+    return this.validateParams(options as Record<string, unknown>, {
       tabIndex: { type: 'number', min: 1, max: 100 },
       windowIndex: { type: 'number', min: 1, max: 50 },
       timeoutMs: { type: 'number', min: 1000, max: 300000 } // 1s to 5min
@@ -119,14 +120,16 @@ export abstract class CommandBase {
     retryOptions?: RetryOptions
   ): Promise<Result<T, string>> {
     if (retryOptions) {
-      return withRetry(
+      const retryResult = await withRetry(
         () => executeWithContext(operation, operationName),
         retryOptions,
         operationName
       );
+      return mapError(retryResult, (err: Error) => err.message);
     }
     
-    return executeWithContext(operation, operationName);
+    const result = await executeWithContext(operation, operationName);
+    return mapError(result, (err: Error) => err.message);
   }
   
   /**
@@ -215,7 +218,7 @@ export abstract class BrowserCommandBase extends CommandBase {
         throw new Error(result.error || 'JavaScript execution failed');
       }
       
-      return result.result as T;
+      return result.data as T;
     }, operationName);
   }
   
@@ -233,9 +236,13 @@ export abstract class BrowserCommandBase extends CommandBase {
     
     // Basic CSS selector validation
     try {
-      // This will throw if selector is invalid
-      if (typeof document !== 'undefined') {
-        document.querySelector(selector);
+      // Validate selector syntax without browser dependency
+      // Common invalid patterns
+      if (selector.includes('::') && !selector.match(/::(before|after|first-line|first-letter)/)) {
+        throw new Error('Invalid pseudo-element');
+      }
+      if (selector.includes('[') && !selector.includes(']')) {
+        throw new Error('Unclosed attribute selector');
       }
     } catch {
       return ErrorUtils.validationError(

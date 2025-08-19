@@ -374,7 +374,7 @@ async function executeAppleScript(script: string): Promise<{ success: boolean; r
     const result = await appleScriptService.executeScript(script, 10000);
     return {
       success: result.success,
-      result: result.result,
+      ...(result.data && { result: result.data }),
       ...(result.error && { error: result.error })
     };
   } catch (error) {

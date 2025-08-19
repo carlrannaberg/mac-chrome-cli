@@ -12,7 +12,17 @@
 
 export * from './Result.js';
 export * from './ErrorCodes.js';
-export * from './ErrorFormatter.js';
+export { 
+  formatResultError, 
+  formatErrorJSON, 
+  formatErrorText, 
+  getErrorCategoryString,
+  createUserFriendlyMessage,
+  displayError,
+  formatException,
+  type ErrorDisplayOptions,
+  type FormattedError
+} from './ErrorFormatter.js';
 export * from './RetryHandler.js';
 export * from './ErrorUtils.js';
 export * from './CommandBase.js';

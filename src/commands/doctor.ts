@@ -38,7 +38,7 @@ export interface DoctorResult {
 async function commandExists(command: string): Promise<boolean> {
   try {
     const result = await execWithTimeout('which', [command], 5000);
-    return result.success && result.stdout.trim().length > 0;
+    return result.success && result.data.stdout.trim().length > 0;
   } catch {
     return false;
   }
@@ -51,7 +51,7 @@ async function getCommandVersion(command: string, versionFlag: string = '--versi
   try {
     const result = await execWithTimeout(command, [versionFlag], 5000);
     if (result.success) {
-      return result.stdout.trim().split('\n')[0];
+      return result.data.stdout.trim().split('\n')[0];
     }
   } catch {
     // Ignore errors
@@ -112,7 +112,7 @@ tell application "System Events"
 end tell`;
     
     const result = await execWithTimeout('osascript', ['-e', testScript], 5000);
-    const granted = result.success && !result.stderr.includes('not authorized');
+    const granted = result.success && !result.data.stderr.includes('not authorized');
     
     return {
       name: 'AppleScript Automation',
@@ -207,7 +207,7 @@ async function checkMacOSVersion(): Promise<SystemCheck> {
   try {
     const result = await execWithTimeout('sw_vers', ['-productVersion'], 5000);
     if (result.success) {
-      const version = result.stdout.trim();
+      const version = result.data.stdout.trim();
       const versionParts = version.split('.');
       const majorVersion = versionParts.length > 0 && versionParts[0] ? parseInt(versionParts[0], 10) : 0;
       

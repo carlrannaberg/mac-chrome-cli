@@ -8,6 +8,8 @@
 import { ServiceContainer, ServiceLifetime, createServiceToken } from '../src/di/ServiceContainer.js';
 import { SERVICE_TOKENS } from '../src/di/ServiceTokens.js';
 import { AppleScriptService } from '../src/services/AppleScriptService.js';
+import * as fs from 'fs';
+import * as path from 'path';
 import { SecurePathValidator } from '../src/security/PathValidator.js';
 import { NetworkDataSanitizer } from '../src/security/DataSanitizer.js';
 import { runDiagnostics } from '../src/commands/doctor.js';
@@ -67,9 +69,19 @@ describe('System Integration Tests', () => {
       expect(scriptResult.success).toBe(false);
       expect(scriptResult.error).toBePermissionError();
 
-      // Test that other services continue to work
-      const pathResult = pathValidator.validateFilePath('/tmp/test.txt');
-      expect(pathResult.success).toBe(true);
+      // Test that other services continue to work - create a temporary file to validate
+      const tempFile = path.join('/tmp', 'test-integration.txt');
+      fs.writeFileSync(tempFile, 'test content');
+      
+      try {
+        const pathResult = pathValidator.validateFilePath(tempFile);
+        expect(pathResult.success).toBe(true);
+      } finally {
+        // Clean up
+        if (fs.existsSync(tempFile)) {
+          fs.unlinkSync(tempFile);
+        }
+      }
     });
 
     it('should handle cascading failures across multiple services', async () => {
@@ -89,8 +101,17 @@ describe('System Integration Tests', () => {
       expect(scriptResult.success).toBe(false);
 
       // But other services should remain functional
-      const pathResult = services.pathValidator.validateFilePath('/tmp/test.txt');
-      expect(pathResult.success).toBe(true);
+      const tempFile2 = path.join('/tmp', 'test-cascading.txt');
+      fs.writeFileSync(tempFile2, 'test content');
+      
+      try {
+        const pathResult = services.pathValidator.validateFilePath(tempFile2);
+        expect(pathResult.success).toBe(true);
+      } finally {
+        if (fs.existsSync(tempFile2)) {
+          fs.unlinkSync(tempFile2);
+        }
+      }
 
       const sanitizedData = services.dataSanitizer.sanitizeUrl('https://test.com');
       expect(sanitizedData).toBeDefined();
@@ -363,8 +384,17 @@ describe('System Integration Tests', () => {
       expect(lastResult.success).toBe(false);
 
       // Other services should remain functional
-      const pathResult = services.pathValidator.validateFilePath('/tmp/test.txt');
-      expect(pathResult.success).toBe(true);
+      const tempFile3 = path.join('/tmp', 'test-degradation.txt');
+      fs.writeFileSync(tempFile3, 'test content');
+      
+      try {
+        const pathResult = services.pathValidator.validateFilePath(tempFile3);
+        expect(pathResult.success).toBe(true);
+      } finally {
+        if (fs.existsSync(tempFile3)) {
+          fs.unlinkSync(tempFile3);
+        }
+      }
     });
   });
 

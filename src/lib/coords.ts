@@ -1,6 +1,6 @@
 import { execChromeJS, getChromeWindowBounds, type JavaScriptResult } from './apple.js';
 import { ERROR_CODES, type ErrorCode } from './util.js';
-import { Result, ok, error, type ResultContext } from '../core/index.js';
+import { Result, ok, error } from '../core/index.js';
 import { getCachedCoordinates, generateCoordsCacheKey } from './performance.js';
 
 export interface Coordinates {
@@ -123,11 +123,11 @@ async function getViewportInfo(windowIndex: number = 1): Promise<JavaScriptResul
 async function calculateWindowBounds(windowIndex: number = 1): Promise<WindowBounds | null> {
   const boundsResult = await getChromeWindowBounds(windowIndex);
   
-  if (!boundsResult.success || !boundsResult.result) {
+  if (!boundsResult.success || !boundsResult.data) {
     return null;
   }
   
-  const bounds = boundsResult.result.bounds;
+  const bounds = boundsResult.data.bounds;
   
   // Estimate title bar height and content area offset
   // These are approximate values for Chrome on macOS
@@ -156,11 +156,7 @@ export async function viewportToScreen(
 ): Promise<CoordinateResult> {
   // Validate input coordinates
   if (!Number.isFinite(viewportX) || !Number.isFinite(viewportY)) {
-    return {
-      success: false,
-      error: 'Invalid viewport coordinates: coordinates must be finite numbers',
-      code: ERROR_CODES.INVALID_INPUT
-    };
+    return error('Invalid viewport coordinates: coordinates must be finite numbers', ERROR_CODES.INVALID_INPUT);
   }
 
   try {
@@ -170,41 +166,27 @@ export async function viewportToScreen(
     ]);
     
     if (!viewportResult.success) {
-      return {
-        success: false,
-        error: 'Failed to get viewport information',
-        code: ERROR_CODES.UNKNOWN_ERROR
-      };
+      return error('Failed to get viewport information', ERROR_CODES.UNKNOWN_ERROR);
     }
     
     if (!windowBounds) {
-      return {
-        success: false,
-        error: 'Failed to get window bounds',
-        code: ERROR_CODES.CHROME_NOT_FOUND
-      };
+      return error('Failed to get window bounds', ERROR_CODES.CHROME_NOT_FOUND);
     }
     
-    const viewport = viewportResult.result!;
+    const viewport = viewportResult.data!;
     
     // Calculate screen coordinates
     const screenX = windowBounds.contentAreaX + viewportX;
     const screenY = windowBounds.contentAreaY + viewportY;
     
-    return {
-      success: true,
+    return ok({
       coordinates: { x: screenX, y: screenY },
       viewport,
-      window: windowBounds,
-      code: ERROR_CODES.OK
-    };
+      window: windowBounds
+    }, ERROR_CODES.OK);
     
-  } catch (error) {
-    return {
-      success: false,
-      error: `Failed to convert viewport to screen coordinates: ${error}`,
-      code: ERROR_CODES.UNKNOWN_ERROR
-    };
+  } catch (err) {
+    return error(`Failed to convert viewport to screen coordinates: ${err}`, ERROR_CODES.UNKNOWN_ERROR);
   }
 }
 
@@ -226,59 +208,46 @@ export async function selectorToScreen(
       ]);
     
     if (!elementResult.success) {
-      return {
-        success: false,
-        error: `Failed to execute JavaScript: ${elementResult.error}`,
-        code: ERROR_CODES.UNKNOWN_ERROR
-      };
+      return error(
+        `Failed to execute JavaScript: ${elementResult.error}`,
+        ERROR_CODES.UNKNOWN_ERROR
+      );
     }
     
-    if (!elementResult.result) {
-      return {
-        success: false,
-        error: `Element not found: ${selector}`,
-        code: ERROR_CODES.TARGET_NOT_FOUND
-      };
+    if (!elementResult.data) {
+      return error(
+        `Element not found: ${selector}`,
+        ERROR_CODES.TARGET_NOT_FOUND
+      );
     }
     
     if (!viewportResult.success) {
-      return {
-        success: false,
-        error: 'Failed to get viewport information',
-        code: ERROR_CODES.UNKNOWN_ERROR
-      };
+      return error('Failed to get viewport information', ERROR_CODES.UNKNOWN_ERROR);
     }
     
     if (!windowBounds) {
-      return {
-        success: false,
-        error: 'Failed to get window bounds',
-        code: ERROR_CODES.CHROME_NOT_FOUND
-      };
+      return error('Failed to get window bounds', ERROR_CODES.CHROME_NOT_FOUND);
     }
     
-    const element = elementResult.result;
-    const viewport = viewportResult.result!;
+    const element = elementResult.data;
+    const viewport = viewportResult.data!;
     
     // Calculate screen coordinates (use center of element)
     const screenX = windowBounds.contentAreaX + element.centerX;
     const screenY = windowBounds.contentAreaY + element.centerY;
     
-      return {
-        success: true,
+      return ok({
         coordinates: { x: screenX, y: screenY },
         element,
         viewport,
-        window: windowBounds,
-        code: ERROR_CODES.OK
-      };
+        window: windowBounds
+      }, ERROR_CODES.OK);
       
-    } catch (error) {
-      return {
-        success: false,
-        error: `Failed to convert selector to screen coordinates: ${error}`,
-        code: ERROR_CODES.UNKNOWN_ERROR
-      };
+    } catch (err) {
+      return error(
+        `Failed to convert selector to screen coordinates: ${err}`,
+        ERROR_CODES.UNKNOWN_ERROR
+      );
     }
   });
 }
@@ -295,11 +264,7 @@ export async function getScreenCoordinates(
   } else if (options.x !== undefined && options.y !== undefined) {
     return viewportToScreen(options.x, options.y, windowIndex);
   } else {
-    return {
-      success: false,
-      error: 'Must provide either selector or x,y coordinates',
-      code: ERROR_CODES.INVALID_INPUT
-    };
+    return error('Must provide either selector or x,y coordinates', ERROR_CODES.INVALID_INPUT);
   }
 }
 
@@ -313,11 +278,11 @@ export async function isCoordinateVisible(
 ): Promise<boolean> {
   try {
     const viewportResult = await getViewportInfo(windowIndex);
-    if (!viewportResult.success || !viewportResult.result) {
+    if (!viewportResult.success || !viewportResult.data) {
       return false;
     }
     
-    const viewport = viewportResult.result;
+    const viewport = viewportResult.data;
     return x >= 0 && x <= viewport.width && y >= 0 && y <= viewport.height;
   } catch {
     return false;

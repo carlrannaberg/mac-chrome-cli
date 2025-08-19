@@ -51,16 +51,17 @@ describe('DOM Evaluation Command', () => {
 
       mockExecChromeJS.mockResolvedValue({
         success: true,
-        result: mockResult,
-        code: ERROR_CODES.OK
+        data: mockResult,
+        code: ERROR_CODES.OK,
+        timestamp: '2024-01-01T00:00:00.000Z'
       });
 
       const result = await domEval({ js: '"Hello World"' });
       
       expect(result.success).toBe(true);
-      expect(result.result?.success).toBe(true);
-      expect(result.result?.result).toBe('Hello World');
-      expect(result.result?.meta.executionTimeMs).toBe(5);
+      expect(result.data?.success).toBe(true);
+      expect(result.data?.result).toBe('Hello World');
+      expect(result.data?.meta.executionTimeMs).toBe(5);
     });
 
     it('should handle JavaScript execution errors gracefully', async () => {
@@ -73,15 +74,16 @@ describe('DOM Evaluation Command', () => {
 
       mockExecChromeJS.mockResolvedValue({
         success: true,
-        result: mockResult,
-        code: ERROR_CODES.OK
+        data: mockResult,
+        code: ERROR_CODES.OK,
+        timestamp: '2024-01-01T00:00:00.000Z'
       });
 
       const result = await domEval({ js: 'undefined_variable' });
       
       expect(result.success).toBe(true); // Chrome execution succeeded
-      expect(result.result?.success).toBe(false); // JS execution failed
-      expect(result.result?.error).toContain('ReferenceError');
+      expect(result.data?.success).toBe(false); // JS execution failed
+      expect(result.data?.error).toContain('ReferenceError');
     });
 
     it('should handle Chrome execution failures', async () => {
@@ -108,15 +110,16 @@ describe('DOM Evaluation Command', () => {
 
       mockExecChromeJS.mockResolvedValue({
         success: true,
-        result: mockResult,
-        code: ERROR_CODES.OK
+        data: mockResult,
+        code: ERROR_CODES.OK,
+        timestamp: '2024-01-01T00:00:00.000Z'
       });
 
       const result = await domEval({ js: '({ title: document.title, url: location.href })' });
       
       expect(result.success).toBe(true);
-      expect(result.result?.success).toBe(true);
-      expect(result.result?.result).toEqual({ title: 'Test Page', url: 'https://example.com' });
+      expect(result.data?.success).toBe(true);
+      expect(result.data?.result).toEqual({ title: 'Test Page', url: 'https://example.com' });
     });
 
     it('should respect custom tab and window indices', async () => {
@@ -164,8 +167,9 @@ describe('DOM Evaluation Command', () => {
 
       const jsResult = {
         success: true,
-        result: mockResult,
-        code: ERROR_CODES.OK
+        data: mockResult,
+        code: ERROR_CODES.OK,
+        timestamp: '2024-01-01T00:00:00.000Z'
       };
 
       const formatted = formatDomEvalResult(jsResult);
@@ -179,7 +183,8 @@ describe('DOM Evaluation Command', () => {
       const jsResult = {
         success: false,
         error: 'Test error',
-        code: ERROR_CODES.UNKNOWN_ERROR
+        code: ERROR_CODES.UNKNOWN_ERROR,
+        timestamp: '2024-01-01T00:00:00.000Z'
       };
 
       const formatted = formatDomEvalResult(jsResult);
@@ -193,8 +198,9 @@ describe('DOM Evaluation Command', () => {
     it('should handle missing result data', () => {
       const jsResult = {
         success: true,
-        result: undefined,
-        code: ERROR_CODES.OK
+        data: undefined,
+        code: ERROR_CODES.OK,
+        timestamp: '2024-01-01T00:00:00.000Z'
       };
 
       const formatted = formatDomEvalResult(jsResult);

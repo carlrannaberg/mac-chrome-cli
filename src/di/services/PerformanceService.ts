@@ -23,14 +23,16 @@ export class PerformanceService implements IPerformanceService {
       id,
       name,
       startTime: Date.now(),
-      metadata
+      ...(metadata && { metadata })
     };
     
     // Prevent memory leaks by limiting benchmark count
     if (this.benchmarks.size >= this.maxBenchmarks) {
       // Remove oldest benchmark
       const oldestId = this.benchmarks.keys().next().value;
-      this.benchmarks.delete(oldestId);
+      if (oldestId !== undefined) {
+        this.benchmarks.delete(oldestId);
+      }
     }
     
     this.benchmarks.set(id, benchmark);

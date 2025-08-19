@@ -9,9 +9,9 @@
  */
 
 import { Result, ok, error, isOk, withContext, type ResultContext } from './Result.js';
-import { ErrorCode, getErrorInfo, formatErrorMessage } from './ErrorCodes.js';
-import { formatResultError, formatErrorJSON, formatErrorText, type ErrorDisplayOptions } from './ErrorFormatter.js';
-import { withRetry, retryWithStrategy, type RetryOptions } from './RetryHandler.js';
+import { ErrorCode } from './ErrorCodes.js';
+import { formatErrorJSON, formatErrorText, type ErrorDisplayOptions } from './ErrorFormatter.js';
+import { withRetry, type RetryOptions } from './RetryHandler.js';
 
 /**
  * Common error creation patterns
@@ -131,7 +131,7 @@ export class ErrorUtils {
         originalMessage: err.message,
         exceptionType: exception?.constructor.name || 'unknown'
       },
-      stackTrace: err.stack
+      ...(err.stack && { stackTrace: err.stack })
     };
     
     return error(err, defaultCode, context);
@@ -175,7 +175,7 @@ export class ErrorUtils {
         const result = await operation();
         
         if (isOk(result)) {
-          results.push(result.data);
+          results.push(result.data as T);
         } else {
           errors.push(result.error);
           

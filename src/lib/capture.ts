@@ -68,7 +68,7 @@ async function takeScreenshot(
     const result = await execWithTimeout('screencapture', [...args, outputPath], 15000);
     
     if (!result.success) {
-      if (result.stderr.includes('not authorized') || result.stderr.includes('permission')) {
+      if (result.error.includes('not authorized') || result.error.includes('permission')) {
         return {
           success: false,
           action: 'screenshot',
@@ -80,7 +80,7 @@ async function takeScreenshot(
       return {
         success: false,
         action: 'screenshot',
-        error: result.stderr || 'Screenshot capture failed',
+        error: result.error || 'Screenshot capture failed',
         code: ERROR_CODES.UNKNOWN_ERROR
       };
     }
@@ -138,7 +138,7 @@ export async function captureViewport(
   try {
     const windowBounds = await getChromeWindowBounds(windowIndex);
     
-    if (!windowBounds.success || !windowBounds.result) {
+    if (!windowBounds.success || !windowBounds.data) {
       return {
         success: false,
         action: 'viewport_screenshot',
@@ -147,7 +147,7 @@ export async function captureViewport(
       };
     }
     
-    const bounds = windowBounds.result.bounds;
+    const bounds = windowBounds.data.bounds;
     const outputPath = generateScreenshotPath(options.format, options.outputPath);
     
     // Calculate viewport area (excluding title bar and chrome)
@@ -178,7 +178,7 @@ export async function captureViewport(
       result.metadata = {
         width: viewportWidth,
         height: viewportHeight,
-        windowTitle: windowBounds.result.title
+        windowTitle: windowBounds.data.title
       };
     }
     
@@ -204,7 +204,7 @@ export async function captureWindow(
   try {
     const windowBounds = await getChromeWindowBounds(windowIndex);
     
-    if (!windowBounds.success || !windowBounds.result) {
+    if (!windowBounds.success || !windowBounds.data) {
       return {
         success: false,
         action: 'window_screenshot',
@@ -213,7 +213,7 @@ export async function captureWindow(
       };
     }
     
-    const bounds = windowBounds.result.bounds;
+    const bounds = windowBounds.data.bounds;
     const outputPath = generateScreenshotPath(options.format, options.outputPath);
     
     const args = [
@@ -235,7 +235,7 @@ export async function captureWindow(
       result.metadata = {
         width: bounds.width,
         height: bounds.height,
-        windowTitle: windowBounds.result.title
+        windowTitle: windowBounds.data.title
       };
     }
     
@@ -262,7 +262,7 @@ export async function captureElement(
   try {
     // Validate element exists and is visible
     const visibility = await validateElementVisibility(selector, windowIndex);
-    if (!visibility.success || !visibility.result) {
+    if (!visibility.success || !visibility.data) {
       return {
         success: false,
         action: 'element_screenshot',
@@ -271,7 +271,7 @@ export async function captureElement(
       };
     }
     
-    if (!visibility.result.visible) {
+    if (!visibility.data.visible) {
       return {
         success: false,
         action: 'element_screenshot',
@@ -282,7 +282,7 @@ export async function captureElement(
     
     // Get element screen coordinates
     const coordsResult = await selectorToScreen(selector, windowIndex);
-    if (!coordsResult.success || !coordsResult.element) {
+    if (!coordsResult.success || !coordsResult.data?.element) {
       return {
         success: false,
         action: 'element_screenshot',
@@ -291,8 +291,8 @@ export async function captureElement(
       };
     }
     
-    const element = coordsResult.element;
-    const windowBounds = coordsResult.window!;
+    const element = coordsResult.data.element;
+    const windowBounds = coordsResult.data.window!;
     
     // Calculate element screen position
     const elementX = windowBounds.contentAreaX + element.x;

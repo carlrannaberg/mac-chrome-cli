@@ -196,6 +196,9 @@ export class MemoryMonitor extends EventEmitter {
     // Calculate memory growth rate
     const first = recentSnapshots[0];
     const last = recentSnapshots[recentSnapshots.length - 1];
+    
+    if (!first || !last) return null;
+    
     const timeDiffMinutes = (last.timestamp - first.timestamp) / (1000 * 60);
     
     if (timeDiffMinutes === 0) return null;

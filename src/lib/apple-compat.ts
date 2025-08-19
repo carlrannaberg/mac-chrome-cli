@@ -13,7 +13,7 @@ import {
   type ChromeWindow,
   type ChromeTab
 } from './apple.js';
-import { ErrorCode, ERROR_CODES } from '../core/ErrorCodes.js';
+import { ErrorCode } from '../core/ErrorCodes.js';
 import { isOk } from '../core/Result.js';
 
 /**
@@ -40,7 +40,7 @@ export async function execChromeJSLegacy<T = unknown>(
   if (isOk(result)) {
     return {
       success: true,
-      result: result.data,
+      ...(result.data !== undefined && { result: result.data }),
       code: result.code
     };
   } else {
@@ -61,7 +61,7 @@ export async function getChromeWindowBoundsLegacy(windowIndex: number = 1): Prom
   if (isOk(result)) {
     return {
       success: true,
-      result: result.data,
+      ...(result.data !== undefined && { result: result.data }),
       code: result.code
     };
   } else {
@@ -82,7 +82,7 @@ export async function getActiveTabLegacy(windowIndex: number = 1): Promise<Legac
   if (isOk(result)) {
     return {
       success: true,
-      result: result.data,
+      ...(result.data !== undefined && { result: result.data }),
       code: result.code
     };
   } else {
@@ -103,7 +103,7 @@ export async function focusChromeWindowLegacy(windowIndex: number = 1): Promise<
   if (isOk(result)) {
     return {
       success: true,
-      result: result.data,
+      ...(result.data !== undefined && { result: result.data }),
       code: result.code
     };
   } else {

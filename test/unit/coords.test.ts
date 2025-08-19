@@ -33,47 +33,54 @@ describe('Coordinate Math Functions', () => {
       // Mock successful viewport info and window bounds
       mockApple.execChromeJS.mockResolvedValueOnce({
         success: true,
-        result: testUtils.createMockViewport(1920, 1080, 0, 0),
-        code: ERROR_CODES.OK
+        data: testUtils.createMockViewport(1920, 1080, 0, 0),
+        code: ERROR_CODES.OK,
+        timestamp: new Date().toISOString()
       });
 
       mockApple.getChromeWindowBounds.mockResolvedValueOnce({
         success: true,
-        result: {
+        data: {
           id: 1,
           title: 'Test Window',
           bounds: { x: 100, y: 100, width: 1920, height: 1080 },
           visible: true
         },
-        code: ERROR_CODES.OK
+        code: ERROR_CODES.OK,
+        timestamp: new Date().toISOString()
       });
 
       const result = await viewportToScreen(500, 300, 1);
 
+      if (!result.success) {
+        console.log('Error result:', JSON.stringify(result, null, 2));
+      }
       expect(result.success).toBe(true);
-      expect(result.coordinates).toBeValidCoordinates();
-      expect(result.coordinates).toEqual({ x: 600, y: 424 }); // 100 + 500, 124 + 300 (with title bar)
+      expect(result.data?.coordinates).toBeValidCoordinates();
+      expect(result.data?.coordinates).toEqual({ x: 600, y: 424 }); // 100 + 500, 124 + 300 (with title bar)
       expect(result.code).toBeErrorCode(ERROR_CODES.OK);
-      expect(result.viewport).toBeDefined();
-      expect(result.window).toBeDefined();
+      expect(result.data?.viewport).toBeDefined();
+      expect(result.data?.window).toBeDefined();
     });
 
     it('should handle viewport info failure', async () => {
       mockApple.execChromeJS.mockResolvedValueOnce({
         success: false,
         error: 'Failed to get viewport',
-        code: ERROR_CODES.UNKNOWN_ERROR
+        code: ERROR_CODES.UNKNOWN_ERROR,
+        timestamp: new Date().toISOString()
       });
 
       mockApple.getChromeWindowBounds.mockResolvedValueOnce({
         success: true,
-        result: {
+        data: {
           id: 1,
           title: 'Test Window',
           bounds: { x: 100, y: 100, width: 1920, height: 1080 },
           visible: true
         },
-        code: ERROR_CODES.OK
+        code: ERROR_CODES.OK,
+        timestamp: new Date().toISOString()
       });
 
       const result = await viewportToScreen(500, 300, 1);
@@ -86,14 +93,16 @@ describe('Coordinate Math Functions', () => {
     it('should handle window bounds failure', async () => {
       mockApple.execChromeJS.mockResolvedValueOnce({
         success: true,
-        result: testUtils.createMockViewport(1920, 1080, 0, 0),
-        code: ERROR_CODES.OK
+        data: testUtils.createMockViewport(1920, 1080, 0, 0),
+        code: ERROR_CODES.OK,
+        timestamp: new Date().toISOString()
       });
 
       mockApple.getChromeWindowBounds.mockResolvedValueOnce({
         success: false,
         error: 'Chrome not found',
-        code: ERROR_CODES.CHROME_NOT_FOUND
+        code: ERROR_CODES.CHROME_NOT_FOUND,
+        timestamp: new Date().toISOString()
       });
 
       const result = await viewportToScreen(500, 300, 1);
@@ -116,25 +125,27 @@ describe('Coordinate Math Functions', () => {
     it('should calculate coordinates correctly with scrolling', async () => {
       mockApple.execChromeJS.mockResolvedValueOnce({
         success: true,
-        result: testUtils.createMockViewport(1920, 1080, 100, 200),
-        code: ERROR_CODES.OK
+        data: testUtils.createMockViewport(1920, 1080, 100, 200),
+        code: ERROR_CODES.OK,
+        timestamp: new Date().toISOString()
       });
 
       mockApple.getChromeWindowBounds.mockResolvedValueOnce({
         success: true,
-        result: {
+        data: {
           id: 1,
           title: 'Test Window',
           bounds: { x: 50, y: 50, width: 1920, height: 1080 },
           visible: true
         },
-        code: ERROR_CODES.OK
+        code: ERROR_CODES.OK,
+        timestamp: new Date().toISOString()
       });
 
       const result = await viewportToScreen(400, 300, 1);
 
       expect(result.success).toBe(true);
-      expect(result.coordinates).toEqual({ x: 450, y: 374 }); // 50 + 400, 74 + 300
+      expect(result.data?.coordinates).toEqual({ x: 450, y: 374 }); // 50 + 400, 74 + 300
     });
   });
 
@@ -153,28 +164,31 @@ describe('Coordinate Math Functions', () => {
       mockApple.execChromeJS
         .mockResolvedValueOnce({
           success: true,
-          result: mockElement,
-          code: ERROR_CODES.OK
+          data: mockElement,
+          code: ERROR_CODES.OK,
+          timestamp: new Date().toISOString()
         })
         // Mock viewport info
         .mockResolvedValueOnce({
           success: true,
-          result: mockViewport,
-          code: ERROR_CODES.OK
+          data: mockViewport,
+          code: ERROR_CODES.OK,
+          timestamp: new Date().toISOString()
         });
 
       mockApple.getChromeWindowBounds.mockResolvedValueOnce({
         success: true,
-        result: mockWindow,
-        code: ERROR_CODES.OK
+        data: mockWindow,
+        code: ERROR_CODES.OK,
+        timestamp: new Date().toISOString()
       });
 
       const result = await selectorToScreen('#test-button', 1);
 
       expect(result.success).toBe(true);
-      expect(result.coordinates).toEqual({ x: 275, y: 349 }); // Center of element + window offset
-      expect(result.element).toEqual(mockElement);
-      expect(result.viewport).toEqual(mockViewport);
+      expect(result.data?.coordinates).toEqual({ x: 275, y: 349 }); // Center of element + window offset
+      expect(result.data?.element).toEqual(mockElement);
+      expect(result.data?.viewport).toEqual(mockViewport);
       expect(result.code).toBeErrorCode(ERROR_CODES.OK);
     });
 
@@ -193,13 +207,14 @@ describe('Coordinate Math Functions', () => {
 
       mockApple.getChromeWindowBounds.mockResolvedValueOnce({
         success: true,
-        result: {
+        data: {
           id: 1,
           title: 'Test Window',
           bounds: { x: 100, y: 100, width: 1920, height: 1080 },
           visible: true
         },
-        code: ERROR_CODES.OK
+        code: ERROR_CODES.OK,
+        timestamp: new Date().toISOString()
       });
 
       const result = await selectorToScreen('#non-existent', 1);
@@ -224,13 +239,14 @@ describe('Coordinate Math Functions', () => {
 
       mockApple.getChromeWindowBounds.mockResolvedValueOnce({
         success: true,
-        result: {
+        data: {
           id: 1,
           title: 'Test Window',
           bounds: { x: 100, y: 100, width: 1920, height: 1080 },
           visible: true
         },
-        code: ERROR_CODES.OK
+        code: ERROR_CODES.OK,
+        timestamp: new Date().toISOString()
       });
 
       const result = await selectorToScreen('#test-button', 1);
@@ -246,8 +262,9 @@ describe('Coordinate Math Functions', () => {
       mockApple.execChromeJS
         .mockResolvedValueOnce({
           success: true,
-          result: mockElement,
-          code: ERROR_CODES.OK
+          data: mockElement,
+          code: ERROR_CODES.OK,
+          timestamp: new Date().toISOString()
         })
         .mockResolvedValueOnce({
           success: true,
@@ -257,13 +274,14 @@ describe('Coordinate Math Functions', () => {
 
       mockApple.getChromeWindowBounds.mockResolvedValueOnce({
         success: true,
-        result: {
+        data: {
           id: 1,
           title: 'Test Window',
           bounds: { x: 100, y: 100, width: 1920, height: 1080 },
           visible: true
         },
-        code: ERROR_CODES.OK
+        code: ERROR_CODES.OK,
+        timestamp: new Date().toISOString()
       });
 
       await selectorToScreen("button[title='Test']", 1);
@@ -281,8 +299,9 @@ describe('Coordinate Math Functions', () => {
       mockApple.execChromeJS
         .mockResolvedValueOnce({
           success: true,
-          result: mockElement,
-          code: ERROR_CODES.OK
+          data: mockElement,
+          code: ERROR_CODES.OK,
+          timestamp: new Date().toISOString()
         })
         .mockResolvedValueOnce({
           success: true,
@@ -292,43 +311,46 @@ describe('Coordinate Math Functions', () => {
 
       mockApple.getChromeWindowBounds.mockResolvedValueOnce({
         success: true,
-        result: {
+        data: {
           id: 1,
           title: 'Test Window',
           bounds: { x: 100, y: 100, width: 1920, height: 1080 },
           visible: true
         },
-        code: ERROR_CODES.OK
+        code: ERROR_CODES.OK,
+        timestamp: new Date().toISOString()
       });
 
       const result = await getScreenCoordinates({ selector: '#test' }, 1);
 
       expect(result.success).toBe(true);
-      expect(result.element).toBeDefined();
+      expect(result.data?.element).toBeDefined();
     });
 
     it('should use x,y coordinates when provided', async () => {
       mockApple.execChromeJS.mockResolvedValueOnce({
         success: true,
-        result: testUtils.createMockViewport(),
-        code: ERROR_CODES.OK
+        data: testUtils.createMockViewport(),
+        code: ERROR_CODES.OK,
+        timestamp: new Date().toISOString()
       });
 
       mockApple.getChromeWindowBounds.mockResolvedValueOnce({
         success: true,
-        result: {
+        data: {
           id: 1,
           title: 'Test Window',
           bounds: { x: 100, y: 100, width: 1920, height: 1080 },
           visible: true
         },
-        code: ERROR_CODES.OK
+        code: ERROR_CODES.OK,
+        timestamp: new Date().toISOString()
       });
 
       const result = await getScreenCoordinates({ x: 500, y: 300 }, 1);
 
       expect(result.success).toBe(true);
-      expect(result.coordinates).toEqual({ x: 600, y: 424 });
+      expect(result.data?.coordinates).toEqual({ x: 600, y: 424 });
     });
 
     it('should require either selector or coordinates', async () => {
@@ -345,8 +367,9 @@ describe('Coordinate Math Functions', () => {
       mockApple.execChromeJS
         .mockResolvedValueOnce({
           success: true,
-          result: mockElement,
-          code: ERROR_CODES.OK
+          data: mockElement,
+          code: ERROR_CODES.OK,
+          timestamp: new Date().toISOString()
         })
         .mockResolvedValueOnce({
           success: true,
@@ -356,19 +379,20 @@ describe('Coordinate Math Functions', () => {
 
       mockApple.getChromeWindowBounds.mockResolvedValueOnce({
         success: true,
-        result: {
+        data: {
           id: 1,
           title: 'Test Window',
           bounds: { x: 100, y: 100, width: 1920, height: 1080 },
           visible: true
         },
-        code: ERROR_CODES.OK
+        code: ERROR_CODES.OK,
+        timestamp: new Date().toISOString()
       });
 
       const result = await getScreenCoordinates({ selector: '#test', x: 500, y: 300 }, 1);
 
       expect(result.success).toBe(true);
-      expect(result.element).toBeDefined(); // Should use selector, not x,y
+      expect(result.data?.element).toBeDefined(); // Should use selector, not x,y
     });
   });
 
@@ -376,8 +400,9 @@ describe('Coordinate Math Functions', () => {
     it('should return true for coordinates within viewport', async () => {
       mockApple.execChromeJS.mockResolvedValueOnce({
         success: true,
-        result: testUtils.createMockViewport(1920, 1080, 0, 0),
-        code: ERROR_CODES.OK
+        data: testUtils.createMockViewport(1920, 1080, 0, 0),
+        code: ERROR_CODES.OK,
+        timestamp: new Date().toISOString()
       });
 
       const result = await isCoordinateVisible(500, 300, 1);
@@ -387,8 +412,9 @@ describe('Coordinate Math Functions', () => {
     it('should return false for coordinates outside viewport', async () => {
       mockApple.execChromeJS.mockResolvedValueOnce({
         success: true,
-        result: testUtils.createMockViewport(1920, 1080, 0, 0),
-        code: ERROR_CODES.OK
+        data: testUtils.createMockViewport(1920, 1080, 0, 0),
+        code: ERROR_CODES.OK,
+        timestamp: new Date().toISOString()
       });
 
       const resultNegative = await isCoordinateVisible(-100, 300, 1);
@@ -405,7 +431,8 @@ describe('Coordinate Math Functions', () => {
       mockApple.execChromeJS.mockResolvedValueOnce({
         success: false,
         error: 'Failed to get viewport',
-        code: ERROR_CODES.UNKNOWN_ERROR
+        code: ERROR_CODES.UNKNOWN_ERROR,
+        timestamp: new Date().toISOString()
       });
 
       const result = await isCoordinateVisible(500, 300, 1);
@@ -415,8 +442,9 @@ describe('Coordinate Math Functions', () => {
     it('should handle boundary coordinates correctly', async () => {
       mockApple.execChromeJS.mockResolvedValue({
         success: true,
-        result: testUtils.createMockViewport(1920, 1080, 0, 0),
-        code: ERROR_CODES.OK
+        data: testUtils.createMockViewport(1920, 1080, 0, 0),
+        code: ERROR_CODES.OK,
+        timestamp: new Date().toISOString()
       });
 
       const resultOrigin = await isCoordinateVisible(0, 0, 1);
@@ -438,14 +466,15 @@ describe('Coordinate Math Functions', () => {
     it('should validate visible and clickable element', async () => {
       mockApple.execChromeJS.mockResolvedValueOnce({
         success: true,
-        result: { visible: true, clickable: true, inViewport: true },
-        code: ERROR_CODES.OK
+        data: { visible: true, clickable: true, inViewport: true },
+        code: ERROR_CODES.OK,
+        timestamp: new Date().toISOString()
       });
 
       const result = await validateElementVisibility('#visible-button', 1);
 
       expect(result.success).toBe(true);
-      expect(result.result).toEqual({
+      expect(result.data).toEqual({
         visible: true,
         clickable: true,
         inViewport: true
@@ -455,36 +484,39 @@ describe('Coordinate Math Functions', () => {
     it('should detect hidden elements', async () => {
       mockApple.execChromeJS.mockResolvedValueOnce({
         success: true,
-        result: { visible: false, clickable: false, inViewport: false },
-        code: ERROR_CODES.OK
+        data: { visible: false, clickable: false, inViewport: false },
+        code: ERROR_CODES.OK,
+        timestamp: new Date().toISOString()
       });
 
       const result = await validateElementVisibility('#hidden-element', 1);
 
       expect(result.success).toBe(true);
-      expect(result.result?.visible).toBe(false);
-      expect(result.result?.clickable).toBe(false);
+      expect(result.data?.visible).toBe(false);
+      expect(result.data?.clickable).toBe(false);
     });
 
     it('should detect elements outside viewport', async () => {
       mockApple.execChromeJS.mockResolvedValueOnce({
         success: true,
-        result: { visible: true, clickable: true, inViewport: false },
-        code: ERROR_CODES.OK
+        data: { visible: true, clickable: true, inViewport: false },
+        code: ERROR_CODES.OK,
+        timestamp: new Date().toISOString()
       });
 
       const result = await validateElementVisibility('#offscreen-element', 1);
 
       expect(result.success).toBe(true);
-      expect(result.result?.visible).toBe(true);
-      expect(result.result?.inViewport).toBe(false);
+      expect(result.data?.visible).toBe(true);
+      expect(result.data?.inViewport).toBe(false);
     });
 
     it('should handle JavaScript execution failure', async () => {
       mockApple.execChromeJS.mockResolvedValueOnce({
         success: false,
         error: 'JavaScript execution failed',
-        code: ERROR_CODES.UNKNOWN_ERROR
+        code: ERROR_CODES.UNKNOWN_ERROR,
+        timestamp: new Date().toISOString()
       });
 
       const result = await validateElementVisibility('#test-element', 1);
@@ -496,8 +528,9 @@ describe('Coordinate Math Functions', () => {
     it('should escape CSS selectors in validation', async () => {
       mockApple.execChromeJS.mockResolvedValueOnce({
         success: true,
-        result: { visible: true, clickable: true, inViewport: true },
-        code: ERROR_CODES.OK
+        data: { visible: true, clickable: true, inViewport: true },
+        code: ERROR_CODES.OK,
+        timestamp: new Date().toISOString()
       });
 
       await validateElementVisibility("input[name='test']", 1);
@@ -514,8 +547,9 @@ describe('Coordinate Math Functions', () => {
       mockApple.execChromeJS
         .mockResolvedValueOnce({
           success: true,
-          result: mockElement,
-          code: ERROR_CODES.OK
+          data: mockElement,
+          code: ERROR_CODES.OK,
+          timestamp: new Date().toISOString()
         })
         .mockResolvedValueOnce({
           success: true,
@@ -525,68 +559,73 @@ describe('Coordinate Math Functions', () => {
 
       mockApple.getChromeWindowBounds.mockResolvedValueOnce({
         success: true,
-        result: {
+        data: {
           id: 1,
           title: 'Test Window',
           bounds: { x: 100, y: 100, width: 1920, height: 1080 },
           visible: true
         },
-        code: ERROR_CODES.OK
+        code: ERROR_CODES.OK,
+        timestamp: new Date().toISOString()
       });
 
       const result = await selectorToScreen('#zero-size', 1);
 
       expect(result.success).toBe(true);
-      expect(result.element).toBeValidRect();
-      expect(result.coordinates).toEqual({ x: 200, y: 324 }); // Center is still calculated
+      expect(result.data?.element).toBeValidRect();
+      expect(result.data?.coordinates).toEqual({ x: 200, y: 324 }); // Center is still calculated
     });
 
     it('should handle negative coordinates', async () => {
       mockApple.execChromeJS.mockResolvedValueOnce({
         success: true,
-        result: testUtils.createMockViewport(1920, 1080, 0, 0),
-        code: ERROR_CODES.OK
+        data: testUtils.createMockViewport(1920, 1080, 0, 0),
+        code: ERROR_CODES.OK,
+        timestamp: new Date().toISOString()
       });
 
       mockApple.getChromeWindowBounds.mockResolvedValueOnce({
         success: true,
-        result: {
+        data: {
           id: 1,
           title: 'Test Window',
           bounds: { x: 100, y: 100, width: 1920, height: 1080 },
           visible: true
         },
-        code: ERROR_CODES.OK
+        code: ERROR_CODES.OK,
+        timestamp: new Date().toISOString()
       });
 
       const result = await viewportToScreen(-50, -30, 1);
 
       expect(result.success).toBe(true);
-      expect(result.coordinates).toEqual({ x: 50, y: 94 }); // Window offset still applied
+      expect(result.data?.coordinates).toEqual({ x: 50, y: 94 }); // Window offset still applied
     });
 
     it('should handle multiple window indices', async () => {
       mockApple.execChromeJS.mockResolvedValueOnce({
         success: true,
-        result: testUtils.createMockViewport(1920, 1080, 0, 0),
-        code: ERROR_CODES.OK
+        data: testUtils.createMockViewport(1920, 1080, 0, 0),
+        code: ERROR_CODES.OK,
+        timestamp: new Date().toISOString()
       });
 
       mockApple.getChromeWindowBounds.mockResolvedValueOnce({
         success: true,
-        result: {
+        data: {
           id: 2,
           title: 'Test Window 2',
           bounds: { x: 200, y: 200, width: 1920, height: 1080 },
           visible: true
         },
-        code: ERROR_CODES.OK
+        code: ERROR_CODES.OK,
+        timestamp: new Date().toISOString()
       });
 
       const result = await viewportToScreen(500, 300, 2); // Window index 2
 
       expect(result.success).toBe(true);
-      expect(result.coordinates).toEqual({ x: 700, y: 524 }); // Different window offset
+      expect(result.data?.coordinates).toEqual({ x: 700, y: 524 }); // Different window offset
       expect(mockApple.execChromeJS).toHaveBeenCalledWith(expect.any(String), 1, 2);
       expect(mockApple.getChromeWindowBounds).toHaveBeenCalledWith(2);
     });

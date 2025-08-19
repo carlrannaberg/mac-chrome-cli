@@ -1,4 +1,4 @@
-import { Result, ErrorCode, isOk } from '../core/index.js';
+import { ErrorCode } from '../core/index.js';
 import { createFormattedResponse, LegacyCompatibility } from '../core/ErrorUtils.js';
 
 export interface GlobalOptions {

@@ -2,7 +2,7 @@ import { spawn } from 'child_process';
 import { homedir } from 'os';
 import { join } from 'path';
 import { Result, ok, error, type ResultContext } from '../core/Result.js';
-import { ErrorCode, ERROR_CODES, type LegacyErrorCode } from '../core/ErrorCodes.js';
+import { ErrorCode, ERROR_CODES } from '../core/ErrorCodes.js';
 
 // Re-export core types for backward compatibility
 export { ErrorCode, ERROR_CODES } from '../core/ErrorCodes.js';
@@ -157,7 +157,7 @@ export async function execWithTimeoutLegacy(
       stdout: result.data.stdout,
       stderr: result.data.stderr,
       code: result.code,
-      command: result.data.command
+      ...(result.data.command !== undefined && { command: result.data.command })
     };
   } else {
     // For compatibility, use the original error message when available

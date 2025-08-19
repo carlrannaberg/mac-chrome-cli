@@ -2,6 +2,7 @@ import { LRUCache } from 'lru-cache';
 import { createHash } from 'crypto';
 import sharp from 'sharp';
 import { execWithTimeout, ERROR_CODES, type ExecResult } from './util.js';
+import { ok, error } from '../core/Result.js';
 
 /**
  * Performance optimization utilities for mac-chrome-cli
@@ -177,14 +178,23 @@ end tell`;
     
     if (result.success) {
       // Parse batch results and convert to individual ExecResult objects
-      const outputs = result.stdout.split('\n').filter(line => line.trim());
-      const results = operations.map((_, index) => ({
-        success: !outputs[index]?.startsWith('ERROR:'),
-        stdout: outputs[index] || '',
-        stderr: outputs[index]?.startsWith('ERROR:') ? outputs[index].substring(6) : '',
-        code: !outputs[index]?.startsWith('ERROR:') ? ERROR_CODES.OK : ERROR_CODES.UNKNOWN_ERROR,
-        command: `batch-operation-${index}`
-      }));
+      const outputs = result.data.stdout.split('\n').filter(line => line.trim());
+      const results = operations.map((_, index) => {
+        const output = outputs[index] || '';
+        const isError = output.startsWith('ERROR:');
+        
+        if (isError) {
+          return error(output.substring(6), ERROR_CODES.UNKNOWN_ERROR, {
+            metadata: { command: `batch-operation-${index}` }
+          });
+        } else {
+          return ok({
+            stdout: output,
+            stderr: '',
+            command: `batch-operation-${index}`
+          }, ERROR_CODES.OK);
+        }
+      });
       
       endBenchmark(benchmarkId, true);
       return results;
@@ -287,7 +297,7 @@ export async function createOptimizedWebP(
         alphaQuality: 80, // Better alpha channel handling
         nearLossless: false, // Prioritize compression
         smartSubsample: true,
-        reductionEffort: 4 // Slightly higher effort for better compression
+        effort: 4 // Slightly higher effort for better compression
       });
     
     let buffer = await pipeline.toBuffer();
@@ -310,7 +320,7 @@ export async function createOptimizedWebP(
             ...WEBP_SETTINGS,
             quality,
             alphaQuality: Math.max(60, quality - 10),
-            reductionEffort: quality < 40 ? 6 : 4 // Higher effort for very low quality
+            effort: quality < 40 ? 6 : 4 // Higher effort for very low quality
           });
         
         buffer = await pipeline.toBuffer();
@@ -333,7 +343,7 @@ export async function createOptimizedWebP(
             ...WEBP_SETTINGS,
             quality: 40,
             alphaQuality: 50,
-            reductionEffort: 6
+            effort: 6
           });
         
         buffer = await pipeline.toBuffer();
@@ -554,7 +564,7 @@ export class BatchOperationProcessor {
         const executeConcurrent = async () => {
           while (chunkIndex < chunk.length) {
             const operation = chunk[chunkIndex++];
-            await operation();
+            await operation?.();
           }
         };
         

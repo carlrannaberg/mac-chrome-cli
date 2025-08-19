@@ -19,9 +19,7 @@
  */
 
 import { execChromeJS, type JavaScriptResult } from '../lib/apple.js';
-import { Result, ok, error, ErrorCode } from '../core/index.js';
-import { BrowserCommandBase, CommandUtils } from '../core/CommandBase.js';
-import { ErrorUtils } from '../core/ErrorUtils.js';
+import { ErrorCode } from '../core/index.js';
 
 /**
  * Represents the bounding rectangle of a DOM element.
@@ -789,63 +787,7 @@ export async function captureDomLite(options: { maxDepth?: number; visibleOnly?:
   return execChromeJS<SnapshotResult>(script, 1, 1, 20000); // 20 second timeout for more complex traversal
 }
 
-/**
- * Internal command class that extends BrowserCommandBase to provide snapshot functionality.
- * This class handles parameter validation, error handling, and JavaScript execution
- * for snapshot operations using the unified Result pattern.
- * 
- * @private
- * @extends BrowserCommandBase
- */
-class SnapshotCommand extends BrowserCommandBase {
-  /**
-   * Executes a snapshot operation with comprehensive validation and error handling.
-   * Validates input parameters, generates and executes JavaScript, and returns
-   * results using the unified Result<T, E> pattern.
-   * 
-   * @param options - Snapshot configuration options
-   * @returns Promise resolving to a Result containing SnapshotResult or error message
-   * 
-   * @example
-   * ```typescript
-   * const result = await snapshotCommand.executeSnapshot({
-   *   mode: 'outline',
-   *   visibleOnly: true
-   * });
-   * 
-   * if (result.success) {
-   *   console.log(`Found ${result.data.nodes.length} elements`);
-   * } else {
-   *   console.error('Snapshot failed:', result.error);
-   * }
-   * ```
-   */
-  async executeSnapshot(options: SnapshotOptions): Promise<Result<SnapshotResult, string>> {
-    // Validate options
-    const validation = this.validateParams(options, {
-      visibleOnly: { type: 'boolean' },
-      maxDepth: { type: 'number', min: 1, max: 20 },
-      mode: { type: 'string', enum: ['outline', 'dom-lite'] as const }
-    });
-    
-    if (!validation.success) {
-      return validation as Result<SnapshotResult, string>;
-    }
 
-    const operationName = `snapshot-${options.mode}`;
-    
-    return this.executeJavaScript<SnapshotResult>(
-      getSnapshotJavaScript(options),
-      1, // tabIndex
-      1, // windowIndex
-      30000, // timeoutMs
-      operationName
-    );
-  }
-}
-
-// Create singleton instance
-const snapshotCommand = new SnapshotCommand();
 
 /**
  * Formats a JavaScript execution result into a standardized snapshot result format.
@@ -877,7 +819,7 @@ export function formatSnapshotResult(result: JavaScriptResult<SnapshotResult>): 
     };
   }
   
-  if (!result.result) {
+  if (!result.data) {
     return {
       success: false,
       error: 'No snapshot data returned',
@@ -887,5 +829,5 @@ export function formatSnapshotResult(result: JavaScriptResult<SnapshotResult>): 
   }
   
   // Return the original SnapshotResult object for successful cases
-  return result.result;
+  return result.data;
 }

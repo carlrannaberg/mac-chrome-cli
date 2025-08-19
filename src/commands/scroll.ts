@@ -1,5 +1,5 @@
-import { execChromeJS, type JavaScriptResult } from '../lib/apple.js';
-import { ErrorCode, Result, ok, error } from '../core/index.js';
+import { execChromeJS } from '../lib/apple.js';
+import { ErrorCode, Result, ok, error, mapError } from '../core/index.js';
 import { ErrorUtils, validateInputParam, executeWithContext } from '../core/ErrorUtils.js';
 import { withRetry } from '../core/RetryHandler.js';
 
@@ -78,7 +78,7 @@ export async function scrollToElement(
       );
     }
     
-    return ok(result.result as ScrollResult, ErrorCode.OK, {
+    return ok(result.data as ScrollResult, ErrorCode.OK, {
       metadata: { selector, smooth, operation: 'scroll-to-element' }
     });
   }, { maxAttempts: 2, initialDelayMs: 500 }, `scroll to element: ${selector}`);
@@ -143,15 +143,17 @@ export async function scrollByPixels(
 })()`;
 
   // Execute with error context
-  return executeWithContext(async () => {
+  const executeResult = await executeWithContext(async () => {
     const result = await execChromeJS<ScrollResult>(javascript, tabIndex, windowIndex, timeoutMs);
     
     if (!result.success) {
       throw new Error(result.error || 'Failed to scroll by pixels');
     }
     
-    return result.result as ScrollResult;
+    return result.data as ScrollResult;
   }, `scroll by ${pixels}px ${direction}`);
+  
+  return mapError(executeResult, (err) => err.message);
 }
 
 /**
@@ -177,13 +179,15 @@ export async function getScrollPosition(
 })()`;
 
   // Execute with error context
-  return executeWithContext(async () => {
+  const executeResult = await executeWithContext(async () => {
     const result = await execChromeJS<ScrollResult>(javascript, tabIndex, windowIndex, timeoutMs);
     
     if (!result.success) {
       throw new Error(result.error || 'Failed to get scroll position');
     }
     
-    return result.result as ScrollResult;
+    return result.data as ScrollResult;
   }, 'get scroll position');
+  
+  return mapError(executeResult, (err) => err.message);
 }

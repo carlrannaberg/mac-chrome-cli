@@ -3,7 +3,7 @@
  * Basic demonstration without complex dependencies
  */
 
-import { ServiceContainer, createServiceToken, ServiceLifetime } from '../ServiceContainer.js';
+import { ServiceContainer, createServiceToken } from '../ServiceContainer.js';
 import { CacheService } from '../services/CacheService.js';
 import { ConfigurationService } from '../services/ConfigurationService.js';
 import type { ICacheService } from '../ICacheService.js';

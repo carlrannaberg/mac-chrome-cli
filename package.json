@@ -13,7 +13,9 @@
   "scripts": {
     "build": "npm run clean && tsc",
     "build:prod": "npm run clean && tsc --project tsconfig.prod.json",
-    "dev": "tsc --watch",
+    "dev": "tsx src/index.ts",
+    "dev:watch": "tsx watch src/index.ts", 
+    "start": "tsx src/index.ts",
     "clean": "rm -rf dist",
     "type-check": "tsc --noEmit",
     "test": "jest",
@@ -93,6 +95,8 @@
     "@types/node": "^20.0.0",
     "jest": "^30.0.5",
     "ts-jest": "^29.4.1",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.20.4",
     "typescript": "^5.5.0"
   }
 }

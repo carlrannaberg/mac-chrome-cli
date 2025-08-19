@@ -25,6 +25,7 @@
 
 import { execChromeJS, type JavaScriptResult } from '../lib/apple.js';
 import { ERROR_CODES, validateInput, formatJSONResult, type JSONResult } from '../lib/util.js';
+import { error } from '../core/Result.js';
 
 /**
  * Configuration options for DOM JavaScript evaluation.
@@ -189,21 +190,19 @@ export async function domEval(options: DOMEvalOptions): Promise<JavaScriptResult
 
   // Validate input
   if (!validateInput(js, 'string') || js.trim().length === 0) {
-    return {
-      success: false,
-      error: 'JavaScript code is required and cannot be empty',
-      code: ERROR_CODES.INVALID_INPUT
-    };
+    return error(
+      'JavaScript code is required and cannot be empty',
+      ERROR_CODES.INVALID_INPUT
+    );
   }
 
   // Security validation - check for dangerous patterns
   for (const pattern of DANGEROUS_PATTERNS) {
     if (pattern.test(js)) {
-      return {
-        success: false,
-        error: 'JavaScript contains dangerous patterns and cannot be executed',
-        code: ERROR_CODES.INVALID_INPUT
-      };
+      return error(
+        'JavaScript contains dangerous patterns and cannot be executed',
+        ERROR_CODES.INVALID_INPUT
+      );
     }
   }
 
@@ -259,14 +258,13 @@ export async function domEval(options: DOMEvalOptions): Promise<JavaScriptResult
     const jsResult = await execChromeJS(wrappedJS, tabIndex, windowIndex, timeout);
     
     if (!jsResult.success) {
-      return {
-        success: false,
-        error: jsResult.error || 'Chrome JavaScript execution failed',
-        code: jsResult.code
-      };
+      return error(
+        jsResult.error || 'Chrome JavaScript execution failed',
+        jsResult.code
+      );
     }
 
-    const evalResult = jsResult.result as {
+    const evalResult = jsResult.data as {
       success: boolean;
       result?: unknown;
       error?: string;
@@ -278,7 +276,7 @@ export async function domEval(options: DOMEvalOptions): Promise<JavaScriptResult
 
     return {
       success: true,
-      result: {
+      data: {
         success: evalResult.success,
         result: evalResult.result,
         error: evalResult.error || undefined,
@@ -289,15 +287,15 @@ export async function domEval(options: DOMEvalOptions): Promise<JavaScriptResult
           truncated: evalResult.truncated
         }
       },
-      code: ERROR_CODES.OK
+      code: ERROR_CODES.OK,
+      timestamp: new Date().toISOString()
     };
 
-  } catch (error) {
-    return {
-      success: false,
-      error: `DOM evaluation failed: ${error}`,
-      code: ERROR_CODES.UNKNOWN_ERROR
-    };
+  } catch (err) {
+    return error(
+      `DOM evaluation failed: ${err}`,
+      ERROR_CODES.UNKNOWN_ERROR
+    );
   }
 }
 
@@ -309,9 +307,9 @@ export function formatDomEvalResult(jsResult: JavaScriptResult<DOMEvalData>): JS
     return formatJSONResult(null, jsResult.error, jsResult.code);
   }
 
-  if (!jsResult.result) {
+  if (!jsResult.data) {
     return formatJSONResult(null, 'No evaluation result returned', ERROR_CODES.UNKNOWN_ERROR);
   }
 
-  return formatJSONResult(jsResult.result, undefined, jsResult.code);
+  return formatJSONResult(jsResult.data, undefined, jsResult.code);
 }

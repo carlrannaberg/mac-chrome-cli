@@ -1,9 +1,5 @@
 import { ErrorCode, type Result } from '../core/index.js';
 import { appleScriptService } from '../services/AppleScriptService.js';
-import type { AppleScriptResult } from '../services/IAppleScriptService.js';
-
-// Legacy import for backward compatibility
-import { ERROR_CODES } from './util.js';
 
 export interface ChromeWindow {
   id: number;

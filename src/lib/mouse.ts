@@ -1,7 +1,7 @@
 import { getScreenCoordinates, validateElementVisibility, type CoordinateResult } from './coords.js';
-import { clickAt, doubleClickAt, rightClickAt, moveTo, dragFromTo, type ClickOptions, type UIResult } from './ui.js';
+import { clickAt, doubleClickAt, rightClickAt, moveTo, dragFromTo, type ClickOptions } from './ui.js';
 import { ERROR_CODES, validateInput, type ErrorCode } from './util.js';
-import { Result, ok, error, type ResultContext } from '../core/index.js';
+import { Result, ok, error } from '../core/index.js';
 
 export interface MouseOptions {
   selector?: string;
@@ -86,11 +86,10 @@ async function getTargetCoordinates(options: MouseOptions): Promise<CoordinateRe
   } else if (options.x !== undefined && options.y !== undefined) {
     return getScreenCoordinates({ x: options.x, y: options.y }, windowIndex);
   } else {
-    return {
-      success: false,
-      error: 'Must provide either selector or x,y coordinates',
-      code: ERROR_CODES.INVALID_INPUT
-    };
+    return error(
+      'Must provide either selector or x,y coordinates',
+      ERROR_CODES.INVALID_INPUT
+    );
   }
 }
 
@@ -109,34 +108,6 @@ function applyOffset(
   };
 }
 
-/**
- * Convert UI result to mouse result
- */
-function convertUIResult(uiResult: UIResult, action: string, options: MouseOptions): MouseResult {
-  const result: MouseResult = {
-    success: uiResult.success,
-    action,
-    code: uiResult.code
-  };
-  
-  if (uiResult.coordinates !== undefined) {
-    result.coordinates = uiResult.coordinates;
-  }
-  
-  if (uiResult.error !== undefined) {
-    result.error = uiResult.error;
-  }
-  
-  if (options.selector) {
-    result.element = {
-      selector: options.selector,
-      visible: uiResult.success, // If UI action succeeded, element was visible
-      clickable: uiResult.success
-    };
-  }
-  
-  return result;
-}
 
 /**
  * Click at element or coordinates
@@ -145,60 +116,50 @@ export async function mouseClick(options: MouseOptions): Promise<MouseResult> {
   try {
     const validation = validateMouseOptions(options);
     if (!validation.valid) {
-      return {
-        success: false,
-        action: 'click',
-        error: validation.error || 'Validation failed',
-        code: ERROR_CODES.INVALID_INPUT
-      };
+      return error(
+        validation.error || 'Validation failed',
+        ERROR_CODES.INVALID_INPUT
+      );
     }
     
     // Get target coordinates
     const coordsResult = await getTargetCoordinates(options);
-    if (!coordsResult.success || !coordsResult.coordinates) {
-      return {
-        success: false,
-        action: 'click',
-        error: coordsResult.error || 'Failed to get target coordinates',
-        code: coordsResult.code
-      };
+    if (!coordsResult.success || !coordsResult.data?.coordinates) {
+      return error(
+        coordsResult.error || 'Failed to get target coordinates',
+        coordsResult.code
+      );
     }
     
     // Validate element visibility if using selector
     if (options.selector) {
       const visibility = await validateElementVisibility(options.selector, options.windowIndex || 1);
-      if (!visibility.success || !visibility.result) {
-        return {
-          success: false,
-          action: 'click',
-          error: 'Failed to validate element visibility',
-          code: ERROR_CODES.UNKNOWN_ERROR
-        };
+      if (!visibility.success || !visibility.data) {
+        return error(
+          'Failed to validate element visibility',
+          ERROR_CODES.UNKNOWN_ERROR
+        );
       }
       
-      if (!visibility.result.visible) {
-        return {
-          success: false,
-          action: 'click',
-          error: `Element "${options.selector}" is not visible`,
-          code: ERROR_CODES.TARGET_NOT_FOUND
-        };
+      if (!visibility.data.visible) {
+        return error(
+          `Element "${options.selector}" is not visible`,
+          ERROR_CODES.TARGET_NOT_FOUND
+        );
       }
       
-      if (!visibility.result.clickable) {
-        return {
-          success: false,
-          action: 'click',
-          error: `Element "${options.selector}" is not clickable`,
-          code: ERROR_CODES.TARGET_NOT_FOUND
-        };
+      if (!visibility.data.clickable) {
+        return error(
+          `Element "${options.selector}" is not clickable`,
+          ERROR_CODES.TARGET_NOT_FOUND
+        );
       }
     }
     
     // Apply offset if specified
     const finalCoords = applyOffset(
-      coordsResult.coordinates.x,
-      coordsResult.coordinates.y,
+      coordsResult.data.coordinates!.x,
+      coordsResult.data.coordinates!.y,
       options.offsetX,
       options.offsetY
     );
@@ -213,15 +174,29 @@ export async function mouseClick(options: MouseOptions): Promise<MouseResult> {
     }
     
     const uiResult = await clickAt(finalCoords.x, finalCoords.y, clickOptions);
-    return convertUIResult(uiResult, 'click', options);
+    if (uiResult.success) {
+      return ok({
+        action: 'click',
+        coordinates: finalCoords,
+        ...(options.selector && {
+          element: {
+            selector: options.selector,
+            visible: true,
+            clickable: true
+          }
+        })
+      }, uiResult.code);
+    }
+    return error(
+      uiResult.error || 'Click failed',
+      uiResult.code
+    );
     
-  } catch (error) {
-    return {
-      success: false,
-      action: 'click',
-      error: `Mouse click failed: ${error}`,
-      code: ERROR_CODES.UNKNOWN_ERROR
-    };
+  } catch (err) {
+    return error(
+      `Mouse click failed: ${err}`,
+      ERROR_CODES.UNKNOWN_ERROR
+    );
   }
 }
 
@@ -232,44 +207,54 @@ export async function mouseDoubleClick(options: MouseOptions): Promise<MouseResu
   try {
     const validation = validateMouseOptions(options);
     if (!validation.valid) {
-      return {
-        success: false,
-        action: 'double_click',
-        error: validation.error || 'Validation failed',
-        code: ERROR_CODES.INVALID_INPUT
-      };
+      return error(
+        validation.error || 'Validation failed',
+        ERROR_CODES.INVALID_INPUT
+      );
     }
     
     // Get target coordinates
     const coordsResult = await getTargetCoordinates(options);
-    if (!coordsResult.success || !coordsResult.coordinates) {
-      return {
-        success: false,
-        action: 'double_click',
-        error: coordsResult.error || 'Failed to get target coordinates',
-        code: coordsResult.code
-      };
+    if (!coordsResult.success || !coordsResult.data?.coordinates) {
+      return error(
+        coordsResult.error || 'Failed to get target coordinates',
+        coordsResult.code
+      );
     }
     
     // Apply offset if specified
     const finalCoords = applyOffset(
-      coordsResult.coordinates.x,
-      coordsResult.coordinates.y,
+      coordsResult.data.coordinates!.x,
+      coordsResult.data.coordinates!.y,
       options.offsetX,
       options.offsetY
     );
     
     // Perform double-click
     const uiResult = await doubleClickAt(finalCoords.x, finalCoords.y);
-    return convertUIResult(uiResult, 'double_click', options);
+    if (uiResult.success) {
+      return ok({
+        action: 'double_click',
+        coordinates: finalCoords,
+        ...(options.selector && {
+          element: {
+            selector: options.selector,
+            visible: true,
+            clickable: true
+          }
+        })
+      }, uiResult.code);
+    }
+    return error(
+      uiResult.error || 'Double-click failed',
+      uiResult.code
+    );
     
-  } catch (error) {
-    return {
-      success: false,
-      action: 'double_click',
-      error: `Mouse double-click failed: ${error}`,
-      code: ERROR_CODES.UNKNOWN_ERROR
-    };
+  } catch (err) {
+    return error(
+      `Mouse double-click failed: ${err}`,
+      ERROR_CODES.UNKNOWN_ERROR
+    );
   }
 }
 
@@ -280,44 +265,54 @@ export async function mouseRightClick(options: MouseOptions): Promise<MouseResul
   try {
     const validation = validateMouseOptions(options);
     if (!validation.valid) {
-      return {
-        success: false,
-        action: 'right_click',
-        error: validation.error || 'Validation failed',
-        code: ERROR_CODES.INVALID_INPUT
-      };
+      return error(
+        validation.error || 'Validation failed',
+        ERROR_CODES.INVALID_INPUT
+      );
     }
     
     // Get target coordinates
     const coordsResult = await getTargetCoordinates(options);
-    if (!coordsResult.success || !coordsResult.coordinates) {
-      return {
-        success: false,
-        action: 'right_click',
-        error: coordsResult.error || 'Failed to get target coordinates',
-        code: coordsResult.code
-      };
+    if (!coordsResult.success || !coordsResult.data?.coordinates) {
+      return error(
+        coordsResult.error || 'Failed to get target coordinates',
+        coordsResult.code
+      );
     }
     
     // Apply offset if specified
     const finalCoords = applyOffset(
-      coordsResult.coordinates.x,
-      coordsResult.coordinates.y,
+      coordsResult.data.coordinates!.x,
+      coordsResult.data.coordinates!.y,
       options.offsetX,
       options.offsetY
     );
     
     // Perform right-click
     const uiResult = await rightClickAt(finalCoords.x, finalCoords.y);
-    return convertUIResult(uiResult, 'right_click', options);
+    if (uiResult.success) {
+      return ok({
+        action: 'right_click',
+        coordinates: finalCoords,
+        ...(options.selector && {
+          element: {
+            selector: options.selector,
+            visible: true,
+            clickable: true
+          }
+        })
+      }, uiResult.code);
+    }
+    return error(
+      uiResult.error || 'Right-click failed',
+      uiResult.code
+    );
     
-  } catch (error) {
-    return {
-      success: false,
-      action: 'right_click',
-      error: `Mouse right-click failed: ${error}`,
-      code: ERROR_CODES.UNKNOWN_ERROR
-    };
+  } catch (err) {
+    return error(
+      `Mouse right-click failed: ${err}`,
+      ERROR_CODES.UNKNOWN_ERROR
+    );
   }
 }
 
@@ -328,44 +323,54 @@ export async function mouseMove(options: MouseOptions): Promise<MouseResult> {
   try {
     const validation = validateMouseOptions(options);
     if (!validation.valid) {
-      return {
-        success: false,
-        action: 'move',
-        error: validation.error || 'Validation failed',
-        code: ERROR_CODES.INVALID_INPUT
-      };
+      return error(
+        validation.error || 'Validation failed',
+        ERROR_CODES.INVALID_INPUT
+      );
     }
     
     // Get target coordinates
     const coordsResult = await getTargetCoordinates(options);
-    if (!coordsResult.success || !coordsResult.coordinates) {
-      return {
-        success: false,
-        action: 'move',
-        error: coordsResult.error || 'Failed to get target coordinates',
-        code: coordsResult.code
-      };
+    if (!coordsResult.success || !coordsResult.data?.coordinates) {
+      return error(
+        coordsResult.error || 'Failed to get target coordinates',
+        coordsResult.code
+      );
     }
     
     // Apply offset if specified
     const finalCoords = applyOffset(
-      coordsResult.coordinates.x,
-      coordsResult.coordinates.y,
+      coordsResult.data.coordinates!.x,
+      coordsResult.data.coordinates!.y,
       options.offsetX,
       options.offsetY
     );
     
     // Perform mouse move
     const uiResult = await moveTo(finalCoords.x, finalCoords.y);
-    return convertUIResult(uiResult, 'move', options);
+    if (uiResult.success) {
+      return ok({
+        action: 'move',
+        coordinates: finalCoords,
+        ...(options.selector && {
+          element: {
+            selector: options.selector,
+            visible: true,
+            clickable: true
+          }
+        })
+      }, uiResult.code);
+    }
+    return error(
+      uiResult.error || 'Move failed',
+      uiResult.code
+    );
     
-  } catch (error) {
-    return {
-      success: false,
-      action: 'move',
-      error: `Mouse move failed: ${error}`,
-      code: ERROR_CODES.UNKNOWN_ERROR
-    };
+  } catch (err) {
+    return error(
+      `Mouse move failed: ${err}`,
+      ERROR_CODES.UNKNOWN_ERROR
+    );
   }
 }
 
@@ -380,72 +385,78 @@ export async function mouseDrag(
     // Validate both source and target options
     const fromValidation = validateMouseOptions(fromOptions);
     if (!fromValidation.valid) {
-      return {
-        success: false,
-        action: 'drag',
-        error: `Source: ${fromValidation.error}`,
-        code: ERROR_CODES.INVALID_INPUT
-      };
+      return error(
+        `Source: ${fromValidation.error}`,
+        ERROR_CODES.INVALID_INPUT
+      );
     }
     
     const toValidation = validateMouseOptions(toOptions);
     if (!toValidation.valid) {
-      return {
-        success: false,
-        action: 'drag',
-        error: `Target: ${toValidation.error}`,
-        code: ERROR_CODES.INVALID_INPUT
-      };
+      return error(
+        `Target: ${toValidation.error}`,
+        ERROR_CODES.INVALID_INPUT
+      );
     }
     
     // Get source coordinates
     const fromCoordsResult = await getTargetCoordinates(fromOptions);
-    if (!fromCoordsResult.success || !fromCoordsResult.coordinates) {
-      return {
-        success: false,
-        action: 'drag',
-        error: `Source: ${fromCoordsResult.error || 'Failed to get coordinates'}`,
-        code: fromCoordsResult.code
-      };
+    if (!fromCoordsResult.success || !fromCoordsResult.data?.coordinates) {
+      return error(
+        `Source: ${fromCoordsResult.error || 'Failed to get coordinates'}`,
+        fromCoordsResult.code
+      );
     }
     
     // Get target coordinates
     const toCoordsResult = await getTargetCoordinates(toOptions);
-    if (!toCoordsResult.success || !toCoordsResult.coordinates) {
-      return {
-        success: false,
-        action: 'drag',
-        error: `Target: ${toCoordsResult.error || 'Failed to get coordinates'}`,
-        code: toCoordsResult.code
-      };
+    if (!toCoordsResult.success || !toCoordsResult.data?.coordinates) {
+      return error(
+        `Target: ${toCoordsResult.error || 'Failed to get coordinates'}`,
+        toCoordsResult.code
+      );
     }
     
     // Apply offsets
     const fromCoords = applyOffset(
-      fromCoordsResult.coordinates.x,
-      fromCoordsResult.coordinates.y,
+      fromCoordsResult.data.coordinates!.x,
+      fromCoordsResult.data.coordinates!.y,
       fromOptions.offsetX,
       fromOptions.offsetY
     );
     
     const toCoords = applyOffset(
-      toCoordsResult.coordinates.x,
-      toCoordsResult.coordinates.y,
+      toCoordsResult.data.coordinates!.x,
+      toCoordsResult.data.coordinates!.y,
       toOptions.offsetX,
       toOptions.offsetY
     );
     
     // Perform drag
     const uiResult = await dragFromTo(fromCoords.x, fromCoords.y, toCoords.x, toCoords.y);
-    return convertUIResult(uiResult, 'drag', toOptions);
+    if (uiResult.success) {
+      return ok({
+        action: 'drag',
+        coordinates: toCoords,
+        ...(toOptions.selector && {
+          element: {
+            selector: toOptions.selector,
+            visible: true,
+            clickable: true
+          }
+        })
+      }, uiResult.code);
+    }
+    return error(
+      uiResult.error || 'Drag failed',
+      uiResult.code
+    );
     
-  } catch (error) {
-    return {
-      success: false,
-      action: 'drag',
-      error: `Mouse drag failed: ${error}`,
-      code: ERROR_CODES.UNKNOWN_ERROR
-    };
+  } catch (err) {
+    return error(
+      `Mouse drag failed: ${err}`,
+      ERROR_CODES.UNKNOWN_ERROR
+    );
   }
 }
 

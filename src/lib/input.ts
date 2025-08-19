@@ -2,7 +2,7 @@ import { getScreenCoordinates, validateElementVisibility } from './coords.js';
 import { clickAt, pasteText, clearField, typeText } from './ui.js';
 import { execChromeJS } from './apple.js';
 import { ERROR_CODES, validateInput, sleep, type ErrorCode } from './util.js';
-import { Result, ok, error, type ResultContext } from '../core/index.js';
+import { Result, ok, error } from '../core/index.js';
 
 // Re-export typeText for convenience
 export { typeText } from './ui.js';
@@ -134,12 +134,12 @@ async function getInputElementInfo(selector: string, windowIndex: number = 1) {
 async function focusElement(selector: string, windowIndex: number = 1): Promise<boolean> {
   // Get element coordinates and click to focus
   const coordsResult = await getScreenCoordinates({ selector }, windowIndex);
-  if (!coordsResult.success || !coordsResult.coordinates) {
+  if (!coordsResult.success || !coordsResult.data?.coordinates) {
     return false;
   }
   
   // Click to focus
-  const clickResult = await clickAt(coordsResult.coordinates.x, coordsResult.coordinates.y);
+  const clickResult = await clickAt(coordsResult.data.coordinates.x, coordsResult.data.coordinates.y);
   return clickResult.success;
 }
 
@@ -169,7 +169,7 @@ async function clearInputField(selector: string, windowIndex: number = 1): Promi
 })();
 `, 1, windowIndex);
     
-    if (jsResult.success && jsResult.result) {
+    if (jsResult.success && jsResult.data) {
       return true;
     }
     
@@ -261,7 +261,7 @@ async function fillByJavaScript(selector: string, value: string, windowIndex: nu
 `;
     
     const result = await execChromeJS<boolean>(javascript, 1, windowIndex);
-    return result.success && !!result.result;
+    return result.success && !!result.data;
     
   } catch {
     return false;
@@ -275,72 +275,47 @@ export async function fillInput(options: InputOptions): Promise<InputResult> {
   try {
     const validation = validateInputOptions(options);
     if (!validation.valid) {
-      return {
-        success: false,
-        action: 'fill_input',
-        selector: options.selector,
-        method: 'paste',
-        value: maskValue(options.value, options.maskSecret || false),
-        error: validation.error || 'Validation failed',
-        code: ERROR_CODES.INVALID_INPUT
-      };
+      return error(
+        validation.error || 'Validation failed',
+        ERROR_CODES.INVALID_INPUT
+      );
     }
     
     const windowIndex = options.windowIndex || 1;
     
     // Validate element visibility and accessibility
     const visibility = await validateElementVisibility(options.selector, windowIndex);
-    if (!visibility.success || !visibility.result) {
-      return {
-        success: false,
-        action: 'fill_input',
-        selector: options.selector,
-        method: 'paste',
-        value: maskValue(options.value, options.maskSecret || false),
-        error: 'Failed to validate element visibility',
-        code: ERROR_CODES.UNKNOWN_ERROR
-      };
+    if (!visibility.success || !visibility.data) {
+      return error(
+        'Failed to validate element visibility',
+        ERROR_CODES.UNKNOWN_ERROR
+      );
     }
     
-    if (!visibility.result.visible) {
-      return {
-        success: false,
-        action: 'fill_input',
-        selector: options.selector,
-        method: 'paste',
-        value: maskValue(options.value, options.maskSecret || false),
-        error: `Element "${options.selector}" is not visible`,
-        code: ERROR_CODES.TARGET_NOT_FOUND
-      };
+    if (!visibility.data.visible) {
+      return error(
+        `Element "${options.selector}" is not visible`,
+        ERROR_CODES.TARGET_NOT_FOUND
+      );
     }
     
     // Get element information
     const elementInfo = await getInputElementInfo(options.selector, windowIndex);
-    if (!elementInfo.success || !elementInfo.result) {
-      return {
-        success: false,
-        action: 'fill_input',
-        selector: options.selector,
-        method: 'paste',
-        value: maskValue(options.value, options.maskSecret || false),
-        error: `Element "${options.selector}" not found or not accessible`,
-        code: ERROR_CODES.TARGET_NOT_FOUND
-      };
+    if (!elementInfo.success || !elementInfo.data) {
+      return error(
+        `Element "${options.selector}" not found or not accessible`,
+        ERROR_CODES.TARGET_NOT_FOUND
+      );
     }
     
-    const element = elementInfo.result;
+    const element = elementInfo.data;
     
     // Check if element is interactive
     if (element.disabled || element.readonly) {
-      return {
-        success: false,
-        action: 'fill_input',
-        selector: options.selector,
-        method: 'paste',
-        value: maskValue(options.value, options.maskSecret || false),
-        error: `Element "${options.selector}" is disabled or readonly`,
-        code: ERROR_CODES.TARGET_NOT_FOUND
-      };
+      return error(
+        `Element "${options.selector}" is disabled or readonly`,
+        ERROR_CODES.TARGET_NOT_FOUND
+      );
     }
     
     // Clear field if requested
@@ -386,40 +361,31 @@ export async function fillInput(options: InputOptions): Promise<InputResult> {
       }
     }
     
-    const result: InputResult = {
-      success,
-      action: 'fill_input',
-      selector: options.selector,
-      method,
-      value: maskValue(options.value, options.maskSecret || false),
-      element: {
-        visible: visibility.result.visible,
-        focusable: !element.disabled && !element.readonly,
-        type: element.type
-      },
-      code: success ? ERROR_CODES.OK : ERROR_CODES.UNKNOWN_ERROR
-    };
-    
-    if (!options.maskSecret) {
-      result.actualValue = options.value;
+    if (success) {
+      return ok({
+        action: 'fill_input',
+        selector: options.selector,
+        method,
+        value: maskValue(options.value, options.maskSecret || false),
+        ...((!options.maskSecret) && { actualValue: options.value }),
+        element: {
+          visible: visibility.data.visible,
+          focusable: !element.disabled && !element.readonly,
+          type: element.type
+        }
+      }, ERROR_CODES.OK);
+    } else {
+      return error(
+        `Failed to fill input using method: ${method}`,
+        ERROR_CODES.UNKNOWN_ERROR
+      );
     }
     
-    if (!success) {
-      result.error = `Failed to fill input using method: ${method}`;
-    }
-    
-    return result;
-    
-  } catch (error) {
-    return {
-      success: false,
-      action: 'fill_input',
-      selector: options.selector,
-      method: 'paste',
-      value: maskValue(options.value, options.maskSecret || false),
-      error: `Input fill failed: ${error}`,
-      code: ERROR_CODES.UNKNOWN_ERROR
-    };
+  } catch (err) {
+    return error(
+      `Input fill failed: ${err}`,
+      ERROR_CODES.UNKNOWN_ERROR
+    );
   }
 }
 
@@ -432,7 +398,7 @@ export async function getInputValue(
 ): Promise<{ success: boolean; value?: string; error?: string; code: ErrorCode }> {
   try {
     const elementInfo = await getInputElementInfo(selector, windowIndex);
-    if (!elementInfo.success || !elementInfo.result) {
+    if (!elementInfo.success || !elementInfo.data) {
       return {
         success: false,
         error: 'Failed to get element information',
@@ -442,7 +408,7 @@ export async function getInputValue(
     
     return {
       success: true,
-      value: elementInfo.result.value,
+      value: elementInfo.data.value,
       code: ERROR_CODES.OK
     };
     
@@ -492,7 +458,7 @@ export async function submitForm(
       };
     }
     
-    if (!result.result) {
+    if (!result.data) {
       return {
         success: false,
         error: 'Element not found or no form to submit',

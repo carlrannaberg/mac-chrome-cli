@@ -76,8 +76,8 @@ export class LoggerService implements ILoggerService {
     this.entries.push(entry);
     
     // Prevent memory leaks by limiting entries
-    if (this.entries.length > this.options.maxEntries) {
-      this.entries = this.entries.slice(-this.options.maxEntries);
+    if (this.entries.length > (this.options.maxEntries || 1000)) {
+      this.entries = this.entries.slice(-(this.options.maxEntries || 1000));
     }
 
     // Output to console if enabled

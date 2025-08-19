@@ -1,5 +1,5 @@
-import { Result, ok, error, ErrorCode } from '../core/index.js';
-import { ErrorUtils, validateInputParam, executeWithContext } from '../core/ErrorUtils.js';
+import { Result, ok, ErrorCode, error as createError } from '../core/index.js';
+import { ErrorUtils } from '../core/ErrorUtils.js';
 
 export interface WaitOptions {
   milliseconds?: number;
@@ -116,15 +116,7 @@ export async function waitIdle(options: WaitOptions = {}): Promise<Result<WaitRe
     
     // Check if it was an interruption
     if (error instanceof Error && error.message.includes('interrupted')) {
-      const result: WaitResult = {
-        success: false,
-        cmd: 'wait idle',
-        durationMs: requestedMs,
-        actualMs,
-        timestamp: startTimestamp
-      };
-      
-      return error(
+      return createError(
         error.message,
         ErrorCode.TIMEOUT,
         {
@@ -139,10 +131,22 @@ export async function waitIdle(options: WaitOptions = {}): Promise<Result<WaitRe
       );
     }
     
-    return ErrorUtils.fromException(
+    // Convert Error to string for the Result type
+    const errorResult = ErrorUtils.fromException(
       error,
       'wait-idle',
       ErrorCode.UNKNOWN_ERROR
     );
+    
+    // Convert Result<T, Error> to Result<T, string>
+    if (errorResult.success) {
+      return errorResult as Result<WaitResult, string>;
+    } else {
+      return createError(
+        errorResult.error.message,
+        errorResult.code,
+        errorResult.context
+      );
+    }
   }
 }

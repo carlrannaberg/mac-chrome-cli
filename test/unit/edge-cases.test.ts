@@ -47,102 +47,110 @@ describe('Edge Cases and Error Scenarios', () => {
     it('should handle extremely large coordinates', async () => {
       mockApple.execChromeJS.mockResolvedValueOnce({
         success: true,
-        result: testUtils.createMockViewport(999999, 999999, 0, 0),
-        code: ERROR_CODES.OK
+        data: testUtils.createMockViewport(999999, 999999, 0, 0),
+        code: ERROR_CODES.OK,
+        timestamp: new Date().toISOString()
       });
 
       mockApple.getChromeWindowBounds.mockResolvedValueOnce({
         success: true,
-        result: {
+        data: {
           id: 1,
           title: 'Test Window',
           bounds: { x: 999999, y: 999999, width: 999999, height: 999999 },
           visible: true
         },
-        code: ERROR_CODES.OK
+        code: ERROR_CODES.OK,
+        timestamp: new Date().toISOString()
       });
 
       const result = await viewportToScreen(999999, 999999, 1);
 
       expect(result.success).toBe(true);
-      expect(result.coordinates?.x).toBeGreaterThan(999999);
-      expect(result.coordinates?.y).toBeGreaterThan(999999);
-      expect(Number.isFinite(result.coordinates?.x)).toBe(true);
-      expect(Number.isFinite(result.coordinates?.y)).toBe(true);
+      expect(result.data?.coordinates?.x).toBeGreaterThan(999999);
+      expect(result.data?.coordinates?.y).toBeGreaterThan(999999);
+      expect(Number.isFinite(result.data?.coordinates?.x)).toBe(true);
+      expect(Number.isFinite(result.data?.coordinates?.y)).toBe(true);
     });
 
     it('should handle negative window bounds', async () => {
       mockApple.execChromeJS.mockResolvedValueOnce({
         success: true,
-        result: testUtils.createMockViewport(1920, 1080, 0, 0),
-        code: ERROR_CODES.OK
+        data: testUtils.createMockViewport(1920, 1080, 0, 0),
+        code: ERROR_CODES.OK,
+        timestamp: new Date().toISOString()
       });
 
       mockApple.getChromeWindowBounds.mockResolvedValueOnce({
         success: true,
-        result: {
+        data: {
           id: 1,
           title: 'Test Window',
           bounds: { x: -100, y: -200, width: 1920, height: 1080 },
           visible: true
         },
-        code: ERROR_CODES.OK
+        code: ERROR_CODES.OK,
+        timestamp: new Date().toISOString()
       });
 
       const result = await viewportToScreen(500, 300, 1);
 
       expect(result.success).toBe(true);
-      expect(result.coordinates?.x).toBe(400); // -100 + 500
-      expect(result.coordinates?.y).toBe(124); // -200 + 24 + 300
+      expect(result.data?.coordinates?.x).toBe(400); // -100 + 500
+      expect(result.data?.coordinates?.y).toBe(124); // -200 + 24 + 300
     });
 
     it('should handle zero-sized windows', async () => {
       mockApple.execChromeJS.mockResolvedValueOnce({
         success: true,
-        result: testUtils.createMockViewport(0, 0, 0, 0),
-        code: ERROR_CODES.OK
+        data: testUtils.createMockViewport(0, 0, 0, 0),
+        code: ERROR_CODES.OK,
+        timestamp: new Date().toISOString()
       });
 
       mockApple.getChromeWindowBounds.mockResolvedValueOnce({
         success: true,
-        result: {
+        data: {
           id: 1,
           title: 'Test Window',
           bounds: { x: 100, y: 100, width: 0, height: 0 },
           visible: true
         },
-        code: ERROR_CODES.OK
+        code: ERROR_CODES.OK,
+        timestamp: new Date().toISOString()
       });
 
       const result = await viewportToScreen(0, 0, 1);
 
       expect(result.success).toBe(true);
-      expect(result.coordinates).toBeValidCoordinates();
+      expect(result.data?.coordinates).toBeValidCoordinates();
     });
 
     it('should handle floating point coordinates', async () => {
       mockApple.execChromeJS.mockResolvedValueOnce({
         success: true,
-        result: testUtils.createMockViewport(1920, 1080, 0, 0),
-        code: ERROR_CODES.OK
+        data: testUtils.createMockViewport(1920, 1080, 0, 0),
+        code: ERROR_CODES.OK,
+        timestamp: new Date().toISOString()
       });
 
       mockApple.getChromeWindowBounds.mockResolvedValueOnce({
         success: true,
-        result: {
+        data: {
           id: 1,
           title: 'Test Window',
           bounds: { x: 100, y: 100, width: 1920, height: 1080 },
           visible: true
         },
-        code: ERROR_CODES.OK
+        code: ERROR_CODES.OK,
+        timestamp: new Date().toISOString()
       });
 
       const result = await viewportToScreen(123.456, 789.123, 1);
 
       expect(result.success).toBe(true);
-      expect(result.coordinates?.x).toBeCloseTo(223.456);
-      expect(result.coordinates?.y).toBeCloseTo(913.123);
+      expect(result.data?.coordinates?.x).toBeCloseTo(223.456);
+      expect(result.data?.coordinates?.y).toBeCloseTo(913.123);
     });
 
     it('should handle NaN and Infinity coordinates', async () => {
@@ -157,27 +165,29 @@ describe('Edge Cases and Error Scenarios', () => {
       for (const testCase of testCases) {
         mockApple.execChromeJS.mockResolvedValueOnce({
           success: true,
-          result: testUtils.createMockViewport(1920, 1080, 0, 0),
-          code: ERROR_CODES.OK
+          data: testUtils.createMockViewport(1920, 1080, 0, 0),
+          code: ERROR_CODES.OK,
+          timestamp: new Date().toISOString()
         });
 
         mockApple.getChromeWindowBounds.mockResolvedValueOnce({
           success: true,
-          result: {
+          data: {
             id: 1,
             title: 'Test Window',
             bounds: { x: 100, y: 100, width: 1920, height: 1080 },
             visible: true
           },
-          code: ERROR_CODES.OK
+          code: ERROR_CODES.OK,
+          timestamp: new Date().toISOString()
         });
 
         const result = await viewportToScreen(testCase.x, testCase.y, 1);
 
         // Should handle gracefully - either succeed with finite coordinates or fail safely
         if (result.success) {
-          expect(Number.isFinite(result.coordinates?.x)).toBe(true);
-          expect(Number.isFinite(result.coordinates?.y)).toBe(true);
+          expect(Number.isFinite(result.data?.coordinates?.x)).toBe(true);
+          expect(Number.isFinite(result.data?.coordinates?.y)).toBe(true);
         } else {
           expect(result.error).toBeDefined();
         }
@@ -194,24 +204,27 @@ describe('Edge Cases and Error Scenarios', () => {
       mockApple.execChromeJS
         .mockResolvedValueOnce({
           success: true,
-          result: mockElement,
-          code: ERROR_CODES.OK
+          data: mockElement,
+          code: ERROR_CODES.OK,
+          timestamp: new Date().toISOString()
         })
         .mockResolvedValueOnce({
           success: true,
-          result: testUtils.createMockViewport(),
-          code: ERROR_CODES.OK
+          data: testUtils.createMockViewport(),
+          code: ERROR_CODES.OK,
+          timestamp: new Date().toISOString()
         });
 
       mockApple.getChromeWindowBounds.mockResolvedValueOnce({
         success: true,
-        result: {
+        data: {
           id: 1,
           title: 'Test Window',
           bounds: { x: 100, y: 100, width: 1920, height: 1080 },
           visible: true
         },
-        code: ERROR_CODES.OK
+        code: ERROR_CODES.OK,
+        timestamp: new Date().toISOString()
       });
 
       const result = await selectorToScreen(complexSelector, 1);
@@ -238,24 +251,25 @@ describe('Edge Cases and Error Scenarios', () => {
         mockApple.execChromeJS
           .mockResolvedValueOnce({
             success: true,
-            result: testUtils.createMockElement({ x: 10, y: 10, width: 50, height: 20 }),
+            data: testUtils.createMockElement({ x: 10, y: 10, width: 50, height: 20 }),
             code: ERROR_CODES.OK
           })
           .mockResolvedValueOnce({
             success: true,
-            result: testUtils.createMockViewport(),
+            data: testUtils.createMockViewport(),
             code: ERROR_CODES.OK
           });
 
         mockApple.getChromeWindowBounds.mockResolvedValueOnce({
           success: true,
-          result: {
+          data: {
             id: 1,
             title: 'Test Window',
             bounds: { x: 0, y: 0, width: 1920, height: 1080 },
             visible: true
           },
-          code: ERROR_CODES.OK
+          code: ERROR_CODES.OK,
+          timestamp: new Date().toISOString()
         });
 
         const result = await selectorToScreen(selector, 1);
@@ -300,8 +314,9 @@ describe('Edge Cases and Error Scenarios', () => {
 
       mockApple.execChromeJS.mockResolvedValueOnce({
         success: true,
-        result: 'test',
-        code: ERROR_CODES.OK
+        data: 'test',
+        code: ERROR_CODES.OK,
+        timestamp: new Date().toISOString()
       });
 
       const result = await execChromeJS(longJS, 1, 1, 15000);
@@ -340,13 +355,13 @@ describe('Edge Cases and Error Scenarios', () => {
       for (const testCase of testCases) {
         mockApple.execChromeJS.mockImplementationOnce(async () => ({
           success: true,
-          result: testCase.expected,
+          data: testCase.expected,
           code: ERROR_CODES.OK
         }));
 
         const result = await execChromeJS('test', 1, 1, 5000);
         expect(result.success).toBe(true);
-        expect(result.result).toEqual(testCase.expected);
+        expect(result.data).toEqual(testCase.expected);
       }
     });
   });
@@ -455,8 +470,9 @@ describe('Edge Cases and Error Scenarios', () => {
       
       mockApple.execChromeJS.mockResolvedValue({
         success: true,
-        result: viewport,
-        code: ERROR_CODES.OK
+        data: viewport,
+        code: ERROR_CODES.OK,
+        timestamp: new Date().toISOString()
       });
 
       const boundaryTests = [
@@ -485,14 +501,15 @@ describe('Edge Cases and Error Scenarios', () => {
       for (const state of malformedStates) {
         mockApple.execChromeJS.mockResolvedValueOnce({
           success: true,
-          result: state,
-          code: ERROR_CODES.OK
+          data: state,
+          code: ERROR_CODES.OK,
+          timestamp: new Date().toISOString()
         });
 
         const result = await validateElementVisibility('#test', 1);
         
         expect(result.success).toBe(true);
-        expect(result.result).toBeDefined();
+        expect(result.data).toBeDefined();
       }
     });
   });
@@ -578,43 +595,47 @@ describe('Edge Cases and Error Scenarios', () => {
 
       mockApple.execChromeJS.mockResolvedValueOnce({
         success: true,
-        result: largeViewport,
-        code: ERROR_CODES.OK
+        data: largeViewport,
+        code: ERROR_CODES.OK,
+        timestamp: new Date().toISOString()
       });
 
       mockApple.getChromeWindowBounds.mockResolvedValueOnce({
         success: true,
-        result: {
+        data: {
           id: 1,
           title: 'Test Window',
           bounds: { x: 100, y: 100, width: 1920, height: 1080 },
           visible: true
         },
-        code: ERROR_CODES.OK
+        code: ERROR_CODES.OK,
+        timestamp: new Date().toISOString()
       });
 
       const result = await viewportToScreen(100, 100, 1);
 
       expect(result.success).toBe(true);
-      expect(result.viewport).toBeDefined();
+      expect(result.data?.viewport).toBeDefined();
     });
 
     it('should handle rapid successive calls', async () => {
       mockApple.execChromeJS.mockResolvedValue({
         success: true,
-        result: testUtils.createMockViewport(),
-        code: ERROR_CODES.OK
+        data: testUtils.createMockViewport(),
+        code: ERROR_CODES.OK,
+        timestamp: new Date().toISOString()
       });
 
       mockApple.getChromeWindowBounds.mockResolvedValue({
         success: true,
-        result: {
+        data: {
           id: 1,
           title: 'Test Window',
           bounds: { x: 100, y: 100, width: 1920, height: 1080 },
           visible: true
         },
-        code: ERROR_CODES.OK
+        code: ERROR_CODES.OK,
+        timestamp: new Date().toISOString()
       });
 
       // Make many rapid calls
@@ -627,8 +648,8 @@ describe('Edge Cases and Error Scenarios', () => {
       expect(results).toHaveLength(100);
       results.forEach((result, index) => {
         expect(result.success).toBe(true);
-        expect(result.coordinates?.x).toBe(100 + index);
-        expect(result.coordinates?.y).toBe(124 + index);
+        expect(result.data?.coordinates?.x).toBe(100 + index);
+        expect(result.data?.coordinates?.y).toBe(124 + index);
       });
     });
   });

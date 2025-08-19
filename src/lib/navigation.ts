@@ -55,7 +55,7 @@ export async function navigateToURL(
       };
     }
     
-    if (!result.result) {
+    if (!result.data) {
       return {
         success: false,
         action: 'navigate',
@@ -67,9 +67,9 @@ export async function navigateToURL(
     return {
       success: true,
       action: 'navigate',
-      url: result.result.url,
-      title: result.result.title,
-      loading: result.result.loading,
+      url: result.data.url,
+      title: result.data.title,
+      loading: result.data.loading,
       code: ERROR_CODES.OK
     };
     
@@ -126,7 +126,7 @@ export async function reloadPage(
       };
     }
     
-    if (!result.result) {
+    if (!result.data) {
       return {
         success: false,
         action: 'reload',
@@ -138,9 +138,9 @@ export async function reloadPage(
     return {
       success: true,
       action: hard ? 'hard_reload' : 'reload',
-      url: result.result.url,
-      title: result.result.title,
-      loading: result.result.loading,
+      url: result.data.url,
+      title: result.data.title,
+      loading: result.data.loading,
       code: ERROR_CODES.OK
     };
     
@@ -181,7 +181,7 @@ export async function navigateBack(windowIndex: number = 1): Promise<NavigationR
       };
     }
     
-    if (!result.result) {
+    if (!result.data) {
       return {
         success: false,
         action: 'back',
@@ -193,9 +193,9 @@ export async function navigateBack(windowIndex: number = 1): Promise<NavigationR
     return {
       success: true,
       action: 'back',
-      url: result.result.url,
-      title: result.result.title,
-      loading: result.result.loading,
+      url: result.data.url,
+      title: result.data.title,
+      loading: result.data.loading,
       code: ERROR_CODES.OK
     };
     
@@ -236,7 +236,7 @@ export async function navigateForward(windowIndex: number = 1): Promise<Navigati
       };
     }
     
-    if (!result.result) {
+    if (!result.data) {
       return {
         success: false,
         action: 'forward',
@@ -248,9 +248,9 @@ export async function navigateForward(windowIndex: number = 1): Promise<Navigati
     return {
       success: true,
       action: 'forward',
-      url: result.result.url,
-      title: result.result.title,
-      loading: result.result.loading,
+      url: result.data.url,
+      title: result.data.title,
+      loading: result.data.loading,
       code: ERROR_CODES.OK
     };
     
@@ -280,7 +280,7 @@ export async function getCurrentPageInfo(windowIndex: number = 1): Promise<Navig
       };
     }
     
-    if (!result.result) {
+    if (!result.data) {
       return {
         success: false,
         action: 'get_page_info',
@@ -292,9 +292,9 @@ export async function getCurrentPageInfo(windowIndex: number = 1): Promise<Navig
     return {
       success: true,
       action: 'get_page_info',
-      url: result.result.url,
-      title: result.result.title,
-      loading: result.result.loading,
+      url: result.data.url,
+      title: result.data.title,
+      loading: result.data.loading,
       code: ERROR_CODES.OK
     };
     
@@ -329,8 +329,8 @@ export async function focusTabByPattern(
     
     // Get current tab info to check if it matches
     const currentTab = await getActiveTab(windowIndex);
-    if (currentTab.success && currentTab.result) {
-      const tab = currentTab.result;
+    if (currentTab.success && currentTab.data) {
+      const tab = currentTab.data;
       const titleMatch = tab.title.toLowerCase().includes(pattern.toLowerCase());
       const urlMatch = tab.url.toLowerCase().includes(pattern.toLowerCase());
       
@@ -398,7 +398,7 @@ export async function waitForPageLoad(
         };
       }
       
-      if (!result.result) {
+      if (!result.data) {
         return {
           success: false,
           action: 'wait_load',
@@ -407,12 +407,12 @@ export async function waitForPageLoad(
         };
       }
       
-      if (!result.result.loading) {
+      if (!result.data.loading) {
         return {
           success: true,
           action: 'wait_load',
-          url: result.result.url,
-          title: result.result.title,
+          url: result.data.url,
+          title: result.data.title,
           loading: false,
           code: ERROR_CODES.OK
         };

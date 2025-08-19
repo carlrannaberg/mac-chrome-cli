@@ -7,7 +7,7 @@ import {
   getPerformanceRecommendations,
   executeBatchOperations
 } from '../lib/performance.js';
-import { memoryMonitor, initializeMemoryMonitoring, type MemorySnapshot } from '../lib/MemoryMonitor.js';
+import { memoryMonitor, initializeMemoryMonitoring } from '../lib/MemoryMonitor.js';
 import { mouseClick } from '../lib/mouse.js';
 import { captureViewport } from '../lib/capture.js';
 import { captureOutline } from './snapshot.js';
@@ -64,8 +64,8 @@ async function benchmarkClick(): Promise<BenchmarkResult> {
       success: result.success,
       passed: result.success && actualMs < targetMs,
       metadata: {
-        coordinates: result.coordinates,
-        element: result.element
+        coordinates: result.success ? result.data.coordinates : undefined,
+        element: result.success ? result.data.element : undefined
       }
     };
     
@@ -182,7 +182,7 @@ async function benchmarkSnapshot(): Promise<BenchmarkResult> {
     const benchmark = endBenchmark(benchmarkId, result.success);
     const actualMs = benchmark?.duration || 0;
     
-    const nodeCount = result.result?.nodes?.length || 0;
+    const nodeCount = result.success ? result.data?.nodes?.length || 0 : 0;
     
     return {
       operation,
@@ -193,7 +193,7 @@ async function benchmarkSnapshot(): Promise<BenchmarkResult> {
       metadata: {
         nodeCount,
         nodesPerMs: actualMs > 0 ? nodeCount / actualMs : 0,
-        url: result.result?.meta?.url
+        url: result.success ? result.data?.meta?.url : undefined
       }
     };
     
@@ -540,7 +540,7 @@ export function createBenchmarkCommand(): Command {
 
         // Test batch execution  
         const batchStart = performance.now();
-        const batchResults = await executeBatchOperations(operations, {
+        await executeBatchOperations(operations, {
           batchSize: 5,
           concurrency: 3,
           preserveOrder: true

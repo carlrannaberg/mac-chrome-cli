@@ -1,5 +1,5 @@
 import { execWithTimeout, ERROR_CODES, sleep, type ErrorCode } from './util.js';
-import { Result, ok, error, type ResultContext } from '../core/index.js';
+import { Result, ok, error } from '../core/index.js';
 
 export interface ClickOptions {
   button?: 'left' | 'right' | 'middle';
@@ -43,7 +43,7 @@ export interface LegacyUIResult {
 async function checkCliclick(): Promise<boolean> {
   try {
     const result = await execWithTimeout('which', ['cliclick'], 5000);
-    return result.success && result.stdout.trim().length > 0;
+    return result.success && result.data!.stdout.trim().length > 0;
   } catch {
     return false;
   }
@@ -56,47 +56,36 @@ async function execCliclick(args: string[]): Promise<UIResult> {
   try {
     const isAvailable = await checkCliclick();
     if (!isAvailable) {
-      return {
-        success: false,
-        action: 'cliclick_check',
-        error: 'cliclick is not installed. Install with: brew install cliclick',
-        code: ERROR_CODES.TARGET_NOT_FOUND
-      };
+      return error(
+        'cliclick is not installed. Install with: brew install cliclick',
+        ERROR_CODES.TARGET_NOT_FOUND
+      );
     }
 
     const result = await execWithTimeout('cliclick', args, 10000);
     
     if (!result.success) {
-      if (result.stderr.includes('not authorized') || result.stderr.includes('permission')) {
-        return {
-          success: false,
-          action: 'cliclick_exec',
-          error: 'Permission denied. Grant accessibility permissions to Terminal in System Preferences > Privacy & Security > Accessibility',
-          code: ERROR_CODES.PERMISSION_DENIED
-        };
+      const stderr = result.error || 'Unknown error';
+      if (stderr.includes('not authorized') || stderr.includes('permission')) {
+        return error(
+          'Permission denied. Grant accessibility permissions to Terminal in System Preferences > Privacy & Security > Accessibility',
+          ERROR_CODES.PERMISSION_DENIED
+        );
       }
       
-      return {
-        success: false,
-        action: 'cliclick_exec',
-        error: result.stderr || 'cliclick command failed',
-        code: ERROR_CODES.UNKNOWN_ERROR
-      };
+      return error(
+        stderr || 'cliclick command failed',
+        ERROR_CODES.UNKNOWN_ERROR
+      );
     }
 
-    return {
-      success: true,
-      action: 'cliclick_exec',
-      code: ERROR_CODES.OK
-    };
+    return ok({ action: 'cliclick_exec' }, ERROR_CODES.OK);
     
-  } catch (error) {
-    return {
-      success: false,
-      action: 'cliclick_exec',
-      error: `Failed to execute cliclick: ${error}`,
-      code: ERROR_CODES.UNKNOWN_ERROR
-    };
+  } catch (err) {
+    return error(
+      `Failed to execute cliclick: ${err}`,
+      ERROR_CODES.UNKNOWN_ERROR
+    );
   }
 }
 
@@ -135,8 +124,10 @@ export async function clickAt(
   const result = await execCliclick(args);
   
   if (result.success) {
-    result.action = `${button}_click`;
-    result.coordinates = { x, y };
+    return ok({
+      action: `${button}_click`,
+      coordinates: { x, y }
+    }, result.code);
   }
   
   return result;
@@ -164,8 +155,10 @@ export async function moveTo(x: number, y: number): Promise<UIResult> {
   const result = await execCliclick(['m:' + coords]);
   
   if (result.success) {
-    result.action = 'mouse_move';
-    result.coordinates = { x, y };
+    return ok({
+      action: 'mouse_move',
+      coordinates: { x, y }
+    }, result.code);
   }
   
   return result;
@@ -190,8 +183,10 @@ export async function dragFromTo(
   ]);
   
   if (result.success) {
-    result.action = 'drag';
-    result.coordinates = { x: toX, y: toY };
+    return ok({
+      action: 'drag',
+      coordinates: { x: toX, y: toY }
+    }, result.code);
   }
   
   return result;
@@ -217,23 +212,23 @@ export async function typeText(
     const result = await execCliclick(['t:' + escapedText]);
     
     if (result.success) {
-      result.action = 'type_text';
-      
       // Add delay if speed is specified and greater than default
       if (speed > 50) {
         await sleep(speed - 50);
       }
+      
+      return ok({
+        action: 'type_text'
+      }, result.code);
     }
     
     return result;
     
-  } catch (error) {
-    return {
-      success: false,
-      action: 'type_text',
-      error: `Failed to type text: ${error}`,
-      code: ERROR_CODES.UNKNOWN_ERROR
-    };
+  } catch (err) {
+    return error(
+      `Failed to type text: ${err}`,
+      ERROR_CODES.UNKNOWN_ERROR
+    );
   }
 }
 
@@ -253,18 +248,18 @@ export async function sendKeys(keyCombo: string): Promise<UIResult> {
     const result = await execCliclick(['kp:' + keys]);
     
     if (result.success) {
-      result.action = 'send_keys';
+      return ok({
+        action: 'send_keys'
+      }, result.code);
     }
     
     return result;
     
-  } catch (error) {
-    return {
-      success: false,
-      action: 'send_keys',
-      error: `Failed to send key combination: ${error}`,
-      code: ERROR_CODES.UNKNOWN_ERROR
-    };
+  } catch (err) {
+    return error(
+      `Failed to send key combination: ${err}`,
+      ERROR_CODES.UNKNOWN_ERROR
+    );
   }
 }
 
@@ -276,18 +271,18 @@ export async function pressKey(key: string): Promise<UIResult> {
     const result = await execCliclick(['kp:' + key.toLowerCase()]);
     
     if (result.success) {
-      result.action = 'press_key';
+      return ok({
+        action: 'press_key'
+      }, result.code);
     }
     
     return result;
     
-  } catch (error) {
-    return {
-      success: false,
-      action: 'press_key',
-      error: `Failed to press key: ${error}`,
-      code: ERROR_CODES.UNKNOWN_ERROR
-    };
+  } catch (err) {
+    return error(
+      `Failed to press key: ${err}`,
+      ERROR_CODES.UNKNOWN_ERROR
+    );
   }
 }
 
@@ -309,19 +304,15 @@ export async function clearField(): Promise<UIResult> {
       return deleteResult;
     }
     
-    return {
-      success: true,
-      action: 'clear_field',
-      code: ERROR_CODES.OK
-    };
+    return ok({
+      action: 'clear_field'
+    }, ERROR_CODES.OK);
     
-  } catch (error) {
-    return {
-      success: false,
-      action: 'clear_field',
-      error: `Failed to clear field: ${error}`,
-      code: ERROR_CODES.UNKNOWN_ERROR
-    };
+  } catch (err) {
+    return error(
+      `Failed to clear field: ${err}`,
+      ERROR_CODES.UNKNOWN_ERROR
+    );
   }
 }
 
@@ -333,23 +324,19 @@ export async function pasteText(text: string): Promise<UIResult> {
     // Use pbcopy to copy text to clipboard
     const copyResult = await execWithTimeout('pbcopy', [], 5000);
     if (!copyResult.success) {
-      return {
-        success: false,
-        action: 'paste_text',
-        error: 'Failed to access clipboard',
-        code: ERROR_CODES.UNKNOWN_ERROR
-      };
+      return error(
+        'Failed to access clipboard',
+        ERROR_CODES.UNKNOWN_ERROR
+      );
     }
     
     // Write text to pbcopy stdin
     const copyProcess = await execWithTimeout('sh', ['-c', `echo '${text.replace(/'/g, "'\\''")}' | pbcopy`], 5000);
     if (!copyProcess.success) {
-      return {
-        success: false,
-        action: 'paste_text',
-        error: 'Failed to copy text to clipboard',
-        code: ERROR_CODES.UNKNOWN_ERROR
-      };
+      return error(
+        'Failed to copy text to clipboard',
+        ERROR_CODES.UNKNOWN_ERROR
+      );
     }
     
     // Send Cmd+V (paste)
@@ -358,19 +345,15 @@ export async function pasteText(text: string): Promise<UIResult> {
       return pasteResult;
     }
     
-    return {
-      success: true,
-      action: 'paste_text',
-      code: ERROR_CODES.OK
-    };
+    return ok({
+      action: 'paste_text'
+    }, ERROR_CODES.OK);
     
-  } catch (error) {
-    return {
-      success: false,
-      action: 'paste_text',
-      error: `Failed to paste text: ${error}`,
-      code: ERROR_CODES.UNKNOWN_ERROR
-    };
+  } catch (err) {
+    return error(
+      `Failed to paste text: ${err}`,
+      ERROR_CODES.UNKNOWN_ERROR
+    );
   }
 }
 
@@ -394,28 +377,26 @@ export async function scroll(direction: 'up' | 'down' | 'left' | 'right', amount
         scrollCommand = 'wr:' + amount;
         break;
       default:
-        return {
-          success: false,
-          action: 'scroll',
-          error: 'Invalid scroll direction',
-          code: ERROR_CODES.INVALID_INPUT
-        };
+        return error(
+          'Invalid scroll direction',
+          ERROR_CODES.INVALID_INPUT
+        );
     }
     
     const result = await execCliclick([scrollCommand]);
     
     if (result.success) {
-      result.action = 'scroll';
+      return ok({
+        action: 'scroll'
+      }, result.code);
     }
     
     return result;
     
-  } catch (error) {
-    return {
-      success: false,
-      action: 'scroll',
-      error: `Failed to scroll: ${error}`,
-      code: ERROR_CODES.UNKNOWN_ERROR
-    };
+  } catch (err) {
+    return error(
+      `Failed to scroll: ${err}`,
+      ERROR_CODES.UNKNOWN_ERROR
+    );
   }
 }

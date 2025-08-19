@@ -3,7 +3,7 @@
  * Manages service lifetimes, dependencies, and provides type-safe service resolution
  */
 
-import { Result, ok, error } from '../core/Result.js';
+import { Result } from '../core/Result.js';
 
 /**
  * Service lifetime options

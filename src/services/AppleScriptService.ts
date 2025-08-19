@@ -1,13 +1,11 @@
 import { LRUCache } from 'lru-cache';
 import { createHash } from 'crypto';
-import { execWithTimeout, ERROR_CODES, type ErrorCode, type ExecResult } from '../lib/util.js';
+import { execWithTimeout, ERROR_CODES, type ExecResult } from '../lib/util.js';
 import { ok, error } from '../core/Result.js';
-import { NetworkDataSanitizer } from '../security/DataSanitizer.js';
 import { startBenchmark, endBenchmark } from '../lib/performance.js';
 import type { 
   IAppleScriptService, 
   AppleScriptResult, 
-  WindowBounds,
   ChromeWindow, 
   ChromeTab, 
   ScriptExecutionOptions 
@@ -19,7 +17,6 @@ import type {
 export class AppleScriptService implements IAppleScriptService {
   private readonly scriptCache: LRUCache<string, string>;
   private readonly connectionPool: Map<string, { lastUsed: number; windowIndex: number }>;
-  private readonly dataSanitizer: NetworkDataSanitizer;
   private readonly maxConnections = 5;
   private readonly connectionTTL = 30000; // 30 seconds
   private cacheHits = 0;
@@ -36,9 +33,6 @@ export class AppleScriptService implements IAppleScriptService {
 
     // Connection pool for Chrome operations
     this.connectionPool = new Map();
-    
-    // Data sanitizer for security
-    this.dataSanitizer = new NetworkDataSanitizer();
     
     // Pre-warm cache with common script patterns
     this.precompileCommonScripts();
@@ -462,14 +456,14 @@ end tell`;
           if (op.script.includes('execute javascript')) {
             // Extract the JavaScript from the AppleScript
             const jsMatch = op.script.match(/execute javascript "(.*)" in/);
-            if (jsMatch) {
+            if (jsMatch && jsMatch[1]) {
               const js = jsMatch[1].replace(/\\"/g, '"').replace(/\\\\/g, '\\');
               return this.executeJavaScript<T>(js, op.options) as Promise<AppleScriptResult<T>>;
             }
           }
           
           // Execute as raw AppleScript
-          const result = await this.executeScript(op.script, op.options?.timeout);
+          const result = await this.executeScript(op.script, op.options?.timeout || 30000);
           return result as AppleScriptResult<T>;
         })
       );

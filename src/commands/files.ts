@@ -2,7 +2,10 @@ import { execChromeJS, escapeAppleScriptString } from '../lib/apple.js';
 import { expandPath, validateInput, sleep, escapeCSSSelector, ERROR_CODES, type ErrorCode } from '../lib/util.js';
 import { SecurePathValidator } from '../security/PathValidator.js';
 import { appleScriptService } from '../services/AppleScriptService.js';
-import { Result, ok, error, isOk, type ResultContext } from '../core/index.js';
+import { Result } from '../core/index.js';
+import { type IServiceContainer } from '../di/ServiceContainer.js';
+import { type IAppleScriptService } from '../services/IAppleScriptService.js';
+import { SERVICE_TOKENS } from '../di/ServiceTokens.js';
 
 // Initialize path validator for secure file operations
 const pathValidator = new SecurePathValidator();
@@ -71,10 +74,10 @@ async function executeAppleScript(
     }
 
     // Check for AppleScript errors in the result
-    if (result.result?.includes('error') || result.result?.includes('ERROR')) {
+    if (result.data?.includes('error') || result.data?.includes('ERROR')) {
       return {
         success: false,
-        error: result.result.trim()
+        error: result.data.trim()
       };
     }
 
@@ -149,7 +152,7 @@ async function verifyFileInput(selector: string): Promise<{ exists: boolean; err
       return { exists: false, error: result.error || 'Failed to check file input' };
     }
 
-    return result.result || { exists: false, error: 'Invalid response from browser' };
+    return result.data || { exists: false, error: 'Invalid response from browser' };
   } catch (error) {
     return { exists: false, error: `Failed to verify file input: ${error}` };
   }
@@ -227,7 +230,7 @@ export async function uploadFiles(options: FileUploadOptions): Promise<LegacyFil
 `;
 
     const clickResult = await execChromeJS<boolean>(clickScript);
-    if (!clickResult.success || !clickResult.result) {
+    if (!clickResult.success || !clickResult.data) {
       return {
         success: false,
         filesUploaded: [],
@@ -352,7 +355,7 @@ end tell`;
       };
     }
 
-    const uploadedInfo = verifyResult.result || { fileCount: 0, files: [] };
+    const uploadedInfo = verifyResult.data || { fileCount: 0, files: [] };
     
     if (uploadedInfo.fileCount === 0) {
       return {
@@ -473,7 +476,7 @@ export async function dragDropFiles(options: FileUploadOptions): Promise<LegacyF
       };
     }
 
-    const dropResult = result.result;
+    const dropResult = result.data;
     if (!dropResult?.success) {
       return {
         success: false,
