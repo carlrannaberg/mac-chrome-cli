@@ -24,6 +24,9 @@ export interface GlobalConfiguration {
     enableConsole: boolean;
     enableFile: boolean;
     maxEntries: number;
+    enableCorrelationIds: boolean;
+    enableJson: boolean;
+    enablePerformanceLogging: boolean;
   };
 }
 

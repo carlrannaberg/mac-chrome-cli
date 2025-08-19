@@ -11,6 +11,7 @@ import type { ICacheService } from './ICacheService.js';
 import type { IPerformanceService } from './IPerformanceService.js';
 import type { ILoggerService } from './ILoggerService.js';
 import type { IConfigurationService } from './IConfigurationService.js';
+import type { IRateLimiterService } from './IRateLimiterService.js';
 import { SERVICE_TOKENS } from './ServiceTokens.js';
 
 /**
@@ -92,6 +93,17 @@ export abstract class ServiceAwareCommand {
     const result = await this.container.resolve(SERVICE_TOKENS.ConfigurationService);
     if (!result.success) {
       throw new Error(`Failed to resolve ConfigurationService: ${result.error}`);
+    }
+    return result.data;
+  }
+
+  /**
+   * Get rate limiter service
+   */
+  protected async getRateLimiterService(): Promise<IRateLimiterService> {
+    const result = await this.container.resolve(SERVICE_TOKENS.RateLimiterService);
+    if (!result.success) {
+      throw new Error(`Failed to resolve RateLimiterService: ${result.error}`);
     }
     return result.data;
   }

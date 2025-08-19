@@ -3,6 +3,10 @@ import { OutputFormatter, GlobalOptions } from './OutputFormatter.js';
 import { CommandRegistry } from './CommandRegistry.js';
 import { ErrorCode } from '../core/index.js';
 import { createFormattedResponse, ErrorUtils } from '../core/ErrorUtils.js';
+import { createServiceContainer } from '../di/ServiceRegistry.js';
+import { SERVICE_TOKENS } from '../di/ServiceTokens.js';
+import { initializeLogger } from '../lib/logger.js';
+import type { IServiceContainer } from '../di/ServiceContainer.js';
 
 /**
  * Main CLI application class
@@ -12,6 +16,7 @@ export class MacChromeCLI {
   private program: Command;
   private formatter: OutputFormatter;
   private registry: CommandRegistry;
+  private serviceContainer?: IServiceContainer;
 
   constructor() {
     this.program = new Command();
@@ -75,6 +80,25 @@ export class MacChromeCLI {
   }
 
   /**
+   * Initialize service container and global services
+   */
+  private async initializeServices(): Promise<void> {
+    try {
+      this.serviceContainer = await createServiceContainer();
+      
+      // Initialize global logger
+      const loggerResult = await this.serviceContainer.resolve(SERVICE_TOKENS.LoggerService);
+      if (loggerResult.success) {
+        initializeLogger(loggerResult.data);
+      }
+    } catch (error) {
+      // If service initialization fails, continue without DI services
+      // The logger utility will fall back to a basic logger
+      console.warn('Warning: Failed to initialize services, falling back to basic logging');
+    }
+  }
+
+  /**
    * Register all commands with the program
    */
   private async registerCommands(): Promise<void> {
@@ -87,6 +111,9 @@ export class MacChromeCLI {
    */
   async run(args?: string[]): Promise<void> {
     try {
+      // Initialize services first
+      await this.initializeServices();
+      
       // Register all commands
       await this.registerCommands();
       
@@ -136,5 +163,12 @@ export class MacChromeCLI {
    */
   getRegistry(): CommandRegistry {
     return this.registry;
+  }
+
+  /**
+   * Get the service container instance (for testing and command access)
+   */
+  getServiceContainer(): IServiceContainer | undefined {
+    return this.serviceContainer;
   }
 }

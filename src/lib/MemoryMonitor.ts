@@ -6,6 +6,7 @@
 import { LRUCache } from 'lru-cache';
 import { EventEmitter } from 'events';
 import { getMemoryUsage } from './performance.js';
+import { getLogger } from './logger.js';
 
 /**
  * Memory usage snapshot
@@ -149,7 +150,11 @@ export class MemoryMonitor extends EventEmitter {
         callback();
         cleanedItems++;
       } catch (error) {
-        console.warn('Memory cleanup callback failed:', error);
+        const logger = getLogger();
+        logger.error('Memory cleanup callback failed', error, 'memory-monitor', {
+          operation: 'cleanup',
+          item: cleanedItems
+        });
       }
     }
 
@@ -238,7 +243,12 @@ export class MemoryMonitor extends EventEmitter {
    * Handle memory warning events
    */
   private handleMemoryWarning(data: { warnings: string[]; snapshot: MemorySnapshot }): void {
-    console.warn('Memory usage warning:', data.warnings.join(', '));
+    const logger = getLogger();
+    logger.warn('Memory usage warning detected', 'memory-monitor', {
+      warnings: data.warnings,
+      memorySnapshot: data.snapshot,
+      operation: 'memory-warning'
+    });
     
     // Attempt automatic cleanup
     this.executeCleanup();
@@ -248,8 +258,13 @@ export class MemoryMonitor extends EventEmitter {
    * Handle potential leak detection
    */
   private handlePotentialLeak(detection: MemoryLeakDetection): void {
-    console.warn(`Potential memory leak detected (growth: ${detection.growthRate.toFixed(2)}MB/min):`);
-    detection.suggestions.forEach(suggestion => console.warn(`  - ${suggestion}`));
+    const logger = getLogger();
+    logger.security('Potential memory leak detected', 'memory-monitor', {
+      growthRate: detection.growthRate,
+      suggestions: detection.suggestions,
+      snapshotCount: detection.snapshots.length,
+      operation: 'leak-detection'
+    });
   }
 
   /**

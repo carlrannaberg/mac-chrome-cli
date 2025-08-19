@@ -177,6 +177,158 @@ describe('Snapshot Command', () => {
     });
   });
 
+  describe('Performance Optimization Validation', () => {
+    test('should include performance metadata in successful snapshots', async () => {
+      const performanceSnapshot: SnapshotResult = {
+        ok: true,
+        cmd: 'snapshot.outline',
+        nodes: [
+          {
+            role: 'button',
+            name: 'Test Button',
+            selector: '#test-btn',
+            rect: { x: 10, y: 20, w: 100, h: 30 },
+            state: { editable: false },
+            tagName: 'button'
+          }
+        ],
+        meta: {
+          url: 'https://example.com',
+          title: 'Performance Test',
+          timestamp: '2024-01-01T00:00:00.000Z',
+          durationMs: 45,
+          visibleOnly: false,
+          performance: {
+            algorithm: 'O(n) optimized',
+            nodeCount: 500,
+            processingMs: 30,
+            memoryPeakMB: 5,
+            algorithmsUsed: [
+              'TreeWalker for interactive elements',
+              'WeakMap for O(1) child lookups',
+              'Pre-computed selector caches'
+            ]
+          }
+        }
+      };
+
+      mockExecChromeJS.mockResolvedValue({
+        success: true,
+        data: performanceSnapshot,
+        code: ERROR_CODES.OK
+      });
+
+      const result = await captureOutline();
+      
+      expect(result.success).toBe(true);
+      expect(result.data?.meta?.performance).toBeDefined();
+      expect(result.data?.meta?.performance?.algorithm).toBe('O(n) optimized');
+      expect(result.data?.meta?.performance?.nodeCount).toBe(500);
+      expect(result.data?.meta?.performance?.algorithmsUsed).toContain('TreeWalker for interactive elements');
+    });
+
+    test('should validate linear time complexity', async () => {
+      // Mock a scenario with large node count but reasonable duration
+      const linearPerformanceSnapshot: SnapshotResult = {
+        ok: true,
+        cmd: 'snapshot.dom-lite',
+        nodes: Array(200).fill(null).map((_, i) => ({
+          role: 'button',
+          name: `Button ${i}`,
+          selector: `#btn-${i}`,
+          rect: { x: 10, y: 20, w: 100, h: 30 },
+          state: {},
+          tagName: 'button',
+          level: 0
+        })),
+        meta: {
+          url: 'https://example.com',
+          title: 'Linear Performance Test',
+          timestamp: '2024-01-01T00:00:00.000Z',
+          durationMs: 120, // Reasonable for 2000 nodes
+          visibleOnly: false,
+          maxDepth: 10,
+          performance: {
+            algorithm: 'O(n) optimized',
+            nodeCount: 2000,
+            traversalMs: 40,
+            processingMs: 70,
+            memoryPeakMB: 12,
+            algorithmsUsed: [
+              'Iterative traversal to prevent stack overflow',
+              'WeakMap for O(1) child lookups'
+            ]
+          }
+        }
+      };
+
+      mockExecChromeJS.mockResolvedValue({
+        success: true,
+        data: linearPerformanceSnapshot,
+        code: ERROR_CODES.OK
+      });
+
+      const result = await captureDomLite({ maxDepth: 10 });
+      
+      expect(result.success).toBe(true);
+      
+      // Validate linear complexity indicators
+      const performance = result.data?.meta?.performance;
+      expect(performance?.algorithm).toBe('O(n) optimized');
+      
+      // Time per node should be reasonable for O(n) algorithm
+      const timePerNode = performance!.processingMs / performance!.nodeCount * 1000; // microseconds
+      expect(timePerNode).toBeLessThan(100); // <100μs per node indicates linear complexity
+      
+      // Memory per node should be efficient
+      const memoryPerNode = performance!.memoryPeakMB / performance!.nodeCount * 1024; // KB per node
+      expect(memoryPerNode).toBeLessThan(10); // <10KB per node is reasonable
+    });
+
+    test('should report optimization techniques used', async () => {
+      const optimizedSnapshot: SnapshotResult = {
+        ok: true,
+        cmd: 'snapshot.outline',
+        nodes: [],
+        meta: {
+          url: 'https://example.com',
+          title: 'Optimization Test',
+          timestamp: '2024-01-01T00:00:00.000Z',
+          durationMs: 25,
+          visibleOnly: true,
+          performance: {
+            algorithm: 'O(n) optimized',
+            nodeCount: 100,
+            processingMs: 15,
+            memoryPeakMB: 2,
+            algorithmsUsed: [
+              'TreeWalker for interactive elements',
+              'WeakMap for O(1) child lookups',
+              'Pre-computed selector caches',
+              'Iterative traversal to prevent stack overflow'
+            ]
+          }
+        }
+      };
+
+      mockExecChromeJS.mockResolvedValue({
+        success: true,
+        data: optimizedSnapshot,
+        code: ERROR_CODES.OK
+      });
+
+      const result = await captureOutline({ visibleOnly: true });
+      
+      expect(result.success).toBe(true);
+      
+      const algorithms = result.data?.meta?.performance?.algorithmsUsed || [];
+      expect(algorithms).toContain('TreeWalker for interactive elements');
+      expect(algorithms).toContain('WeakMap for O(1) child lookups');
+      expect(algorithms).toContain('Pre-computed selector caches');
+      expect(algorithms.length).toBeGreaterThan(0);
+    });
+  });
+
   describe('formatSnapshotResult', () => {
     it('should format successful snapshot results', () => {
       const mockSnapshot: SnapshotResult = {

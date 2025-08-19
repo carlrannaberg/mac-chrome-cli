@@ -105,14 +105,53 @@ export class KeyboardCommand extends BrowserCommandBase {
    * @param options Keyboard typing options
    * @returns Promise resolving to keyboard action data or error
    * 
+   * @throws {MISSING_REQUIRED_PARAM} When text parameter is not provided
+   * @throws {INVALID_INPUT} When text is not a string, speed is out of range (1-2000ms), or repeat count invalid (1-50)
+   * @throws {CHROME_NOT_RUNNING} When Chrome browser is not running or accessible
+   * @throws {CHROME_NOT_FOUND} When Chrome application cannot be found on system
+   * @throws {WINDOW_NOT_FOUND} When specified window index does not exist
+   * @throws {TAB_NOT_FOUND} When no active tab exists in the specified window
+   * @throws {ELEMENT_NOT_INTERACTABLE} When current focused element cannot receive text input
+   * @throws {PERMISSION_DENIED} When system permissions block keyboard automation
+   * @throws {ACCESSIBILITY_DENIED} When accessibility permissions not granted for automation
+   * @throws {APPLE_EVENTS_DENIED} When Apple Events permissions not granted for Chrome control
+   * @throws {KEYBOARD_INPUT_FAILED} When keyboard input operation fails at system level
+   * @throws {APPLESCRIPT_ERROR} When underlying AppleScript execution fails
+   * @throws {TIMEOUT} When typing operation exceeds timeout limits
+   * @throws {SYSTEM_ERROR} When system-level errors prevent keyboard operation
+   * @throws {UNKNOWN_ERROR} When an unexpected error occurs during typing
+   * 
    * @example
    * ```typescript
-   * // Type text slowly
-   * const result = await keyboardCmd.type({
-   *   text: 'Hello, World!',
-   *   speed: 100,
-   *   clear: true
-   * });
+   * // Type text with error handling
+   * try {
+   *   const result = await keyboardCmd.type({
+   *     text: 'Hello, World!',
+   *     speed: 100,
+   *     clear: true
+   *   });
+   *   
+   *   if (!result.success) {
+   *     switch (result.code) {
+   *       case ErrorCode.MISSING_REQUIRED_PARAM:
+   *         console.log('Text parameter is required for typing');
+   *         break;
+   *       case ErrorCode.CHROME_NOT_RUNNING:
+   *         console.log('Start Chrome browser first');
+   *         break;
+   *       case ErrorCode.ELEMENT_NOT_INTERACTABLE:
+   *         console.log('Focus on input field before typing');
+   *         break;
+   *       case ErrorCode.ACCESSIBILITY_DENIED:
+   *         console.log('Grant accessibility permissions in System Preferences');
+   *         break;
+   *     }
+   *   } else {
+   *     console.log(`Typed: "${result.data.input}" using ${result.data.method}`);
+   *   }
+   * } catch (error) {
+   *   console.error('Unexpected typing error:', error);
+   * }
    * 
    * // Type with default speed
    * const fastResult = await keyboardCmd.type({
@@ -141,12 +180,48 @@ export class KeyboardCommand extends BrowserCommandBase {
    * @param options Keyboard combination options
    * @returns Promise resolving to keyboard action data or error
    * 
+   * @throws {MISSING_REQUIRED_PARAM} When combo parameter is not provided
+   * @throws {INVALID_INPUT} When combo format is invalid, speed out of range (1-2000ms), or repeat count invalid (1-50)
+   * @throws {CHROME_NOT_RUNNING} When Chrome browser is not running or accessible
+   * @throws {CHROME_NOT_FOUND} When Chrome application cannot be found on system
+   * @throws {WINDOW_NOT_FOUND} When specified window index does not exist
+   * @throws {TAB_NOT_FOUND} When no active tab exists in the specified window
+   * @throws {PERMISSION_DENIED} When system permissions block keyboard automation
+   * @throws {ACCESSIBILITY_DENIED} When accessibility permissions not granted for automation
+   * @throws {APPLE_EVENTS_DENIED} When Apple Events permissions not granted for Chrome control
+   * @throws {KEYBOARD_INPUT_FAILED} When keyboard combination operation fails at system level
+   * @throws {APPLESCRIPT_ERROR} When underlying AppleScript execution fails
+   * @throws {TIMEOUT} When keyboard combination exceeds timeout limits
+   * @throws {SYSTEM_ERROR} When system-level errors prevent keyboard operation
+   * @throws {UNKNOWN_ERROR} When an unexpected error occurs during keyboard combination
+   * 
    * @example
    * ```typescript
-   * // Save shortcut
-   * const result = await keyboardCmd.combo({
-   *   combo: 'cmd+s'
-   * });
+   * // Keyboard shortcut with error handling
+   * try {
+   *   const result = await keyboardCmd.combo({
+   *     combo: 'cmd+s'
+   *   });
+   *   
+   *   if (!result.success) {
+   *     switch (result.code) {
+   *       case ErrorCode.MISSING_REQUIRED_PARAM:
+   *         console.log('Combo parameter is required');
+   *         break;
+   *       case ErrorCode.INVALID_INPUT:
+   *         console.log('Invalid combo format - use format like "cmd+s"');
+   *         break;
+   *       case ErrorCode.CHROME_NOT_RUNNING:
+   *         console.log('Chrome browser not running');
+   *         break;
+   *       case ErrorCode.ACCESSIBILITY_DENIED:
+   *         console.log('Grant accessibility permissions for keyboard shortcuts');
+   *         break;
+   *     }
+   *   }
+   * } catch (error) {
+   *   console.error('Unexpected combo error:', error);
+   * }
    * 
    * // Copy shortcut with repeat
    * const copyResult = await keyboardCmd.combo({
@@ -176,12 +251,45 @@ export class KeyboardCommand extends BrowserCommandBase {
    * @param options Key press options
    * @returns Promise resolving to keyboard action data or error
    * 
+   * @throws {MISSING_REQUIRED_PARAM} When key parameter is not provided
+   * @throws {INVALID_INPUT} When key is not a string, speed out of range (1-2000ms), or repeat count invalid (1-50)
+   * @throws {CHROME_NOT_RUNNING} When Chrome browser is not running or accessible
+   * @throws {CHROME_NOT_FOUND} When Chrome application cannot be found on system
+   * @throws {WINDOW_NOT_FOUND} When specified window index does not exist
+   * @throws {TAB_NOT_FOUND} When no active tab exists in the specified window
+   * @throws {PERMISSION_DENIED} When system permissions block keyboard automation
+   * @throws {ACCESSIBILITY_DENIED} When accessibility permissions not granted for automation
+   * @throws {APPLE_EVENTS_DENIED} When Apple Events permissions not granted for Chrome control
+   * @throws {KEYBOARD_INPUT_FAILED} When key press operation fails at system level
+   * @throws {APPLESCRIPT_ERROR} When underlying AppleScript execution fails
+   * @throws {TIMEOUT} When key press operation exceeds timeout limits
+   * @throws {SYSTEM_ERROR} When system-level errors prevent keyboard operation
+   * @throws {UNKNOWN_ERROR} When an unexpected error occurs during key press
+   * 
    * @example
    * ```typescript
-   * // Press Enter key
-   * const result = await keyboardCmd.press({
-   *   key: 'Enter'
-   * });
+   * // Press special key with error handling
+   * try {
+   *   const result = await keyboardCmd.press({
+   *     key: 'Enter'
+   *   });
+   *   
+   *   if (!result.success) {
+   *     switch (result.code) {
+   *       case ErrorCode.MISSING_REQUIRED_PARAM:
+   *         console.log('Key parameter is required');
+   *         break;
+   *       case ErrorCode.CHROME_NOT_RUNNING:
+   *         console.log('Chrome browser not running');
+   *         break;
+   *       case ErrorCode.ACCESSIBILITY_DENIED:
+   *         console.log('Grant accessibility permissions for key simulation');
+   *         break;
+   *     }
+   *   }
+   * } catch (error) {
+   *   console.error('Unexpected key press error:', error);
+   * }
    * 
    * // Press Tab key multiple times
    * const tabResult = await keyboardCmd.press({
@@ -208,11 +316,44 @@ export class KeyboardCommand extends BrowserCommandBase {
   /**
    * Clear the current input field
    * 
+   * @param windowIndex Target window index (1-based, default: 1)
    * @returns Promise resolving to keyboard action data or error
+   * 
+   * @throws {CHROME_NOT_RUNNING} When Chrome browser is not running or accessible
+   * @throws {CHROME_NOT_FOUND} When Chrome application cannot be found on system
+   * @throws {WINDOW_NOT_FOUND} When specified window index does not exist
+   * @throws {TAB_NOT_FOUND} When no active tab exists in the specified window
+   * @throws {ELEMENT_NOT_INTERACTABLE} When current focused element cannot be cleared
+   * @throws {PERMISSION_DENIED} When system permissions block keyboard automation
+   * @throws {ACCESSIBILITY_DENIED} When accessibility permissions not granted for automation
+   * @throws {APPLE_EVENTS_DENIED} When Apple Events permissions not granted for Chrome control
+   * @throws {KEYBOARD_INPUT_FAILED} When field clearing operation fails at system level
+   * @throws {APPLESCRIPT_ERROR} When underlying AppleScript execution fails
+   * @throws {TIMEOUT} When field clearing exceeds timeout limits
+   * @throws {SYSTEM_ERROR} When system-level errors prevent keyboard operation
+   * @throws {UNKNOWN_ERROR} When an unexpected error occurs during field clearing
    * 
    * @example
    * ```typescript
-   * const result = await keyboardCmd.clear();
+   * // Clear input field with error handling
+   * try {
+   *   const result = await keyboardCmd.clear();
+   *   if (!result.success) {
+   *     switch (result.code) {
+   *       case ErrorCode.CHROME_NOT_RUNNING:
+   *         console.log('Chrome browser not running');
+   *         break;
+   *       case ErrorCode.ELEMENT_NOT_INTERACTABLE:
+   *         console.log('No input field focused or field cannot be cleared');
+   *         break;
+   *       case ErrorCode.ACCESSIBILITY_DENIED:
+   *         console.log('Grant accessibility permissions for field clearing');
+   *         break;
+   *     }
+   *   }
+   * } catch (error) {
+   *   console.error('Unexpected clear error:', error);
+   * }
    * ```
    */
   async clear(
@@ -233,10 +374,41 @@ export class KeyboardCommand extends BrowserCommandBase {
    * @param repeat Number of times to repeat the shortcut
    * @returns Promise resolving to keyboard action data or error
    * 
+   * @throws {INVALID_INPUT} When repeat count is out of range (1-10)
+   * @throws {CHROME_NOT_RUNNING} When Chrome browser is not running or accessible
+   * @throws {CHROME_NOT_FOUND} When Chrome application cannot be found on system
+   * @throws {WINDOW_NOT_FOUND} When specified window index does not exist
+   * @throws {TAB_NOT_FOUND} When no active tab exists in the specified window
+   * @throws {PERMISSION_DENIED} When system permissions block keyboard automation
+   * @throws {ACCESSIBILITY_DENIED} When accessibility permissions not granted for automation
+   * @throws {APPLE_EVENTS_DENIED} When Apple Events permissions not granted for Chrome control
+   * @throws {KEYBOARD_INPUT_FAILED} When shortcut execution fails at system level
+   * @throws {APPLESCRIPT_ERROR} When underlying AppleScript execution fails
+   * @throws {TIMEOUT} When shortcut execution exceeds timeout limits
+   * @throws {SYSTEM_ERROR} When system-level errors prevent keyboard operation
+   * @throws {UNKNOWN_ERROR} When an unexpected error occurs during shortcut execution
+   * 
    * @example
    * ```typescript
-   * // Copy shortcut
-   * const result = await keyboardCmd.shortcut('copy');
+   * // Execute predefined shortcut with error handling
+   * try {
+   *   const result = await keyboardCmd.shortcut('copy');
+   *   if (!result.success) {
+   *     switch (result.code) {
+   *       case ErrorCode.INVALID_INPUT:
+   *         console.log('Invalid repeat count - must be 1-10');
+   *         break;
+   *       case ErrorCode.CHROME_NOT_RUNNING:
+   *         console.log('Chrome browser not running');
+   *         break;
+   *       case ErrorCode.ACCESSIBILITY_DENIED:
+   *         console.log('Grant accessibility permissions for shortcuts');
+   *         break;
+   *     }
+   *   }
+   * } catch (error) {
+   *   console.error('Unexpected shortcut error:', error);
+   * }
    * 
    * // Multiple refresh
    * const refreshResult = await keyboardCmd.shortcut('refresh', 3);
@@ -283,7 +455,7 @@ export class KeyboardCommand extends BrowserCommandBase {
    * @returns Validated options or validation error
    */
   private validateTypeOptions(options: KeyboardOptions): Result<void, string> {
-    if (!options.text) {
+    if (options.text === undefined || options.text === null) {
       return error(
         'Text is required for typing operation',
         ErrorCode.MISSING_REQUIRED_PARAM,
@@ -489,19 +661,7 @@ export class KeyboardCommand extends BrowserCommandBase {
     const duration = Date.now() - startTime;
     
     if (!libResult.success) {
-      throw error(
-        libResult.error || 'Keyboard operation failed',
-        libResult.code,
-        {
-          recoveryHint: this.getRecoveryHint(libResult.code),
-          durationMs: duration,
-          metadata: {
-            operation: action,
-            originalCode: libResult.code,
-            input: options.text || options.combo || options.key || 'clear'
-          }
-        }
-      );
+      throw new Error(libResult.error || 'Keyboard operation failed');
     }
     
     // Build successful result data

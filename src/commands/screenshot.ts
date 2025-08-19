@@ -26,8 +26,10 @@
  */
 
 import { BrowserCommandBase } from '../core/CommandBase.js';
+import { RateLimitedBrowserCommandBase, RateLimitUtils, type RateLimitedCommandOptions } from '../core/RateLimitedCommandBase.js';
 import { Result, ok, error } from '../core/Result.js';
 import { ErrorCode } from '../core/ErrorCodes.js';
+import type { IServiceContainer } from '../di/ServiceContainer.js';
 import { 
   captureViewport, 
   captureWindow, 
@@ -64,7 +66,7 @@ class ScreenshotError extends Error {
 /**
  * Screenshot capture options with enhanced validation and type safety
  */
-export interface ScreenshotOptions {
+export interface ScreenshotOptions extends RateLimitedCommandOptions {
   /** Custom output path or auto-generate with timestamp */
   outputPath?: string;
   /** Image format selection */
@@ -110,12 +112,16 @@ export interface ScreenshotData {
 }
 
 /**
- * Screenshot command implementation with service-oriented architecture
+ * Screenshot command implementation with service-oriented architecture and rate limiting
  * 
  * Provides type-safe screenshot capture methods with comprehensive error handling,
- * validation, and integration with the unified Result pattern.
+ * validation, rate limiting, and integration with the unified Result pattern.
  */
-export class ScreenshotCommand extends BrowserCommandBase {
+export class ScreenshotCommand extends RateLimitedBrowserCommandBase {
+  
+  constructor(container: IServiceContainer) {
+    super(container);
+  }
   
   /**
    * Capture screenshot of the browser viewport (visible content area)
@@ -123,52 +129,106 @@ export class ScreenshotCommand extends BrowserCommandBase {
    * @param options Screenshot capture options
    * @returns Promise resolving to screenshot data or error
    * 
+   * @throws {INVALID_INPUT} When format, quality, previewMaxSize, or windowIndex parameters are invalid
+   * @throws {INVALID_FILE_PATH} When outputPath is malformed or inaccessible
+   * @throws {DIRECTORY_NOT_FOUND} When output directory doesn't exist and cannot be created
+   * @throws {SCREEN_RECORDING_DENIED} When screen recording permissions not granted in System Preferences
+   * @throws {CHROME_NOT_RUNNING} When Chrome browser is not running or accessible
+   * @throws {CHROME_NOT_FOUND} When Chrome application cannot be found on system
+   * @throws {WINDOW_NOT_FOUND} When specified window index does not exist
+   * @throws {TAB_NOT_FOUND} When no active tab exists in the specified window
+   * @throws {SCREEN_CAPTURE_FAILED} When screenshot capture operation fails
+   * @throws {FILE_WRITE_ERROR} When screenshot file cannot be written to specified path
+   * @throws {DISK_FULL} When insufficient disk space to save screenshot file
+   * @throws {PERMISSION_DENIED} When file system permissions prevent writing screenshot
+   * @throws {TIMEOUT} When screenshot capture exceeds time limits
+   * @throws {MEMORY_ERROR} When insufficient memory to capture or process screenshot
+   * @throws {APPLESCRIPT_ERROR} When underlying AppleScript execution fails
+   * @throws {SYSTEM_ERROR} When system-level errors prevent screenshot capture
+   * @throws {UNKNOWN_ERROR} When an unexpected error occurs during screenshot capture
+   * 
    * @example
    * ```typescript
-   * const result = await screenshotCmd.viewport({
-   *   format: 'png',
-   *   preview: true,
-   *   windowIndex: 1
-   * });
-   * 
-   * if (result.success) {
-   *   console.log(`Screenshot saved to: ${result.data.path}`);
-   *   if (result.data.preview) {
-   *     console.log(`Preview size: ${result.data.preview.size} bytes`);
+   * // Basic viewport screenshot with error handling
+   * try {
+   *   const result = await screenshotCmd.viewport({
+   *     format: 'png',
+   *     preview: true,
+   *     windowIndex: 1
+   *   });
+   *   
+   *   if (!result.success) {
+   *     switch (result.code) {
+   *       case ErrorCode.SCREEN_RECORDING_DENIED:
+   *         console.log('Enable Screen Recording in System Preferences > Privacy & Security');
+   *         break;
+   *       case ErrorCode.CHROME_NOT_RUNNING:
+   *         console.log('Start Chrome browser and try again');
+   *         break;
+   *       case ErrorCode.WINDOW_NOT_FOUND:
+   *         console.log('Specified window does not exist');
+   *         break;
+   *       case ErrorCode.DISK_FULL:
+   *         console.log('Free up disk space and try again');
+   *         break;
+   *     }
+   *   } else {
+   *     console.log(`Screenshot saved to: ${result.data.path}`);
+   *     if (result.data.preview) {
+   *       console.log(`Preview size: ${result.data.preview.size} bytes`);
+   *     }
    *   }
+   * } catch (error) {
+   *   console.error('Unexpected screenshot error:', error);
    * }
    * ```
    */
   async viewport(options: ScreenshotOptions = {}): Promise<Result<ScreenshotData, string>> {
-    const startTime = Date.now();
-    
-    // Validate options
+    // Validate options first
     const validationResult = this.validateScreenshotOptions(options);
     if (!validationResult.success) {
       return validationResult as Result<ScreenshotData, string>;
     }
     
-    try {
-      // Convert to library options format
-      const libOptions: LibScreenshotOptions = {
-        ...(options.outputPath && { outputPath: options.outputPath }),
-        ...(options.format && { format: options.format }),
-        ...(options.quality && { quality: options.quality }),
-        ...(options.preview !== undefined && { preview: options.preview }),
-        ...(options.previewMaxSize && { previewMaxSize: options.previewMaxSize })
-      };
-      
-      const libResult = await captureViewport(libOptions, options.windowIndex);
-      const convertedResult = this.convertLibResult(libResult, 'viewport_screenshot', startTime);
-      
-      if (!convertedResult.success) {
-        return convertedResult;
+    // Create operation ID for rate limiting
+    const operationId = RateLimitUtils.createOperationId('screenshot', 'viewport');
+    
+    // Execute with rate limiting
+    const rateLimitedResult = await this.executeRateLimitedOperation(
+      async () => {
+        const startTime = Date.now();
+        
+        // Convert to library options format
+        const libOptions: LibScreenshotOptions = {
+          ...(options.outputPath && { outputPath: options.outputPath }),
+          ...(options.format && { format: options.format }),
+          ...(options.quality && { quality: options.quality }),
+          ...(options.preview !== undefined && { preview: options.preview }),
+          ...(options.previewMaxSize && { previewMaxSize: options.previewMaxSize })
+        };
+        
+        const libResult = await captureViewport(libOptions, options.windowIndex);
+        const convertedResult = this.convertLibResult(libResult, 'viewport_screenshot', startTime);
+        
+        if (!convertedResult.success) {
+          throw new Error(convertedResult.error);
+        }
+        
+        return convertedResult.data;
+      },
+      operationId,
+      {
+        ...options,
+        operationWeight: 2, // Screenshots are resource-intensive
+        rateLimitMetadata: {
+          format: options.format || 'png',
+          preview: options.preview,
+          windowIndex: options.windowIndex
+        }
       }
-      
-      return ok(convertedResult.data);
-    } catch (error) {
-      return error(`Viewport screenshot failed: ${error instanceof Error ? error.message : String(error)}`, ErrorCode.UNKNOWN_ERROR);
-    }
+    );
+    
+    return rateLimitedResult.result;
   }
   
   /**
@@ -177,13 +237,49 @@ export class ScreenshotCommand extends BrowserCommandBase {
    * @param options Screenshot capture options
    * @returns Promise resolving to screenshot data or error
    * 
+   * @throws {INVALID_INPUT} When format, quality, previewMaxSize, or windowIndex parameters are invalid
+   * @throws {INVALID_FILE_PATH} When outputPath is malformed or inaccessible
+   * @throws {DIRECTORY_NOT_FOUND} When output directory doesn't exist and cannot be created
+   * @throws {SCREEN_RECORDING_DENIED} When screen recording permissions not granted in System Preferences
+   * @throws {CHROME_NOT_RUNNING} When Chrome browser is not running or accessible
+   * @throws {CHROME_NOT_FOUND} When Chrome application cannot be found on system
+   * @throws {WINDOW_NOT_FOUND} When specified window index does not exist
+   * @throws {SCREEN_CAPTURE_FAILED} When screenshot capture operation fails
+   * @throws {FILE_WRITE_ERROR} When screenshot file cannot be written to specified path
+   * @throws {DISK_FULL} When insufficient disk space to save screenshot file
+   * @throws {PERMISSION_DENIED} When file system permissions prevent writing screenshot
+   * @throws {TIMEOUT} When screenshot capture exceeds time limits
+   * @throws {MEMORY_ERROR} When insufficient memory to capture or process screenshot
+   * @throws {APPLESCRIPT_ERROR} When underlying AppleScript execution fails
+   * @throws {SYSTEM_ERROR} When system-level errors prevent screenshot capture
+   * @throws {UNKNOWN_ERROR} When an unexpected error occurs during screenshot capture
+   * 
    * @example
    * ```typescript
-   * const result = await screenshotCmd.window({
-   *   format: 'jpg',
-   *   quality: 85,
-   *   outputPath: './window-capture.jpg'
-   * });
+   * // Window screenshot with error handling
+   * try {
+   *   const result = await screenshotCmd.window({
+   *     format: 'jpg',
+   *     quality: 85,
+   *     outputPath: './window-capture.jpg'
+   *   });
+   *   
+   *   if (!result.success) {
+   *     switch (result.code) {
+   *       case ErrorCode.SCREEN_RECORDING_DENIED:
+   *         console.log('Grant screen recording permissions in System Preferences');
+   *         break;
+   *       case ErrorCode.INVALID_FILE_PATH:
+   *         console.log('Check output path and permissions');
+   *         break;
+   *       case ErrorCode.WINDOW_NOT_FOUND:
+   *         console.log('Window not found - check window index');
+   *         break;
+   *     }
+   *   }
+   * } catch (error) {
+   *   console.error('Unexpected window screenshot error:', error);
+   * }
    * ```
    */
   async window(options: ScreenshotOptions = {}): Promise<Result<ScreenshotData, string>> {
@@ -233,25 +329,69 @@ export class ScreenshotCommand extends BrowserCommandBase {
    * @param options Screenshot capture options
    * @returns Promise resolving to screenshot data or error
    * 
+   * @throws {INVALID_SELECTOR} When CSS selector is malformed or invalid
+   * @throws {INVALID_INPUT} When format, quality, previewMaxSize, or windowIndex parameters are invalid
+   * @throws {INVALID_FILE_PATH} When outputPath is malformed or inaccessible
+   * @throws {DIRECTORY_NOT_FOUND} When output directory doesn't exist and cannot be created
+   * @throws {TARGET_NOT_FOUND} When specified element selector matches no elements on page
+   * @throws {ELEMENT_NOT_VISIBLE} When target element exists but is not visible in viewport
+   * @throws {ELEMENT_NOT_INTERACTABLE} When target element cannot be captured (hidden, disabled)
+   * @throws {TARGET_OUTSIDE_VIEWPORT} When element is outside the visible viewport area
+   * @throws {MULTIPLE_TARGETS_FOUND} When selector matches multiple elements (ambiguous target)
+   * @throws {SCREEN_RECORDING_DENIED} When screen recording permissions not granted in System Preferences
+   * @throws {CHROME_NOT_RUNNING} When Chrome browser is not running or accessible
+   * @throws {CHROME_NOT_FOUND} When Chrome application cannot be found on system
+   * @throws {WINDOW_NOT_FOUND} When specified window index does not exist
+   * @throws {TAB_NOT_FOUND} When no active tab exists in the specified window
+   * @throws {JAVASCRIPT_ERROR} When JavaScript execution fails during element location
+   * @throws {SCREEN_CAPTURE_FAILED} When screenshot capture operation fails
+   * @throws {FILE_WRITE_ERROR} When screenshot file cannot be written to specified path
+   * @throws {DISK_FULL} When insufficient disk space to save screenshot file
+   * @throws {PERMISSION_DENIED} When file system permissions prevent writing screenshot
+   * @throws {TIMEOUT} When element location or screenshot capture exceeds time limits
+   * @throws {MEMORY_ERROR} When insufficient memory to capture or process screenshot
+   * @throws {APPLESCRIPT_ERROR} When underlying AppleScript execution fails
+   * @throws {SYSTEM_ERROR} When system-level errors prevent screenshot capture
+   * @throws {UNKNOWN_ERROR} When an unexpected error occurs during element screenshot
+   * 
    * @example
    * ```typescript
-   * const result = await screenshotCmd.element('#header', {
-   *   format: 'png',
-   *   preview: false
-   * });
-   * 
-   * if (!result.success) {
-   *   console.error('Element screenshot failed:', result.error);
-   *   // Check for recovery suggestions
-   *   if (result.context?.recoveryHint === 'check_target') {
-   *     console.log('Verify element exists and is visible');
+   * // Element screenshot with comprehensive error handling
+   * try {
+   *   const result = await screenshotCmd.element('#header', {
+   *     format: 'png',
+   *     preview: false
+   *   });
+   *   
+   *   if (!result.success) {
+   *     switch (result.code) {
+   *       case ErrorCode.INVALID_SELECTOR:
+   *         console.log('Check CSS selector syntax');
+   *         break;
+   *       case ErrorCode.TARGET_NOT_FOUND:
+   *         console.log('Element not found - verify selector and page content');
+   *         break;
+   *       case ErrorCode.ELEMENT_NOT_VISIBLE:
+   *         console.log('Element exists but is not visible - scroll to bring into view');
+   *         break;
+   *       case ErrorCode.MULTIPLE_TARGETS_FOUND:
+   *         console.log('Selector matches multiple elements - use more specific selector');
+   *         break;
+   *       case ErrorCode.SCREEN_RECORDING_DENIED:
+   *         console.log('Grant screen recording permissions in System Preferences');
+   *         break;
+   *     }
+   *     // Check for recovery suggestions
+   *     if (result.context?.recoveryHint === 'check_target') {
+   *       console.log('Verify element exists and is visible');
+   *     }
    *   }
+   * } catch (error) {
+   *   console.error('Unexpected element screenshot error:', error);
    * }
    * ```
    */
   async element(selector: string, options: ScreenshotOptions = {}): Promise<Result<ScreenshotData, string>> {
-    const startTime = Date.now();
-    
     // Validate selector
     const selectorValidation = this.validateSelector(selector);
     if (!selectorValidation.success) {
@@ -267,35 +407,45 @@ export class ScreenshotCommand extends BrowserCommandBase {
       return validationResult as Result<ScreenshotData, string>;
     }
     
-    // Use custom retry logic that excludes screenshot-specific errors
-    return this.executeCommand(async () => {
-      const libOptions: LibScreenshotOptions = {
-        ...(options.outputPath && { outputPath: options.outputPath }),
-        ...(options.format && { format: options.format }),
-        ...(options.quality && { quality: options.quality }),
-        ...(options.preview !== undefined && { preview: options.preview }),
-        ...(options.previewMaxSize && { previewMaxSize: options.previewMaxSize })
-      };
-      
-      const libResult = await captureElement(selector, libOptions, options.windowIndex);
-      const convertedResult = this.convertLibResult(libResult, 'element_screenshot', startTime);
-      
-      if (!convertedResult.success) {
-        // Throw custom error that preserves error code and context
-        // Create custom error that preserves error code and context
-        const customError = new ScreenshotError(
-          convertedResult.error,
-          convertedResult.code,
-          convertedResult.context?.recoveryHint as 'retry' | 'permission' | 'check_target' | 'not_recoverable' || 'retry',
-          convertedResult.context?.metadata as Record<string, unknown>
-        );
-        throw customError;
+    // Create operation ID for rate limiting
+    const operationId = RateLimitUtils.createOperationId('screenshot', 'element', selector);
+    
+    // Execute with rate limiting
+    const rateLimitedResult = await this.executeRateLimitedOperation(
+      async () => {
+        const startTime = Date.now();
+        
+        const libOptions: LibScreenshotOptions = {
+          ...(options.outputPath && { outputPath: options.outputPath }),
+          ...(options.format && { format: options.format }),
+          ...(options.quality && { quality: options.quality }),
+          ...(options.preview !== undefined && { preview: options.preview }),
+          ...(options.previewMaxSize && { previewMaxSize: options.previewMaxSize })
+        };
+        
+        const libResult = await captureElement(selector, libOptions, options.windowIndex);
+        const convertedResult = this.convertLibResult(libResult, 'element_screenshot', startTime);
+        
+        if (!convertedResult.success) {
+          throw new Error(convertedResult.error);
+        }
+        
+        return convertedResult.data;
+      },
+      operationId,
+      {
+        ...options,
+        operationWeight: 3, // Element screenshots are slightly more expensive
+        rateLimitMetadata: {
+          selector,
+          format: options.format || 'png',
+          preview: options.preview,
+          windowIndex: options.windowIndex
+        }
       }
-      
-      return convertedResult.data;
-    }, 'element_screenshot', {
-      maxAttempts: 1  // No retries for screenshots
-    });
+    );
+    
+    return rateLimitedResult.result;
   }
   
   /**
@@ -304,12 +454,49 @@ export class ScreenshotCommand extends BrowserCommandBase {
    * @param options Screenshot capture options (windowIndex ignored for fullscreen)
    * @returns Promise resolving to screenshot data or error
    * 
+   * @throws {INVALID_INPUT} When format, quality, or previewMaxSize parameters are invalid
+   * @throws {INVALID_FILE_PATH} When outputPath is malformed or inaccessible
+   * @throws {DIRECTORY_NOT_FOUND} When output directory doesn't exist and cannot be created
+   * @throws {SCREEN_RECORDING_DENIED} When screen recording permissions not granted in System Preferences
+   * @throws {SCREEN_CAPTURE_FAILED} When fullscreen screenshot capture operation fails
+   * @throws {FILE_WRITE_ERROR} When screenshot file cannot be written to specified path
+   * @throws {DISK_FULL} When insufficient disk space to save screenshot file
+   * @throws {PERMISSION_DENIED} When file system permissions prevent writing screenshot
+   * @throws {TIMEOUT} When screenshot capture exceeds time limits
+   * @throws {MEMORY_ERROR} When insufficient memory to capture or process fullscreen screenshot
+   * @throws {APPLESCRIPT_ERROR} When underlying AppleScript execution fails
+   * @throws {SYSTEM_ERROR} When system-level errors prevent screenshot capture
+   * @throws {UNKNOWN_ERROR} When an unexpected error occurs during fullscreen capture
+   * 
    * @example
    * ```typescript
-   * const result = await screenshotCmd.fullscreen({
-   *   format: 'pdf',
-   *   outputPath: './fullscreen-capture.pdf'
-   * });
+   * // Fullscreen screenshot with error handling
+   * try {
+   *   const result = await screenshotCmd.fullscreen({
+   *     format: 'pdf',
+   *     outputPath: './fullscreen-capture.pdf'
+   *   });
+   *   
+   *   if (!result.success) {
+   *     switch (result.code) {
+   *       case ErrorCode.SCREEN_RECORDING_DENIED:
+   *         console.log('Enable Screen Recording in System Preferences > Privacy & Security');
+   *         console.log('Add your terminal application to the allowed apps list');
+   *         break;
+   *       case ErrorCode.INVALID_FILE_PATH:
+   *         console.log('Check output path and ensure directory exists');
+   *         break;
+   *       case ErrorCode.DISK_FULL:
+   *         console.log('Free up disk space - fullscreen captures can be large');
+   *         break;
+   *       case ErrorCode.MEMORY_ERROR:
+   *         console.log('Insufficient memory for fullscreen capture - close other apps');
+   *         break;
+   *     }
+   *   }
+   * } catch (error) {
+   *   console.error('Unexpected fullscreen screenshot error:', error);
+   * }
    * ```
    */
   async fullscreen(options: ScreenshotOptions = {}): Promise<Result<ScreenshotData, string>> {

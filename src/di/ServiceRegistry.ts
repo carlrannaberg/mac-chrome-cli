@@ -14,6 +14,7 @@ import { CacheService } from './services/CacheService.js';
 import { PerformanceService } from './services/PerformanceService.js';
 import { LoggerService } from './services/LoggerService.js';
 import { ConfigurationService } from './services/ConfigurationService.js';
+import { RateLimiterService } from './services/RateLimiterService.js';
 
 /**
  * Register all application services with the container
@@ -35,12 +36,23 @@ export async function registerServices(container: IServiceContainer): Promise<vo
       }
       const config = configResult.data;
       
-      const loggingConfig = config.get<{ level?: string; enableConsole?: boolean; enableFile?: boolean; maxEntries?: number }>('logging');
+      const loggingConfig = config.get<{ 
+        level?: string; 
+        enableConsole?: boolean; 
+        enableFile?: boolean; 
+        maxEntries?: number;
+        enableCorrelationIds?: boolean;
+        enableJson?: boolean;
+        enablePerformanceLogging?: boolean;
+      }>('logging');
       return new LoggerService({
         level: getLogLevel(loggingConfig?.level),
         enableConsole: loggingConfig?.enableConsole ?? true,
         enableFile: loggingConfig?.enableFile ?? false,
-        maxEntries: loggingConfig?.maxEntries ?? 1000
+        maxEntries: loggingConfig?.maxEntries ?? 1000,
+        enableCorrelationIds: loggingConfig?.enableCorrelationIds ?? true,
+        enableJson: loggingConfig?.enableJson ?? false,
+        enablePerformanceLogging: loggingConfig?.enablePerformanceLogging ?? true
       });
     },
     [SERVICE_TOKENS.ConfigurationService]
@@ -91,6 +103,20 @@ export async function registerServices(container: IServiceContainer): Promise<vo
   container.registerSingleton(
     SERVICE_TOKENS.PathValidator,
     () => new SecurePathValidator()
+  );
+
+  // Rate limiter service - depends on configuration
+  container.registerSingleton(
+    SERVICE_TOKENS.RateLimiterService,
+    async (serviceContainer) => {
+      const configResult = await serviceContainer.resolve(SERVICE_TOKENS.ConfigurationService);
+      if (!configResult.success) {
+        throw new Error(`Failed to resolve ConfigurationService: ${configResult.error}`);
+      }
+      
+      return new RateLimiterService();
+    },
+    [SERVICE_TOKENS.ConfigurationService]
   );
 
   // AppleScript service - depends on data sanitizer and performance service

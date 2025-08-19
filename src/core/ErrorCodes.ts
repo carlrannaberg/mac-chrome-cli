@@ -80,6 +80,7 @@ export enum ErrorCode {
   RESOURCE_UNAVAILABLE = 82,
   PROCESS_FAILED = 83,
   SYSTEM_ERROR = 84,
+  RATE_LIMITED = 85,
 
   // AppleScript/Automation Errors (90-98)
   APPLESCRIPT_ERROR = 90,
@@ -594,6 +595,15 @@ export const ERROR_INFO: Record<ErrorCode, ErrorInfo> = {
     retryable: true,
     userAction: true
   },
+  [ErrorCode.RATE_LIMITED]: {
+    code: ErrorCode.RATE_LIMITED,
+    category: ErrorCategory.SYSTEM,
+    message: 'Rate limit exceeded',
+    description: 'Operation rate limit has been exceeded',
+    recoveryHint: 'Wait before retrying or reduce operation frequency',
+    retryable: true,
+    userAction: false
+  },
 
   // AppleScript/Automation Errors
   [ErrorCode.APPLESCRIPT_ERROR]: {
@@ -728,6 +738,7 @@ export const ERROR_CODES = {
   CHROME_NOT_FOUND: ErrorCode.CHROME_NOT_FOUND,
   CHROME_NOT_RUNNING: ErrorCode.CHROME_NOT_RUNNING,
   RESOURCE_BUSY: ErrorCode.RESOURCE_UNAVAILABLE, // Alias for resource conflicts
+  RATE_LIMITED: ErrorCode.RATE_LIMITED,
   UNKNOWN_ERROR: ErrorCode.UNKNOWN_ERROR
 } as const;
 

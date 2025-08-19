@@ -17,6 +17,8 @@ export interface LogEntry {
   context?: string;
   metadata?: Record<string, unknown>;
   error?: Error;
+  correlationId?: string;
+  duration?: number;
 }
 
 export interface LoggerOptions {
@@ -25,6 +27,9 @@ export interface LoggerOptions {
   enableFile?: boolean;
   filePath?: string;
   maxEntries?: number;
+  enableCorrelationIds?: boolean;
+  enableJson?: boolean;
+  enablePerformanceLogging?: boolean;
 }
 
 export interface ILoggerService {
@@ -47,6 +52,31 @@ export interface ILoggerService {
    * Log error message
    */
   error(message: string, error?: Error, context?: string, metadata?: Record<string, unknown>): void;
+  
+  /**
+   * Log performance metrics
+   */
+  performance(operation: string, duration: number, context?: string, metadata?: Record<string, unknown>): void;
+  
+  /**
+   * Log security events
+   */
+  security(event: string, context?: string, metadata?: Record<string, unknown>): void;
+  
+  /**
+   * Create a child logger with additional context
+   */
+  child(context: string, metadata?: Record<string, unknown>): ILoggerService;
+  
+  /**
+   * Set correlation ID for request tracing
+   */
+  setCorrelationId(correlationId: string): void;
+  
+  /**
+   * Get current correlation ID
+   */
+  getCorrelationId(): string | undefined;
   
   /**
    * Get recent log entries

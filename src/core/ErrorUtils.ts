@@ -30,6 +30,13 @@ function isCustomError(error: Error): error is CustomError {
 }
 
 /**
+ * Type guard to check if an error has an error code
+ */
+function hasErrorCode(error: Error): error is Error & { errorCode: number } {
+  return 'errorCode' in error && typeof (error as Error & { errorCode: unknown }).errorCode === 'number';
+}
+
+/**
  * Common error creation patterns
  */
 export class ErrorUtils {
@@ -149,6 +156,29 @@ export class ErrorUtils {
       errorCode = err.errorCode;
       recoveryHint = err.recoveryHint;
       customMetadata = err.metadata || {};
+    } else if (hasErrorCode(err)) {
+      errorCode = err.errorCode;
+      // Use appropriate recovery hint based on error code
+      switch (errorCode) {
+        case ErrorCode.ELEMENT_NOT_INTERACTABLE:
+        case ErrorCode.TARGET_NOT_FOUND:
+          recoveryHint = 'check_target';
+          break;
+        case ErrorCode.ELEMENT_NOT_VISIBLE:
+        case ErrorCode.TARGET_OUTSIDE_VIEWPORT:
+          recoveryHint = 'retry';
+          break;
+        case ErrorCode.MOUSE_CLICK_FAILED:
+        case ErrorCode.KEYBOARD_INPUT_FAILED:
+          recoveryHint = 'retry_with_delay';
+          break;
+        case ErrorCode.PERMISSION_DENIED:
+        case ErrorCode.ACCESSIBILITY_DENIED:
+          recoveryHint = 'permission';
+          break;
+        default:
+          recoveryHint = 'retry';
+      }
     }
     
     const context: ResultContext = {

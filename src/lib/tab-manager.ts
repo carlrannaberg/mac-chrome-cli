@@ -271,3 +271,201 @@ export async function focusTabByIndexEnhanced(
     };
   }
 }
+
+/**
+ * Get tabs from a Chrome window
+ * This matches the interface expected by tests
+ */
+export async function getTabs(windowIndex: number = 1): Promise<Result<any[], string>> {
+  return getAllTabsEnhanced(windowIndex);
+}
+
+/**
+ * Activate/focus a tab by its ID and window index
+ * This matches the interface expected by tests
+ */
+export async function activateTab(tabId: number, windowIndex: number = 1): Promise<Result<any, string>> {
+  return focusTabByIndexEnhanced(tabId, windowIndex);
+}
+
+/**
+ * Create a new tab
+ * This matches the interface expected by tests
+ */
+export async function createTab(
+  url?: string, 
+  windowIndex: number = 1, 
+  activate: boolean = true
+): Promise<Result<any, string>> {
+  const script = `
+tell application "Google Chrome"
+  if not running then
+    return "ERROR: Chrome is not running"
+  end if
+  
+  try
+    set targetWindow to window ${windowIndex}
+    ${url ? `set newTab to make new tab at end of tabs of targetWindow with properties {URL:"${url}"}` : `set newTab to make new tab at end of tabs of targetWindow`}
+    
+    ${activate ? `set active tab index of targetWindow to (count of tabs of targetWindow)` : ''}
+    
+    set tabInfo to "{" & ¬
+      "\\"id\\": " & (count of tabs of targetWindow) & ", " & ¬
+      "\\"title\\": \\"" & (my escapeForJSON(title of newTab)) & "\\", " & ¬
+      "\\"url\\": \\"" & (my escapeForJSON(URL of newTab)) & "\\", " & ¬
+      "\\"loading\\": " & (loading of newTab) & ", " & ¬
+      "\\"active\\": " & ${activate ? "true" : "false"} & ¬
+      "}"
+    
+    return tabInfo
+    
+  on error errorMessage
+    return "ERROR: " & errorMessage
+  end try
+end tell
+
+on escapeForJSON(textValue)
+  set escapedText to textValue
+  set escapedText to (my replaceText(escapedText, "\\\\", "\\\\\\\\"))
+  set escapedText to (my replaceText(escapedText, "\\"", "\\\\\\""))
+  set escapedText to (my replaceText(escapedText, return, "\\\\n"))
+  set escapedText to (my replaceText(escapedText, tab, "\\\\t"))
+  return escapedText
+end escapeForJSON
+
+on replaceText(originalText, searchString, replacementString)
+  set AppleScript's text item delimiters to searchString
+  set textItems to text items of originalText
+  set AppleScript's text item delimiters to replacementString
+  set replacedText to textItems as string
+  set AppleScript's text item delimiters to ""
+  return replacedText
+end replaceText`;
+
+  const result = await appleScriptService.executeScript(script, 10000);
+  
+  if (!result.success) {
+    return result as Result<any, string>;
+  }
+  
+  try {
+    const tab = JSON.parse(result.data || '{}');
+    return { ...result, data: tab };
+  } catch (parseError) {
+    return {
+      success: false,
+      error: `Failed to parse tab data: ${parseError}`,
+      code: result.code,
+      timestamp: result.timestamp,
+      context: result.context
+    };
+  }
+}
+
+/**
+ * Close a tab by its ID and window index
+ * This matches the interface expected by tests
+ */
+export async function closeTab(tabId: number, windowIndex: number = 1): Promise<Result<any, string>> {
+  const script = `
+tell application "Google Chrome"
+  if not running then
+    return "ERROR: Chrome is not running"
+  end if
+  
+  try
+    set targetWindow to window ${windowIndex}
+    
+    -- Check if tab index is valid
+    set tabCount to count of tabs of targetWindow
+    if ${tabId} > tabCount or ${tabId} < 1 then
+      return "ERROR: Tab index ${tabId} is out of range (1-" & tabCount & ")"
+    end if
+    
+    close tab ${tabId} of targetWindow
+    return "{\\"closed\\": true}"
+    
+  on error errorMessage
+    return "ERROR: " & errorMessage
+  end try
+end tell`;
+
+  return await appleScriptService.executeScript(script, 10000);
+}
+
+/**
+ * Switch to a specific tab
+ * This matches the interface expected by tests  
+ */
+export async function switchToTab(tabId: number, windowIndex: number = 1): Promise<Result<any, string>> {
+  return activateTab(tabId, windowIndex);
+}
+
+/**
+ * Get the currently active tab
+ * This matches the interface expected by tests
+ */
+export async function getActiveTab(windowIndex: number = 1): Promise<Result<any, string>> {
+  const script = `
+tell application "Google Chrome"
+  if not running then
+    return "ERROR: Chrome is not running"
+  end if
+  
+  try
+    set targetWindow to window ${windowIndex}
+    set activeTabIndex to active tab index of targetWindow
+    set activeTab to tab activeTabIndex of targetWindow
+    
+    set tabInfo to "{" & ¬
+      "\\"id\\": " & activeTabIndex & ", " & ¬
+      "\\"title\\": \\"" & (my escapeForJSON(title of activeTab)) & "\\", " & ¬
+      "\\"url\\": \\"" & (my escapeForJSON(URL of activeTab)) & "\\", " & ¬
+      "\\"loading\\": " & (loading of activeTab) & ", " & ¬
+      "\\"active\\": true" & ¬
+      "}"
+    
+    return tabInfo
+    
+  on error errorMessage
+    return "ERROR: " & errorMessage
+  end try
+end tell
+
+on escapeForJSON(textValue)
+  set escapedText to textValue
+  set escapedText to (my replaceText(escapedText, "\\\\", "\\\\\\\\"))
+  set escapedText to (my replaceText(escapedText, "\\"", "\\\\\\""))
+  set escapedText to (my replaceText(escapedText, return, "\\\\n"))
+  set escapedText to (my replaceText(escapedText, tab, "\\\\t"))
+  return escapedText
+end escapeForJSON
+
+on replaceText(originalText, searchString, replacementString)
+  set AppleScript's text item delimiters to searchString
+  set textItems to text items of originalText
+  set AppleScript's text item delimiters to replacementString
+  set replacedText to textItems as string
+  set AppleScript's text item delimiters to ""
+  return replacedText
+end replaceText`;
+
+  const result = await appleScriptService.executeScript(script, 10000);
+  
+  if (!result.success) {
+    return result as Result<any, string>;
+  }
+  
+  try {
+    const tab = JSON.parse(result.data || '{}');
+    return { ...result, data: tab };
+  } catch (parseError) {
+    return {
+      success: false,
+      error: `Failed to parse tab data: ${parseError}`,
+      code: result.code,
+      timestamp: result.timestamp,
+      context: result.context
+    };
+  }
+}

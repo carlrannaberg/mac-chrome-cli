@@ -118,9 +118,13 @@ export async function withRetry<T, E>(
       
       if (!shouldRetry) {
         // Not retryable or max attempts reached
+        // Preserve original recovery hint if it was explicitly set, otherwise use default logic
+        const originalRecoveryHint = result.context?.recoveryHint;
+        const defaultRecoveryHint = attempt >= opts.maxAttempts ? 'not_recoverable' : 'user_action';
+        
         const finalContext: ResultContext = {
           ...result.context,
-          recoveryHint: attempt >= opts.maxAttempts ? 'not_recoverable' : 'user_action',
+          recoveryHint: originalRecoveryHint || defaultRecoveryHint,
           metadata: {
             ...result.context?.metadata,
             retryAttempts: attempt - 1,

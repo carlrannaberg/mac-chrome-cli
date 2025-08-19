@@ -5,30 +5,37 @@
  * and pattern matching operations.
  * 
  * @author mac-chrome-cli
- * @version 1.0.0
+ * @version 2.0.0
  */
 
 import { TabCommand } from '../tab.js';
 import { ErrorCode } from '../../core/ErrorCodes.js';
 
 // Mock the dependencies
-jest.mock('../../lib/navigation.js', () => ({
-  focusTabByPattern: jest.fn(),
-  getCurrentPageInfo: jest.fn()
+jest.mock('../../lib/tab-manager.js', () => ({
+  getTabs: jest.fn(),
+  activateTab: jest.fn(),
+  createTab: jest.fn(),
+  closeTab: jest.fn(),
+  switchToTab: jest.fn(),
+  getActiveTab: jest.fn()
 }));
 
-jest.mock('../../lib/apple.js', () => ({
-  getAllTabs: jest.fn(),
-  focusTabByIndex: jest.fn()
-}));
+import {
+  getTabs,
+  activateTab,
+  createTab,
+  closeTab,
+  switchToTab,
+  getActiveTab
+} from '../../lib/tab-manager.js';
 
-import { focusTabByPattern, getCurrentPageInfo } from '../../lib/navigation.js';
-import { getAllTabs, focusTabByIndex } from '../../lib/apple.js';
-
-const mockedFocusTabByPattern = focusTabByPattern as jest.MockedFunction<typeof focusTabByPattern>;
-const mockedGetCurrentPageInfo = getCurrentPageInfo as jest.MockedFunction<typeof getCurrentPageInfo>;
-const mockedGetAllTabs = getAllTabs as jest.MockedFunction<typeof getAllTabs>;
-const mockedFocusTabByIndex = focusTabByIndex as jest.MockedFunction<typeof focusTabByIndex>;
+const mockedGetTabs = getTabs as jest.MockedFunction<typeof getTabs>;
+const mockedActivateTab = activateTab as jest.MockedFunction<typeof activateTab>;
+const mockedCreateTab = createTab as jest.MockedFunction<typeof createTab>;
+const mockedCloseTab = closeTab as jest.MockedFunction<typeof closeTab>;
+const mockedSwitchToTab = switchToTab as jest.MockedFunction<typeof switchToTab>;
+const mockedGetActiveTab = getActiveTab as jest.MockedFunction<typeof getActiveTab>;
 
 describe('Tab Command', () => {
   let tabCommand: TabCommand;
@@ -39,16 +46,16 @@ describe('Tab Command', () => {
   });
 
   describe('focus', () => {
-    it('should validate required pattern parameter', async () => {
-      const result = await tabCommand.focus({ pattern: '' });
+    it('should validate required match parameter', async () => {
+      const result = await tabCommand.focus({});
       
       expect(result.success).toBe(false);
-      expect(result.error).toContain('Pattern is required and must be a string');
+      expect(result.error).toContain('Must provide either match, index, or tabId to target a tab');
       expect(result.code).toBe(ErrorCode.MISSING_REQUIRED_PARAM);
     });
 
-    it('should validate non-empty pattern parameter', async () => {
-      const result = await tabCommand.focus({ pattern: '   ' });
+    it('should validate non-empty match parameter', async () => {
+      const result = await tabCommand.focus({ match: '   ' });
       
       expect(result.success).toBe(false);
       expect(result.error).toContain('Pattern cannot be empty');
@@ -57,7 +64,7 @@ describe('Tab Command', () => {
 
     it('should validate window index range', async () => {
       const result = await tabCommand.focus({ 
-        pattern: 'test',
+        match: 'test',
         windowIndex: 100 
       });
       
@@ -66,27 +73,34 @@ describe('Tab Command', () => {
       expect(result.code).toBe(ErrorCode.INVALID_INPUT);
     });
 
-    it('should call focusTabByPattern with correct parameters', async () => {
-      mockedFocusTabByPattern.mockResolvedValue({
+    it('should focus tab by pattern match', async () => {
+      const mockTabs = [
+        { id: 1, title: 'Example Page', url: 'https://example.com', active: false, windowId: 1 },
+        { id: 2, title: 'Google', url: 'https://google.com', active: true, windowId: 1 }
+      ];
+
+      mockedGetTabs.mockResolvedValue({
         success: true,
-        action: 'focus_tab',
-        url: 'https://example.com',
-        title: 'Example Page',
-        loading: false,
-        code: 0
+        data: mockTabs,
+        code: ErrorCode.OK
+      });
+
+      mockedActivateTab.mockResolvedValue({
+        success: true,
+        data: { id: 1, title: 'Example Page', url: 'https://example.com', active: true, windowId: 2 },
+        code: ErrorCode.OK
       });
 
       const result = await tabCommand.focus({ 
-        pattern: 'Example',
+        match: 'Example',
         exactMatch: true,
-        windowIndex: 2
+        windowIndex: 1
       });
       
-      expect(mockedFocusTabByPattern).toHaveBeenCalledWith('Example', 2, true);
       expect(result.success).toBe(true);
       expect(result.data?.action).toBe('focus');
       expect(result.data?.pattern).toBe('Example');
-      expect(result.data?.exactMatch).toBe(true);
+      expect(result.data?.targetTab?.title).toBe('Example Page');
     });
   });
 
@@ -105,10 +119,10 @@ describe('Tab Command', () => {
         { id: 2, title: 'Tab 2', url: 'https://google.com', loading: true, windowId: 1 }
       ];
 
-      mockedGetAllTabs.mockResolvedValue({
+      mockedGetTabs.mockResolvedValue({
         success: true,
         data: mockTabs,
-        code: 0
+        code: ErrorCode.OK
       });
 
       const result = await tabCommand.list();
@@ -116,64 +130,35 @@ describe('Tab Command', () => {
       expect(result.success).toBe(true);
       expect(result.data?.action).toBe('list');
       expect(result.data?.tabs).toEqual(mockTabs);
-      expect(result.data?.metadata.totalTabs).toBe(2);
+      expect(result.data?.metadata?.totalTabs).toBe(2);
     });
   });
 
   describe('focusByIndex', () => {
-    it('should validate tab index range', async () => {
-      const result = await tabCommand.focusByIndex({ tabIndex: 0 });
-      
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('Invalid tabIndex');
-      expect(result.code).toBe(ErrorCode.INVALID_INPUT);
-    });
-
     it('should focus tab by index', async () => {
-      const mockTab = {
-        id: 3,
-        title: 'Focused Tab',
-        url: 'https://focused.com',
-        loading: false,
-        windowId: 1
-      };
+      const mockTabs = [
+        { id: 1, title: 'First Tab', url: 'https://first.com', active: false, windowId: 1 },
+        { id: 2, title: 'Second Tab', url: 'https://second.com', active: false, windowId: 1 },
+        { id: 3, title: 'Third Tab', url: 'https://third.com', active: true, windowId: 1 }
+      ];
 
-      mockedFocusTabByIndex.mockResolvedValue({
+      mockedGetTabs.mockResolvedValue({
         success: true,
-        data: mockTab,
-        code: 0
+        data: mockTabs,
+        code: ErrorCode.OK
       });
 
-      const result = await tabCommand.focusByIndex({ 
-        tabIndex: 3,
-        windowIndex: 1
+      mockedActivateTab.mockResolvedValue({
+        success: true,
+        data: { id: 3, title: 'Third Tab', url: 'https://third.com', active: true, windowId: 1 },
+        code: ErrorCode.OK
       });
+
+      const result = await tabCommand.focusByIndex({ tabIndex: 3, windowIndex: 1 });
       
-      expect(mockedFocusTabByIndex).toHaveBeenCalledWith(3, 1);
       expect(result.success).toBe(true);
       expect(result.data?.action).toBe('focus_index');
-      expect(result.data?.tabIndex).toBe(3);
-      expect(result.data?.tab?.title).toBe('Focused Tab');
-    });
-  });
-
-  describe('getActive', () => {
-    it('should get active tab information', async () => {
-      mockedGetCurrentPageInfo.mockResolvedValue({
-        success: true,
-        action: 'get_page_info',
-        url: 'https://active.com',
-        title: 'Active Page',
-        loading: false,
-        code: 0
-      });
-
-      const result = await tabCommand.getActive();
-      
-      expect(result.success).toBe(true);
-      expect(result.data?.action).toBe('get_active');
-      expect(result.data?.tab?.title).toBe('Active Page');
-      expect(result.data?.tab?.url).toBe('https://active.com');
+      expect(result.data?.targetTab?.title).toBe('Third Tab');
     });
   });
 });

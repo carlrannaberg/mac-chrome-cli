@@ -204,16 +204,68 @@ export class InputCommand extends BrowserCommandBase {
    * @param options Input filling options
    * @returns Promise resolving to input action data or error
    * 
+   * @throws {INVALID_SELECTOR} When CSS selector is malformed or invalid
+   * @throws {MISSING_REQUIRED_PARAM} When value parameter is not provided
+   * @throws {INVALID_INPUT} When value is not a string, method is invalid, speed out of range (1-2000ms), windowIndex invalid (1-50), or offsets non-finite
+   * @throws {TARGET_NOT_FOUND} When specified element selector matches no elements on page
+   * @throws {ELEMENT_NOT_VISIBLE} When target element exists but is not visible in viewport
+   * @throws {ELEMENT_NOT_INTERACTABLE} When target element cannot be interacted with (disabled, readonly, wrong type)
+   * @throws {JAVASCRIPT_ERROR} When JavaScript execution fails during element validation
+   * @throws {CHROME_NOT_RUNNING} When Chrome browser is not running or accessible
+   * @throws {CHROME_NOT_FOUND} When Chrome application cannot be found on system
+   * @throws {WINDOW_NOT_FOUND} When specified window index does not exist
+   * @throws {TAB_NOT_FOUND} When no active tab exists in the specified window
+   * @throws {MOUSE_CLICK_FAILED} When clicking to focus the input field fails
+   * @throws {KEYBOARD_INPUT_FAILED} When typing or pasting text into field fails
+   * @throws {PERMISSION_DENIED} When system permissions block input automation
+   * @throws {ACCESSIBILITY_DENIED} When accessibility permissions not granted for automation
+   * @throws {APPLE_EVENTS_DENIED} When Apple Events permissions not granted for Chrome control
+   * @throws {COORDINATE_CALCULATION_FAILED} When cannot calculate screen coordinates for element
+   * @throws {APPLESCRIPT_ERROR} When underlying AppleScript execution fails
+   * @throws {TIMEOUT} When input operation exceeds timeout limits
+   * @throws {SCRIPT_TIMEOUT} When JavaScript execution for element validation times out
+   * @throws {SYSTEM_ERROR} When system-level errors prevent input operation
+   * @throws {UNKNOWN_ERROR} When an unexpected error occurs during input filling
+   * 
    * @example
    * ```typescript
-   * // Fill email field with comprehensive validation and typing
-   * const result = await inputCmd.fill({
-   *   selector: '#email',
-   *   value: 'user@example.com',
-   *   method: 'type',
-   *   clear: true,
-   *   speed: 50
-   * });
+   * // Fill email field with comprehensive error handling
+   * try {
+   *   const result = await inputCmd.fill({
+   *     selector: '#email',
+   *     value: 'user@example.com',
+   *     method: 'type',
+   *     clear: true,
+   *     speed: 50
+   *   });
+   *   
+   *   if (!result.success) {
+   *     switch (result.code) {
+   *       case ErrorCode.INVALID_SELECTOR:
+   *         console.log('Check CSS selector syntax');
+   *         break;
+   *       case ErrorCode.TARGET_NOT_FOUND:
+   *         console.log('Input field not found - verify selector and page content');
+   *         break;
+   *       case ErrorCode.ELEMENT_NOT_INTERACTABLE:
+   *         console.log('Element cannot be filled (disabled, readonly, or wrong type)');
+   *         break;
+   *       case ErrorCode.MOUSE_CLICK_FAILED:
+   *         console.log('Cannot click to focus input field');
+   *         break;
+   *       case ErrorCode.KEYBOARD_INPUT_FAILED:
+   *         console.log('Cannot type into focused field');
+   *         break;
+   *       case ErrorCode.ACCESSIBILITY_DENIED:
+   *         console.log('Grant accessibility permissions in System Preferences');
+   *         break;
+   *     }
+   *   } else {
+   *     console.log(`Successfully filled field with ${result.data.method} method`);
+   *   }
+   * } catch (error) {
+   *   console.error('Unexpected input error:', error);
+   * }
    * 
    * // Fill password with paste (faster, masked) and validation
    * const passwordResult = await inputCmd.fill({
@@ -237,19 +289,9 @@ export class InputCommand extends BrowserCommandBase {
       // Step 1: Comprehensive form element validation
       const formValidation = await this.validateFormElement(options.selector, options.windowIndex || 1);
       if (!formValidation.success) {
-        throw error(
-          formValidation.error || 'Form element validation failed',
-          ErrorCode.ELEMENT_NOT_INTERACTABLE,
-          {
-            recoveryHint: this.determineInputRecoveryStrategy(ErrorCode.ELEMENT_NOT_INTERACTABLE),
-            durationMs: Date.now() - startTime,
-            metadata: { 
-              operation: 'fill',
-              selector: options.selector,
-              step: 'form_validation'
-            }
-          }
-        );
+        const err = new Error(formValidation.error || 'Form element validation failed') as Error & { errorCode: number };
+        err.errorCode = formValidation.code;
+        throw err;
       }
       
       const elementValidation = formValidation.data!;
@@ -261,50 +303,29 @@ export class InputCommand extends BrowserCommandBase {
       );
       
       if (!visibilityResult.success) {
-        throw error(
+        throw this.createCustomError(
           `Element visibility validation failed: ${visibilityResult.error}`,
-          ErrorCode.ELEMENT_NOT_VISIBLE,
-          {
-            recoveryHint: this.determineInputRecoveryStrategy(ErrorCode.ELEMENT_NOT_VISIBLE),
-            durationMs: Date.now() - startTime,
-            metadata: {
-              operation: 'fill',
-              selector: options.selector,
-              step: 'visibility_check'
-            }
-          }
+          ErrorCode.JAVASCRIPT_ERROR,
+          this.determineInputRecoveryStrategy(ErrorCode.JAVASCRIPT_ERROR),
+          { selector: options.selector, step: 'visibility_validation' }
         );
       }
       
       if (!visibilityResult.data?.visible) {
-        throw error(
+        throw this.createCustomError(
           `Element "${options.selector}" is not visible`,
           ErrorCode.ELEMENT_NOT_VISIBLE,
-          {
-            recoveryHint: this.determineInputRecoveryStrategy(ErrorCode.ELEMENT_NOT_VISIBLE),
-            durationMs: Date.now() - startTime,
-            metadata: {
-              operation: 'fill',
-              selector: options.selector,
-              step: 'visibility_check'
-            }
-          }
+          this.determineInputRecoveryStrategy(ErrorCode.ELEMENT_NOT_VISIBLE),
+          { selector: options.selector, step: 'visibility_check' }
         );
       }
       
       if (!visibilityResult.data?.clickable) {
-        throw error(
+        throw this.createCustomError(
           `Element "${options.selector}" is not clickable for focusing`,
           ErrorCode.ELEMENT_NOT_INTERACTABLE,
-          {
-            recoveryHint: this.determineInputRecoveryStrategy(ErrorCode.ELEMENT_NOT_INTERACTABLE),
-            durationMs: Date.now() - startTime,
-            metadata: {
-              operation: 'fill',
-              selector: options.selector,
-              step: 'clickable_check'
-            }
-          }
+          this.determineInputRecoveryStrategy(ErrorCode.ELEMENT_NOT_INTERACTABLE),
+          { selector: options.selector, step: 'clickable_check' }
         );
       }
       
@@ -317,18 +338,11 @@ export class InputCommand extends BrowserCommandBase {
       });
       
       if (!focusResult.success) {
-        throw error(
+        throw this.createCustomError(
           `Failed to focus element: ${focusResult.error}`,
           ErrorCode.MOUSE_CLICK_FAILED,
-          {
-            recoveryHint: this.determineInputRecoveryStrategy(ErrorCode.MOUSE_CLICK_FAILED),
-            durationMs: Date.now() - startTime,
-            metadata: {
-              operation: 'fill',
-              selector: options.selector,
-              step: 'focus_click'
-            }
-          }
+          this.determineInputRecoveryStrategy(ErrorCode.MOUSE_CLICK_FAILED),
+          { selector: options.selector, step: 'focus_click', action: 'focus' }
         );
       }
       
@@ -369,19 +383,11 @@ export class InputCommand extends BrowserCommandBase {
       }
       
       if (!keyboardResult.success) {
-        throw error(
+        throw this.createCustomError(
           `Failed to input text: ${keyboardResult.error}`,
           ErrorCode.KEYBOARD_INPUT_FAILED,
-          {
-            recoveryHint: this.determineInputRecoveryStrategy(ErrorCode.KEYBOARD_INPUT_FAILED),
-            durationMs: Date.now() - startTime,
-            metadata: {
-              operation: 'fill',
-              selector: options.selector,
-              step: 'text_input',
-              method: inputMethod
-            }
-          }
+          this.determineInputRecoveryStrategy(ErrorCode.KEYBOARD_INPUT_FAILED),
+          { selector: options.selector, step: 'text_input', method: inputMethod }
         );
       }
       
@@ -426,15 +432,52 @@ export class InputCommand extends BrowserCommandBase {
    * @param options Input value retrieval options
    * @returns Promise resolving to input value data or error
    * 
+   * @throws {INVALID_SELECTOR} When CSS selector is malformed or invalid
+   * @throws {INVALID_INPUT} When windowIndex parameter is invalid (must be 1-50)
+   * @throws {TARGET_NOT_FOUND} When specified element selector matches no elements on page
+   * @throws {ELEMENT_NOT_INTERACTABLE} When target element is not a valid input field
+   * @throws {CHROME_NOT_RUNNING} When Chrome browser is not running or accessible
+   * @throws {CHROME_NOT_FOUND} When Chrome application cannot be found on system
+   * @throws {WINDOW_NOT_FOUND} When specified window index does not exist
+   * @throws {TAB_NOT_FOUND} When no active tab exists in the specified window
+   * @throws {JAVASCRIPT_ERROR} When JavaScript execution fails during value retrieval
+   * @throws {PERMISSION_DENIED} When system permissions block browser automation
+   * @throws {ACCESSIBILITY_DENIED} When accessibility permissions not granted for automation
+   * @throws {APPLE_EVENTS_DENIED} When Apple Events permissions not granted for Chrome control
+   * @throws {APPLESCRIPT_ERROR} When underlying AppleScript execution fails
+   * @throws {TIMEOUT} When value retrieval operation exceeds timeout limits
+   * @throws {SCRIPT_TIMEOUT} When JavaScript execution times out
+   * @throws {SYSTEM_ERROR} When system-level errors prevent operation
+   * @throws {UNKNOWN_ERROR} When an unexpected error occurs during value retrieval
+   * 
    * @example
    * ```typescript
-   * // Get current username value
-   * const result = await inputCmd.getValue({
-   *   selector: '#username'
-   * });
-   * 
-   * if (result.success) {
-   *   console.log('Current value:', result.data.value);
+   * // Get current field value with error handling
+   * try {
+   *   const result = await inputCmd.getValue({
+   *     selector: '#username'
+   *   });
+   *   
+   *   if (!result.success) {
+   *     switch (result.code) {
+   *       case ErrorCode.INVALID_SELECTOR:
+   *         console.log('Check CSS selector syntax');
+   *         break;
+   *       case ErrorCode.TARGET_NOT_FOUND:
+   *         console.log('Input field not found');
+   *         break;
+   *       case ErrorCode.ELEMENT_NOT_INTERACTABLE:
+   *         console.log('Element is not a valid input field');
+   *         break;
+   *       case ErrorCode.CHROME_NOT_RUNNING:
+   *         console.log('Chrome browser not running');
+   *         break;
+   *     }
+   *   } else {
+   *     console.log('Current value:', result.data.value);
+   *   }
+   * } catch (error) {
+   *   console.error('Unexpected getValue error:', error);
    * }
    * ```
    */
@@ -454,17 +497,11 @@ export class InputCommand extends BrowserCommandBase {
       );
       
       if (!libResult.success) {
-        throw error(
+        throw this.createCustomError(
           libResult.error || 'Failed to get input value',
-          libResult.code,
-          {
-            recoveryHint: this.getRecoveryHint(libResult.code),
-            durationMs: Date.now() - startTime,
-            metadata: {
-              operation: 'get_value',
-              selector: options.selector
-            }
-          }
+          libResult.code || ErrorCode.TARGET_NOT_FOUND,
+          this.getRecoveryHint(libResult.code || ErrorCode.TARGET_NOT_FOUND),
+          { selector: options.selector, operation: 'get_value' }
         );
       }
       
@@ -488,12 +525,51 @@ export class InputCommand extends BrowserCommandBase {
    * @param options Form submission options
    * @returns Promise resolving to submit action data or error
    * 
+   * @throws {INVALID_SELECTOR} When CSS selector is malformed or invalid
+   * @throws {INVALID_INPUT} When windowIndex parameter is invalid (must be 1-50)
+   * @throws {TARGET_NOT_FOUND} When specified form or submit button selector matches no elements
+   * @throws {ELEMENT_NOT_INTERACTABLE} When target element cannot be used for form submission
+   * @throws {CHROME_NOT_RUNNING} When Chrome browser is not running or accessible
+   * @throws {CHROME_NOT_FOUND} When Chrome application cannot be found on system
+   * @throws {WINDOW_NOT_FOUND} When specified window index does not exist
+   * @throws {TAB_NOT_FOUND} When no active tab exists in the specified window
+   * @throws {JAVASCRIPT_ERROR} When JavaScript execution fails during form submission
+   * @throws {PERMISSION_DENIED} When system permissions block browser automation
+   * @throws {ACCESSIBILITY_DENIED} When accessibility permissions not granted for automation
+   * @throws {APPLE_EVENTS_DENIED} When Apple Events permissions not granted for Chrome control
+   * @throws {APPLESCRIPT_ERROR} When underlying AppleScript execution fails
+   * @throws {TIMEOUT} When form submission operation exceeds timeout limits
+   * @throws {SCRIPT_TIMEOUT} When JavaScript execution times out
+   * @throws {SYSTEM_ERROR} When system-level errors prevent operation
+   * @throws {UNKNOWN_ERROR} When an unexpected error occurs during form submission
+   * 
    * @example
    * ```typescript
-   * // Submit form by form selector
-   * const result = await inputCmd.submit({
-   *   selector: 'form#login-form'
-   * });
+   * // Submit form with error handling
+   * try {
+   *   const result = await inputCmd.submit({
+   *     selector: 'form#login-form'
+   *   });
+   *   
+   *   if (!result.success) {
+   *     switch (result.code) {
+   *       case ErrorCode.INVALID_SELECTOR:
+   *         console.log('Check CSS selector syntax');
+   *         break;
+   *       case ErrorCode.TARGET_NOT_FOUND:
+   *         console.log('Form or submit button not found');
+   *         break;
+   *       case ErrorCode.ELEMENT_NOT_INTERACTABLE:
+   *         console.log('Element cannot be used for form submission');
+   *         break;
+   *       case ErrorCode.CHROME_NOT_RUNNING:
+   *         console.log('Chrome browser not running');
+   *         break;
+   *     }
+   *   }
+   * } catch (error) {
+   *   console.error('Unexpected submit error:', error);
+   * }
    * 
    * // Submit by clicking submit button
    * const buttonResult = await inputCmd.submit({
@@ -517,17 +593,11 @@ export class InputCommand extends BrowserCommandBase {
       );
       
       if (!libResult.success) {
-        throw error(
+        throw this.createCustomError(
           libResult.error || 'Failed to submit form',
-          libResult.code,
-          {
-            recoveryHint: this.getRecoveryHint(libResult.code),
-            durationMs: Date.now() - startTime,
-            metadata: {
-              operation: 'submit',
-              selector: options.selector
-            }
-          }
+          libResult.code || ErrorCode.TARGET_NOT_FOUND,
+          this.getRecoveryHint(libResult.code || ErrorCode.TARGET_NOT_FOUND),
+          { selector: options.selector, operation: 'submit' }
         );
       }
       
@@ -630,7 +700,7 @@ export class InputCommand extends BrowserCommandBase {
       if (!result.success) {
         return error(
           `Failed to validate form element: ${result.error}`,
-          ErrorCode.JAVASCRIPT_ERROR
+          result.code || ErrorCode.JAVASCRIPT_ERROR
         );
       }
       
@@ -714,10 +784,15 @@ export class InputCommand extends BrowserCommandBase {
    * @returns Validated options or validation error
    */
   private validateFillOptions(options: InputOptions): Result<void, string> {
-    // Validate selector
+    // Validate selector with proper error code
+    if (!options.selector || typeof options.selector !== 'string' || options.selector.trim().length === 0) {
+      return error('Selector cannot be empty', ErrorCode.INVALID_SELECTOR);
+    }
+    
     const selectorValidation = this.validateSelector(options.selector);
     if (!selectorValidation.success) {
-      return selectorValidation;
+      // Convert INVALID_INPUT from base validation to INVALID_SELECTOR for input operations
+      return error(selectorValidation.error, ErrorCode.INVALID_SELECTOR, selectorValidation.context);
     }
     
     // Validate value
@@ -825,10 +900,15 @@ export class InputCommand extends BrowserCommandBase {
    * @returns Validated options or validation error
    */
   private validateValueOptions(options: InputValueOptions): Result<void, string> {
-    // Validate selector
+    // Validate selector with proper error code
+    if (!options.selector || typeof options.selector !== 'string' || options.selector.trim().length === 0) {
+      return error('Selector cannot be empty', ErrorCode.INVALID_SELECTOR);
+    }
+    
     const selectorValidation = this.validateSelector(options.selector);
     if (!selectorValidation.success) {
-      return selectorValidation;
+      // Convert INVALID_INPUT from base validation to INVALID_SELECTOR for input operations
+      return error(selectorValidation.error, ErrorCode.INVALID_SELECTOR, selectorValidation.context);
     }
     
     // Validate window index
@@ -858,10 +938,15 @@ export class InputCommand extends BrowserCommandBase {
    * @returns Validated options or validation error
    */
   private validateSubmitOptions(options: FormSubmitOptions): Result<void, string> {
-    // Validate selector
+    // Validate selector with proper error code
+    if (!options.selector || typeof options.selector !== 'string' || options.selector.trim().length === 0) {
+      return error('Selector cannot be empty', ErrorCode.INVALID_SELECTOR);
+    }
+    
     const selectorValidation = this.validateSelector(options.selector);
     if (!selectorValidation.success) {
-      return selectorValidation;
+      // Convert INVALID_INPUT from base validation to INVALID_SELECTOR for input operations
+      return error(selectorValidation.error, ErrorCode.INVALID_SELECTOR, selectorValidation.context);
     }
     
     // Validate window index
@@ -885,6 +970,37 @@ export class InputCommand extends BrowserCommandBase {
   
   // Note: convertToLibOptions and convertLibResult removed as we're using direct mouse/keyboard integration
   
+  /**
+   * Create a custom error with error code and recovery hint
+   * 
+   * @private
+   * @param message Error message
+   * @param errorCode Error code
+   * @param recoveryHint Recovery hint
+   * @param metadata Additional metadata
+   * @returns Custom error object
+   */
+  private createCustomError(
+    message: string,
+    errorCode: ErrorCode,
+    recoveryHint: RecoveryStrategy,
+    metadata?: Record<string, unknown>
+  ): Error & { errorCode: ErrorCode; recoveryHint: RecoveryStrategy; metadata?: Record<string, unknown> } {
+    const error = new Error(message) as Error & { 
+      errorCode: ErrorCode; 
+      recoveryHint: RecoveryStrategy; 
+      metadata?: Record<string, unknown>;
+    };
+    error.errorCode = errorCode;
+    error.recoveryHint = recoveryHint;
+    error.name = 'ScreenshotError'; // Required for isCustomError type guard
+    if (metadata) {
+      error.metadata = metadata;
+    }
+    return error;
+  }
+
+
   /**
    * Get recovery hint based on error code (legacy compatibility)
    * 

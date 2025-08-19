@@ -6,22 +6,49 @@
 import type { ILoggerService, LogEntry, LogLevel, LoggerOptions } from '../ILoggerService.js';
 import { LogLevel as LogLevelEnum } from '../ILoggerService.js';
 
+/**
+ * Generate a correlation ID for request tracing
+ */
+function generateCorrelationId(): string {
+  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+}
+
 export class LoggerService implements ILoggerService {
   private entries: LogEntry[] = [];
   private options: LoggerOptions;
+  private correlationId?: string;
+  private baseContext?: string;
+  private baseMetadata?: Record<string, unknown>;
 
   constructor(options: Partial<LoggerOptions> = {}) {
     this.options = {
       level: options.level ?? LogLevelEnum.INFO,
       enableConsole: options.enableConsole ?? true,
       enableFile: options.enableFile ?? false,
-      maxEntries: options.maxEntries ?? 1000
+      maxEntries: options.maxEntries ?? 1000,
+      enableCorrelationIds: options.enableCorrelationIds ?? true,
+      enableJson: options.enableJson ?? false,
+      enablePerformanceLogging: options.enablePerformanceLogging ?? true
     };
     
     // Only add filePath if it's provided to avoid undefined assignment
     if (options.filePath !== undefined) {
       this.options.filePath = options.filePath;
     }
+    
+    // Generate correlation ID if enabled
+    if (this.options.enableCorrelationIds) {
+      this.correlationId = generateCorrelationId();
+    }
+  }
+
+  /**
+   * Create a logger with a new correlation ID
+   */
+  static withCorrelationId(options: Partial<LoggerOptions> = {}): LoggerService {
+    const logger = new LoggerService(options);
+    logger.setCorrelationId(generateCorrelationId());
+    return logger;
   }
 
   /**
@@ -53,6 +80,60 @@ export class LoggerService implements ILoggerService {
   }
 
   /**
+   * Log performance metrics
+   */
+  performance(operation: string, duration: number, context?: string, metadata?: Record<string, unknown>): void {
+    if (!this.options.enablePerformanceLogging) {
+      return;
+    }
+    
+    const perfMetadata = {
+      operation,
+      duration,
+      ...metadata
+    };
+    
+    this.log(LogLevelEnum.INFO, `Performance: ${operation} completed in ${duration}ms`, context, perfMetadata, undefined, duration);
+  }
+
+  /**
+   * Log security events
+   */
+  security(event: string, context?: string, metadata?: Record<string, unknown>): void {
+    const securityMetadata = {
+      securityEvent: true,
+      ...metadata
+    };
+    
+    this.log(LogLevelEnum.WARN, `Security: ${event}`, context, securityMetadata);
+  }
+
+  /**
+   * Create a child logger with additional context
+   */
+  child(context: string, metadata?: Record<string, unknown>): ILoggerService {
+    const childLogger = new LoggerService(this.options);
+    childLogger.baseContext = context;
+    childLogger.baseMetadata = metadata;
+    childLogger.correlationId = this.correlationId;
+    return childLogger;
+  }
+
+  /**
+   * Set correlation ID for request tracing
+   */
+  setCorrelationId(correlationId: string): void {
+    this.correlationId = correlationId;
+  }
+
+  /**
+   * Get current correlation ID
+   */
+  getCorrelationId(): string | undefined {
+    return this.correlationId;
+  }
+
+  /**
    * Internal log method
    */
   private log(
@@ -60,12 +141,22 @@ export class LoggerService implements ILoggerService {
     message: string,
     context?: string,
     metadata?: Record<string, unknown>,
-    error?: Error
+    error?: Error,
+    duration?: number
   ): void {
     // Check if log level is enabled
     if (level < this.options.level) {
       return;
     }
+
+    // Merge context and metadata with base values
+    const finalContext = this.baseContext ? 
+      (context ? `${this.baseContext}.${context}` : this.baseContext) : 
+      context;
+    
+    const finalMetadata = this.baseMetadata ? 
+      { ...this.baseMetadata, ...metadata } : 
+      metadata;
 
     const entry: LogEntry = {
       level,
@@ -74,14 +165,20 @@ export class LoggerService implements ILoggerService {
     };
     
     // Add optional properties only if they are defined to avoid undefined assignment with exactOptionalPropertyTypes
-    if (context !== undefined) {
-      entry.context = context;
+    if (finalContext !== undefined) {
+      entry.context = finalContext;
     }
-    if (metadata !== undefined) {
-      entry.metadata = metadata;
+    if (finalMetadata !== undefined) {
+      entry.metadata = finalMetadata;
     }
     if (error !== undefined) {
       entry.error = error;
+    }
+    if (this.correlationId !== undefined && this.options.enableCorrelationIds) {
+      entry.correlationId = this.correlationId;
+    }
+    if (duration !== undefined) {
+      entry.duration = duration;
     }
 
     // Add to entries collection
@@ -105,11 +202,61 @@ export class LoggerService implements ILoggerService {
    * Output log entry to console
    */
   private outputToConsole(entry: LogEntry): void {
+    if (this.options.enableJson) {
+      this.outputJsonFormat(entry);
+    } else {
+      this.outputTextFormat(entry);
+    }
+  }
+
+  /**
+   * Output log entry in JSON format
+   */
+  private outputJsonFormat(entry: LogEntry): void {
+    const jsonEntry = {
+      timestamp: new Date(entry.timestamp).toISOString(),
+      level: LogLevelEnum[entry.level],
+      message: entry.message,
+      ...(entry.context && { context: entry.context }),
+      ...(entry.correlationId && { correlationId: entry.correlationId }),
+      ...(entry.duration !== undefined && { duration: entry.duration }),
+      ...(entry.metadata && { metadata: entry.metadata }),
+      ...(entry.error && { 
+        error: {
+          name: entry.error.name,
+          message: entry.error.message,
+          stack: entry.error.stack
+        }
+      })
+    };
+
+    switch (entry.level) {
+      case LogLevelEnum.DEBUG:
+        console.debug(JSON.stringify(jsonEntry));
+        break;
+      case LogLevelEnum.INFO:
+        console.info(JSON.stringify(jsonEntry));
+        break;
+      case LogLevelEnum.WARN:
+        console.warn(JSON.stringify(jsonEntry));
+        break;
+      case LogLevelEnum.ERROR:
+        console.error(JSON.stringify(jsonEntry));
+        break;
+    }
+  }
+
+  /**
+   * Output log entry in human-readable text format
+   */
+  private outputTextFormat(entry: LogEntry): void {
     const timestamp = new Date(entry.timestamp).toISOString();
     const levelName = LogLevelEnum[entry.level];
-    const prefix = `[${timestamp}] ${levelName}`;
     const contextStr = entry.context ? ` [${entry.context}]` : '';
-    const logMessage = `${prefix}${contextStr}: ${entry.message}`;
+    const correlationStr = entry.correlationId ? ` (${entry.correlationId})` : '';
+    const durationStr = entry.duration !== undefined ? ` (${entry.duration}ms)` : '';
+    
+    const logMessage = `[${timestamp}] ${levelName}${contextStr}${correlationStr}${durationStr}: ${entry.message}`;
 
     switch (entry.level) {
       case LogLevelEnum.DEBUG:
@@ -124,13 +271,13 @@ export class LoggerService implements ILoggerService {
       case LogLevelEnum.ERROR:
         console.error(logMessage);
         if (entry.error) {
-          console.error(entry.error.stack);
+          console.error('  Error details:', entry.error.stack || entry.error.message);
         }
         break;
     }
 
-    if (entry.metadata) {
-      console.debug('Metadata:', entry.metadata);
+    if (entry.metadata && Object.keys(entry.metadata).length > 0) {
+      console.debug('  Metadata:', JSON.stringify(entry.metadata, null, 2));
     }
   }
 

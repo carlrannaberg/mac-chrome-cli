@@ -12,6 +12,7 @@ import type { INetworkService } from './INetworkService.js';
 import type { IPerformanceService } from './IPerformanceService.js';
 import type { ILoggerService } from './ILoggerService.js';
 import type { IConfigurationService } from './IConfigurationService.js';
+import type { IRateLimiterService } from './IRateLimiterService.js';
 
 // Core service tokens
 export const SERVICE_TOKENS = {
@@ -27,7 +28,8 @@ export const SERVICE_TOKENS = {
   NetworkService: createServiceToken<INetworkService>('NetworkService'),
   PerformanceService: createServiceToken<IPerformanceService>('PerformanceService'),
   LoggerService: createServiceToken<ILoggerService>('LoggerService'),
-  ConfigurationService: createServiceToken<IConfigurationService>('ConfigurationService')
+  ConfigurationService: createServiceToken<IConfigurationService>('ConfigurationService'),
+  RateLimiterService: createServiceToken<IRateLimiterService>('RateLimiterService')
 } as const;
 
 // Export individual tokens for convenience
@@ -39,5 +41,6 @@ export const {
   NetworkService,
   PerformanceService,
   LoggerService,
-  ConfigurationService
+  ConfigurationService,
+  RateLimiterService
 } = SERVICE_TOKENS;

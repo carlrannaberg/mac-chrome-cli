@@ -17,6 +17,7 @@ async function main(): Promise<void> {
     const cli = new MacChromeCLI();
     await cli.run();
   } catch (error) {
+    // Fatal startup error - use console.error as logger may not be available
     console.error('Fatal error starting CLI:', error);
     process.exit(1);
   }

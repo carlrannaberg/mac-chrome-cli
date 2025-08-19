@@ -128,10 +128,52 @@ export class NavigationCommand extends BrowserCommandBase {
    * @param options - Navigation configuration options
    * @returns Promise resolving to navigation result with page data
    * 
+   * @throws {INVALID_URL} When URL is empty, malformed, or uses unsupported protocol
+   * @throws {VALIDATION_FAILED} When windowIndex or timeoutMs parameters are invalid
+   * @throws {CHROME_NOT_RUNNING} When Chrome browser is not running or accessible
+   * @throws {CHROME_NOT_FOUND} When Chrome application cannot be found on system
+   * @throws {WINDOW_NOT_FOUND} When specified window index does not exist
+   * @throws {NAVIGATION_FAILED} When navigation to URL fails (network, server errors)
+   * @throws {PAGE_LOAD_FAILED} When page fails to load properly (when waitForLoad is true)
+   * @throws {LOAD_TIMEOUT} When page loading exceeds timeout duration (when waitForLoad is true)
+   * @throws {NETWORK_TIMEOUT} When network request times out during navigation
+   * @throws {NETWORK_ERROR} When network connectivity issues prevent navigation
+   * @throws {DNS_RESOLUTION_FAILED} When hostname cannot be resolved to IP address
+   * @throws {SSL_ERROR} When SSL/TLS certificate or connection issues occur
+   * @throws {PERMISSION_DENIED} When system permissions block browser automation
+   * @throws {ACCESSIBILITY_DENIED} When accessibility permissions not granted for automation
+   * @throws {APPLE_EVENTS_DENIED} When Apple Events permissions not granted for Chrome control
+   * @throws {APPLESCRIPT_ERROR} When underlying AppleScript execution fails
+   * @throws {JAVASCRIPT_ERROR} When JavaScript execution fails during navigation validation
+   * @throws {SYSTEM_ERROR} When system-level errors prevent operation
+   * @throws {UNKNOWN_ERROR} When an unexpected error occurs during navigation
+   * 
    * @example
    * ```typescript
-   * // Basic navigation
-   * const result = await navigationCmd.go('https://example.com');
+   * // Basic navigation with error handling
+   * try {
+   *   const result = await navigationCmd.go('https://example.com');
+   *   if (!result.success) {
+   *     switch (result.code) {
+   *       case ErrorCode.INVALID_URL:
+   *         console.log('Check URL format and try again');
+   *         break;
+   *       case ErrorCode.CHROME_NOT_RUNNING:
+   *         console.log('Please start Chrome browser');
+   *         break;
+   *       case ErrorCode.NETWORK_ERROR:
+   *         console.log('Check network connection and retry');
+   *         break;
+   *       case ErrorCode.LOAD_TIMEOUT:
+   *         console.log('Page loading timed out - may still be accessible');
+   *         break;
+   *     }
+   *   } else {
+   *     console.log(`Successfully navigated to: ${result.data.url}`);
+   *   }
+   * } catch (error) {
+   *   console.error('Unexpected navigation error:', error);
+   * }
    * 
    * // Navigation with load waiting and custom timeout
    * const result = await navigationCmd.go('https://slow-site.com', {
@@ -233,10 +275,44 @@ export class NavigationCommand extends BrowserCommandBase {
    * @param options - Reload configuration options
    * @returns Promise resolving to navigation result with page data
    * 
+   * @throws {VALIDATION_FAILED} When windowIndex or timeoutMs parameters are invalid
+   * @throws {CHROME_NOT_RUNNING} When Chrome browser is not running or accessible
+   * @throws {CHROME_NOT_FOUND} When Chrome application cannot be found on system
+   * @throws {WINDOW_NOT_FOUND} When specified window index does not exist
+   * @throws {TAB_NOT_FOUND} When no active tab exists in the specified window
+   * @throws {PAGE_LOAD_FAILED} When page fails to reload properly
+   * @throws {LOAD_TIMEOUT} When page reloading exceeds timeout duration (when waitForLoad is true)
+   * @throws {NETWORK_TIMEOUT} When network request times out during reload
+   * @throws {NETWORK_ERROR} When network connectivity issues prevent reload
+   * @throws {PERMISSION_DENIED} When system permissions block browser automation
+   * @throws {ACCESSIBILITY_DENIED} When accessibility permissions not granted for automation
+   * @throws {APPLE_EVENTS_DENIED} When Apple Events permissions not granted for Chrome control
+   * @throws {APPLESCRIPT_ERROR} When underlying AppleScript execution fails
+   * @throws {JAVASCRIPT_ERROR} When JavaScript execution fails during reload validation
+   * @throws {SYSTEM_ERROR} When system-level errors prevent operation
+   * @throws {UNKNOWN_ERROR} When an unexpected error occurs during reload
+   * 
    * @example
    * ```typescript
-   * // Normal reload
-   * const result = await navigationCmd.reload();
+   * // Normal reload with error handling
+   * try {
+   *   const result = await navigationCmd.reload();
+   *   if (!result.success) {
+   *     switch (result.code) {
+   *       case ErrorCode.CHROME_NOT_RUNNING:
+   *         console.log('Chrome is not running - please start it first');
+   *         break;
+   *       case ErrorCode.TAB_NOT_FOUND:
+   *         console.log('No active tab found to reload');
+   *         break;
+   *       case ErrorCode.NETWORK_ERROR:
+   *         console.log('Network error during reload - check connectivity');
+   *         break;
+   *     }
+   *   }
+   * } catch (error) {
+   *   console.error('Unexpected reload error:', error);
+   * }
    * 
    * // Hard reload bypassing cache
    * const result = await navigationCmd.reload({
@@ -316,10 +392,44 @@ export class NavigationCommand extends BrowserCommandBase {
    * @param options - Navigation configuration options
    * @returns Promise resolving to navigation result with page data
    * 
+   * @throws {VALIDATION_FAILED} When windowIndex or timeoutMs parameters are invalid
+   * @throws {CHROME_NOT_RUNNING} When Chrome browser is not running or accessible
+   * @throws {CHROME_NOT_FOUND} When Chrome application cannot be found on system
+   * @throws {WINDOW_NOT_FOUND} When specified window index does not exist
+   * @throws {TAB_NOT_FOUND} When no active tab exists in the specified window
+   * @throws {NAVIGATION_FAILED} When back navigation fails (no history available)
+   * @throws {PAGE_LOAD_FAILED} When previous page fails to load properly
+   * @throws {LOAD_TIMEOUT} When page loading exceeds timeout duration (when waitForLoad is true)
+   * @throws {NETWORK_TIMEOUT} When network request times out during back navigation
+   * @throws {PERMISSION_DENIED} When system permissions block browser automation
+   * @throws {ACCESSIBILITY_DENIED} When accessibility permissions not granted for automation
+   * @throws {APPLE_EVENTS_DENIED} When Apple Events permissions not granted for Chrome control
+   * @throws {APPLESCRIPT_ERROR} When underlying AppleScript execution fails
+   * @throws {JAVASCRIPT_ERROR} When JavaScript execution fails during navigation validation
+   * @throws {SYSTEM_ERROR} When system-level errors prevent operation
+   * @throws {UNKNOWN_ERROR} When an unexpected error occurs during back navigation
+   * 
    * @example
    * ```typescript
-   * // Basic back navigation
-   * const result = await navigationCmd.back();
+   * // Basic back navigation with error handling
+   * try {
+   *   const result = await navigationCmd.back();
+   *   if (!result.success) {
+   *     switch (result.code) {
+   *       case ErrorCode.NAVIGATION_FAILED:
+   *         console.log('Cannot go back - no previous page in history');
+   *         break;
+   *       case ErrorCode.CHROME_NOT_RUNNING:
+   *         console.log('Chrome is not running - please start it first');
+   *         break;
+   *       case ErrorCode.TAB_NOT_FOUND:
+   *         console.log('No active tab found for back navigation');
+   *         break;
+   *     }
+   *   }
+   * } catch (error) {
+   *   console.error('Unexpected back navigation error:', error);
+   * }
    * 
    * // Back navigation with load waiting
    * const result = await navigationCmd.back({
@@ -393,10 +503,44 @@ export class NavigationCommand extends BrowserCommandBase {
    * @param options - Navigation configuration options
    * @returns Promise resolving to navigation result with page data
    * 
+   * @throws {VALIDATION_FAILED} When windowIndex or timeoutMs parameters are invalid
+   * @throws {CHROME_NOT_RUNNING} When Chrome browser is not running or accessible
+   * @throws {CHROME_NOT_FOUND} When Chrome application cannot be found on system
+   * @throws {WINDOW_NOT_FOUND} When specified window index does not exist
+   * @throws {TAB_NOT_FOUND} When no active tab exists in the specified window
+   * @throws {NAVIGATION_FAILED} When forward navigation fails (no forward history available)
+   * @throws {PAGE_LOAD_FAILED} When next page fails to load properly
+   * @throws {LOAD_TIMEOUT} When page loading exceeds timeout duration (when waitForLoad is true)
+   * @throws {NETWORK_TIMEOUT} When network request times out during forward navigation
+   * @throws {PERMISSION_DENIED} When system permissions block browser automation
+   * @throws {ACCESSIBILITY_DENIED} When accessibility permissions not granted for automation
+   * @throws {APPLE_EVENTS_DENIED} When Apple Events permissions not granted for Chrome control
+   * @throws {APPLESCRIPT_ERROR} When underlying AppleScript execution fails
+   * @throws {JAVASCRIPT_ERROR} When JavaScript execution fails during navigation validation
+   * @throws {SYSTEM_ERROR} When system-level errors prevent operation
+   * @throws {UNKNOWN_ERROR} When an unexpected error occurs during forward navigation
+   * 
    * @example
    * ```typescript
-   * // Basic forward navigation
-   * const result = await navigationCmd.forward();
+   * // Basic forward navigation with error handling
+   * try {
+   *   const result = await navigationCmd.forward();
+   *   if (!result.success) {
+   *     switch (result.code) {
+   *       case ErrorCode.NAVIGATION_FAILED:
+   *         console.log('Cannot go forward - no next page in history');
+   *         break;
+   *       case ErrorCode.CHROME_NOT_RUNNING:
+   *         console.log('Chrome is not running - please start it first');
+   *         break;
+   *       case ErrorCode.TAB_NOT_FOUND:
+   *         console.log('No active tab found for forward navigation');
+   *         break;
+   *     }
+   *   }
+   * } catch (error) {
+   *   console.error('Unexpected forward navigation error:', error);
+   * }
    * 
    * // Forward navigation with load waiting
    * const result = await navigationCmd.forward({

@@ -246,6 +246,55 @@ async function checkMacOSVersion(): Promise<SystemCheck> {
 
 /**
  * Run comprehensive system diagnostics
+ * 
+ * Performs comprehensive health checks for mac-chrome-cli including dependency
+ * verification, permission checks, and system compatibility validation.
+ * 
+ * @returns Promise resolving to complete diagnostic results
+ * 
+ * @throws {SYSTEM_ERROR} When unable to execute system commands for dependency checking
+ * @throws {PERMISSION_DENIED} When system permissions prevent diagnostic execution
+ * @throws {CHROME_NOT_FOUND} When Chrome application cannot be located during availability check
+ * @throws {APPLESCRIPT_ERROR} When AppleScript execution fails during permission checks
+ * @throws {TIMEOUT} When diagnostic operations exceed time limits
+ * @throws {UNKNOWN_ERROR} When unexpected errors occur during diagnostic execution
+ * 
+ * @example
+ * ```typescript
+ * // Run system diagnostics with error handling
+ * try {
+ *   const result = await runDiagnostics();
+ *   
+ *   switch (result.overall) {
+ *     case 'healthy':
+ *       console.log('✅ System is ready for mac-chrome-cli');
+ *       break;
+ *     case 'warnings':
+ *       console.log('⚠️ System has warnings:', result.recommendations);
+ *       break;
+ *     case 'errors':
+ *       console.log('❌ System has errors that need attention');
+ *       break;
+ *   }
+ *   
+ *   // Check specific issues
+ *   for (const dep of result.dependencies) {
+ *     if (dep.required && !dep.installed) {
+ *       console.log(`Missing required dependency: ${dep.name}`);
+ *       console.log(`Install with: ${dep.installCommand}`);
+ *     }
+ *   }
+ *   
+ *   for (const perm of result.permissions) {
+ *     if (!perm.granted) {
+ *       console.log(`Permission needed: ${perm.name}`);
+ *       console.log(`Instructions: ${perm.instructions}`);
+ *     }
+ *   }
+ * } catch (error) {
+ *   console.error('Diagnostic execution failed:', error);
+ * }
+ * ```
  */
 export async function runDiagnostics(): Promise<DoctorResult> {
   // Run all checks in parallel

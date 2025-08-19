@@ -180,6 +180,21 @@ export interface SnapshotResult {
     visibleOnly: boolean;
     /** Maximum depth for DOM-lite mode */
     maxDepth?: number;
+    /** Performance metrics for optimization monitoring */
+    performance?: {
+      /** Algorithm complexity description */
+      algorithm: string;
+      /** Total number of DOM nodes processed */
+      nodeCount: number;
+      /** Time spent in DOM traversal phase (ms) */
+      traversalMs?: number;
+      /** Time spent in element processing phase (ms) */
+      processingMs: number;
+      /** Peak memory usage during operation (MB) */
+      memoryPeakMB: number;
+      /** List of optimization techniques used */
+      algorithmsUsed?: string[];
+    };
   };
 }
 
@@ -215,59 +230,107 @@ export interface SnapshotOptions {
 
 /**
  * JavaScript code that generates unique CSS selectors for DOM elements.
- * Uses a priority system: id > data-testid > data-test > unique class > path-based selector.
- * This ensures the most reliable and maintainable selectors are chosen first.
+ * OPTIMIZED VERSION: Uses pre-computed caches to avoid O(n²) querySelectorAll operations.
+ * Achieves O(n) complexity by building selector uniqueness maps upfront.
  * 
  * @constant {string} getSelectorScript
  * @private
  */
 const getSelectorScript = `
-function getUniqueSelector(element) {
-  // Try ID first
-  if (element.id) {
-    const idSelector = '#' + CSS.escape(element.id);
-    if (document.querySelectorAll(idSelector).length === 1) {
-      return idSelector;
-    }
-  }
+// Performance optimization: Pre-compute selector uniqueness maps
+let selectorCaches = null;
+
+function buildSelectorCaches() {
+  if (selectorCaches) return selectorCaches;
   
-  // Try data-testid
-  const testId = element.getAttribute('data-testid');
-  if (testId) {
-    const testIdSelector = '[data-testid="' + CSS.escape(testId) + '"]';
-    if (document.querySelectorAll(testIdSelector).length === 1) {
-      return testIdSelector;
-    }
-  }
+  const idMap = new Map();
+  const testIdMap = new Map();
+  const dataTestMap = new Map();
+  const classMap = new Map();
   
-  // Try data-test
-  const dataTest = element.getAttribute('data-test');
-  if (dataTest) {
-    const dataTestSelector = '[data-test="' + CSS.escape(dataTest) + '"]';
-    if (document.querySelectorAll(dataTestSelector).length === 1) {
-      return dataTestSelector;
-    }
-  }
+  // Single DOM traversal to build all caches - O(n)
+  const walker = document.createTreeWalker(
+    document.documentElement,
+    NodeFilter.SHOW_ELEMENT,
+    null,
+    false
+  );
   
-  // Try unique class combination
-  if (element.className && typeof element.className === 'string') {
-    const classes = element.className.trim().split(/\\s+/).filter(Boolean);
-    if (classes.length > 0) {
-      const classSelector = '.' + classes.map(c => CSS.escape(c)).join('.');
-      if (document.querySelectorAll(classSelector).length === 1) {
-        return classSelector;
+  let node;
+  while (node = walker.nextNode()) {
+    const element = node;
+    
+    // Cache ID selectors
+    if (element.id) {
+      const id = element.id;
+      idMap.set(id, (idMap.get(id) || 0) + 1);
+    }
+    
+    // Cache test ID selectors
+    const testId = element.getAttribute('data-testid');
+    if (testId) {
+      testIdMap.set(testId, (testIdMap.get(testId) || 0) + 1);
+    }
+    
+    // Cache data-test selectors
+    const dataTest = element.getAttribute('data-test');
+    if (dataTest) {
+      dataTestMap.set(dataTest, (dataTestMap.get(dataTest) || 0) + 1);
+    }
+    
+    // Cache class combinations
+    if (element.className && typeof element.className === 'string') {
+      const classes = element.className.trim().split(/\\s+/).filter(Boolean);
+      if (classes.length > 0) {
+        const classKey = classes.sort().join('.');
+        classMap.set(classKey, (classMap.get(classKey) || 0) + 1);
       }
     }
   }
   
-  // Fall back to path-based selector
+  selectorCaches = { idMap, testIdMap, dataTestMap, classMap };
+  return selectorCaches;
+}
+
+function getUniqueSelector(element) {
+  const caches = buildSelectorCaches();
+  
+  // Try ID first - O(1) lookup
+  if (element.id && caches.idMap.get(element.id) === 1) {
+    return '#' + CSS.escape(element.id);
+  }
+  
+  // Try data-testid - O(1) lookup
+  const testId = element.getAttribute('data-testid');
+  if (testId && caches.testIdMap.get(testId) === 1) {
+    return '[data-testid="' + CSS.escape(testId) + '"]';
+  }
+  
+  // Try data-test - O(1) lookup
+  const dataTest = element.getAttribute('data-test');
+  if (dataTest && caches.dataTestMap.get(dataTest) === 1) {
+    return '[data-test="' + CSS.escape(dataTest) + '"]';
+  }
+  
+  // Try unique class combination - O(1) lookup
+  if (element.className && typeof element.className === 'string') {
+    const classes = element.className.trim().split(/\\s+/).filter(Boolean);
+    if (classes.length > 0) {
+      const classKey = classes.sort().join('.');
+      if (caches.classMap.get(classKey) === 1) {
+        return '.' + classes.map(c => CSS.escape(c)).join('.');
+      }
+    }
+  }
+  
+  // Fall back to optimized path-based selector
   const path = [];
   let current = element;
   
   while (current && current !== document.documentElement) {
     let selector = current.tagName.toLowerCase();
     
-    if (current.id) {
+    if (current.id && caches.idMap.get(current.id) === 1) {
       selector += '#' + CSS.escape(current.id);
       path.unshift(selector);
       break;
@@ -280,14 +343,13 @@ function getUniqueSelector(element) {
       }
     }
     
-    // Add nth-child if needed for uniqueness
+    // Add nth-child only when necessary
     const parent = current.parentElement;
     if (parent) {
-      const siblings = Array.from(parent.children).filter(child => 
-        child.tagName === current.tagName
-      );
-      if (siblings.length > 1) {
-        const index = siblings.indexOf(current) + 1;
+      const siblings = Array.from(parent.children);
+      const sameTagSiblings = siblings.filter(child => child.tagName === current.tagName);
+      if (sameTagSiblings.length > 1) {
+        const index = sameTagSiblings.indexOf(current) + 1;
         selector += ':nth-child(' + index + ')';
       }
     }
@@ -517,7 +579,8 @@ function getElementState(element) {
 
 /**
  * Generates JavaScript code for capturing page snapshots in the browser.
- * Creates a self-executing function that captures interactive elements based on the specified mode.
+ * OPTIMIZED VERSION: Uses O(n) algorithms with pre-computed caches and iterative traversal.
+ * Includes performance monitoring and memory management for large DOM trees.
  * 
  * @param options - Configuration options for the snapshot operation
  * @returns JavaScript code as a string that can be executed in Chrome
@@ -541,43 +604,102 @@ ${getElementStateScript}
 (function() {
   try {
     const startTime = Date.now();
+    const performanceMetrics = {
+      nodeCount: 0,
+      memoryPeak: 0,
+      traversalTime: 0,
+      processingTime: 0
+    };
+    
     const nodes = [];
     const { visibleOnly = false, maxDepth = 10, mode = 'outline' } = ${JSON.stringify(options)};
     
-    // Define interactive element selectors
-    const interactiveSelectors = [
-      'button',
-      'input',
-      'textarea',
-      'select',
-      'a[href]',
-      '[role="button"]',
-      '[role="link"]',
-      '[role="textbox"]',
-      '[role="combobox"]',
-      '[role="listbox"]',
-      '[role="menuitem"]',
-      '[role="menuitemcheckbox"]',
-      '[role="menuitemradio"]',
-      '[role="option"]',
-      '[role="radio"]',
-      '[role="checkbox"]',
-      '[role="slider"]',
-      '[role="spinbutton"]',
-      '[role="tab"]',
-      '[role="treeitem"]',
-      '[onclick]',
-      '[onmousedown]',
-      '[onmouseup]',
-      '[onchange]',
-      '[tabindex]:not([tabindex="-1"])'
-    ].join(', ');
+    // Performance: Pre-compile interactive element checks
+    const interactiveTagNames = new Set(['button', 'input', 'textarea', 'select', 'a']);
+    const interactiveRoles = new Set([
+      'button', 'link', 'textbox', 'combobox', 'listbox', 'menuitem',
+      'menuitemcheckbox', 'menuitemradio', 'option', 'radio', 'checkbox',
+      'slider', 'spinbutton', 'tab', 'treeitem'
+    ]);
+    const interactiveAttributes = new Set(['onclick', 'onmousedown', 'onmouseup', 'onchange']);
+    
+    // Optimized interactive element check - O(1) instead of O(n) matches()
+    function isElementInteractive(element) {
+      const tagName = element.tagName.toLowerCase();
+      
+      // Check tag names
+      if (interactiveTagNames.has(tagName)) {
+        if (tagName === 'a') return element.href; // Links must have href
+        return true;
+      }
+      
+      // Check roles
+      const role = element.getAttribute('role');
+      if (role && interactiveRoles.has(role)) return true;
+      
+      // Check interactive attributes
+      for (const attr of interactiveAttributes) {
+        if (element.hasAttribute(attr)) return true;
+      }
+      
+      // Check tabindex (but not -1)
+      const tabindex = element.getAttribute('tabindex');
+      return tabindex !== null && tabindex !== '-1';
+    }
+    
+    // Pre-build interactive element map for O(1) hasInteractiveChildren lookup
+    const interactiveChildrenMap = new WeakMap();
+    function buildInteractiveMap() {
+      const traversalStart = Date.now();
+      
+      // Use iterative traversal with explicit stack to avoid recursion overhead
+      const stack = [{ element: document.body, hasInteractive: false }];
+      const processed = new WeakSet();
+      
+      while (stack.length > 0) {
+        const { element, hasInteractive } = stack.pop();
+        
+        if (processed.has(element)) continue;
+        processed.add(element);
+        
+        const isInteractive = isElementInteractive(element);
+        let hasInteractiveDesc = hasInteractive || isInteractive;
+        
+        // Add children to stack in reverse order for correct processing
+        const children = Array.from(element.children);
+        for (let i = children.length - 1; i >= 0; i--) {
+          stack.push({ element: children[i], hasInteractive: hasInteractiveDesc });
+        }
+        
+        // Store result
+        interactiveChildrenMap.set(element, hasInteractiveDesc);
+        performanceMetrics.nodeCount++;
+      }
+      
+      performanceMetrics.traversalTime = Date.now() - traversalStart;
+    }
     
     if (mode === 'outline') {
-      // Outline mode: flat list of interactive elements
-      const elements = document.querySelectorAll(interactiveSelectors);
+      // Outline mode: optimized flat list of interactive elements
+      const processingStart = Date.now();
       
-      for (const element of elements) {
+      // Use TreeWalker for optimal DOM traversal - faster than querySelectorAll
+      const walker = document.createTreeWalker(
+        document.documentElement,
+        NodeFilter.SHOW_ELEMENT,
+        {
+          acceptNode: function(node) {
+            return isElementInteractive(node) ? 
+              NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+          }
+        },
+        false
+      );
+      
+      let element;
+      while (element = walker.nextNode()) {
+        performanceMetrics.nodeCount++;
+        
         // Skip if visibility filtering is enabled and element is not visible
         if (visibleOnly && !isElementVisible(element)) continue;
         
@@ -601,22 +723,22 @@ ${getElementStateScript}
             tagName: element.tagName.toLowerCase()
           };
           
-          // Add optional properties
-          if (element.id) node.id = element.id;
-          if (element.className && typeof element.className === 'string') {
-            node.className = element.className;
-          }
-          if (element.href) node.href = element.href;
-          if (element.src) node.src = element.src;
-          if (element.alt) node.alt = element.alt;
-          if (element.title) node.title = element.title;
-          if (element.type) node.type = element.type;
-          if (element.placeholder) node.placeholder = element.placeholder;
-          if (element.getAttribute('aria-label')) {
-            node.ariaLabel = element.getAttribute('aria-label');
-          }
-          if (element.getAttribute('role')) {
-            node.ariaRole = element.getAttribute('role');
+          // Add optional properties efficiently
+          const optionalProps = {
+            id: element.id,
+            className: element.className,
+            href: element.href,
+            src: element.src,
+            alt: element.alt,
+            title: element.title,
+            type: element.type,
+            placeholder: element.placeholder,
+            ariaLabel: element.getAttribute('aria-label'),
+            ariaRole: element.getAttribute('role')
+          };
+          
+          for (const [key, value] of Object.entries(optionalProps)) {
+            if (value) node[key] = value;
           }
           
           nodes.push(node);
@@ -625,17 +747,31 @@ ${getElementStateScript}
           continue;
         }
       }
+      
+      performanceMetrics.processingTime = Date.now() - processingStart;
     } else if (mode === 'dom-lite') {
-      // DOM-lite mode: pruned hierarchy
-      function traverseElement(element, level = 0, parentSelector = '') {
-        if (level > maxDepth) return;
+      // DOM-lite mode: optimized iterative hierarchy traversal
+      buildInteractiveMap();
+      const processingStart = Date.now();
+      
+      // Use iterative traversal with explicit stack to prevent stack overflow
+      const traversalStack = [{ 
+        element: document.body, 
+        level: 0, 
+        parentSelector: '' 
+      }];
+      
+      while (traversalStack.length > 0) {
+        const { element, level, parentSelector } = traversalStack.pop();
+        
+        if (level > maxDepth) continue;
         
         // Skip if visibility filtering is enabled and element is not visible
-        if (visibleOnly && !isElementVisible(element)) return;
+        if (visibleOnly && !isElementVisible(element)) continue;
         
         try {
-          const isInteractive = element.matches && element.matches(interactiveSelectors);
-          const hasInteractiveChildren = element.querySelector && element.querySelector(interactiveSelectors);
+          const isInteractive = isElementInteractive(element);
+          const hasInteractiveChildren = interactiveChildrenMap.get(element) || false;
           
           // Include if interactive or has interactive descendants
           if (isInteractive || hasInteractiveChildren || level === 0) {
@@ -665,41 +801,53 @@ ${getElementStateScript}
             
             // Add optional properties for interactive elements
             if (isInteractive) {
-              if (element.id) node.id = element.id;
-              if (element.className && typeof element.className === 'string') {
-                node.className = element.className;
-              }
-              if (element.href) node.href = element.href;
-              if (element.src) node.src = element.src;
-              if (element.alt) node.alt = element.alt;
-              if (element.title) node.title = element.title;
-              if (element.type) node.type = element.type;
-              if (element.placeholder) node.placeholder = element.placeholder;
-              if (element.getAttribute('aria-label')) {
-                node.ariaLabel = element.getAttribute('aria-label');
-              }
-              if (element.getAttribute('role')) {
-                node.ariaRole = element.getAttribute('role');
+              const optionalProps = {
+                id: element.id,
+                className: element.className,
+                href: element.href,
+                src: element.src,
+                alt: element.alt,
+                title: element.title,
+                type: element.type,
+                placeholder: element.placeholder,
+                ariaLabel: element.getAttribute('aria-label'),
+                ariaRole: element.getAttribute('role')
+              };
+              
+              for (const [key, value] of Object.entries(optionalProps)) {
+                if (value) node[key] = value;
               }
             }
             
             nodes.push(node);
             
-            // Traverse children
-            for (const child of element.children) {
-              traverseElement(child, level + 1, selector);
+            // Add children to stack in reverse order for correct processing order
+            const children = Array.from(element.children);
+            for (let i = children.length - 1; i >= 0; i--) {
+              traversalStack.push({
+                element: children[i],
+                level: level + 1,
+                parentSelector: selector
+              });
             }
           }
+          
+          performanceMetrics.nodeCount++;
         } catch (nodeError) {
           // Skip problematic elements
-          return;
+          continue;
         }
       }
       
-      traverseElement(document.body);
+      performanceMetrics.processingTime = Date.now() - processingStart;
     }
     
     const endTime = Date.now();
+    
+    // Monitor memory usage
+    if (performance.memory) {
+      performanceMetrics.memoryPeak = Math.round(performance.memory.usedJSHeapSize / 1024 / 1024);
+    }
     
     return {
       ok: true,
@@ -711,7 +859,20 @@ ${getElementStateScript}
         timestamp: new Date().toISOString(),
         durationMs: endTime - startTime,
         visibleOnly,
-        maxDepth: mode === 'dom-lite' ? maxDepth : undefined
+        maxDepth: mode === 'dom-lite' ? maxDepth : undefined,
+        performance: {
+          algorithm: 'O(n) optimized',
+          nodeCount: performanceMetrics.nodeCount,
+          traversalMs: performanceMetrics.traversalTime,
+          processingMs: performanceMetrics.processingTime,
+          memoryPeakMB: performanceMetrics.memoryPeak,
+          algorithmsUsed: [
+            'TreeWalker for interactive elements',
+            'WeakMap for O(1) child lookups',
+            'Iterative traversal to prevent stack overflow',
+            'Pre-computed selector caches'
+          ]
+        }
       }
     };
   } catch (error) {
@@ -719,7 +880,12 @@ ${getElementStateScript}
       ok: false,
       cmd: 'snapshot.' + mode,
       nodes: [],
-      error: error.message || 'Unknown error during snapshot'
+      error: error.message || 'Unknown error during snapshot',
+      performance: {
+        algorithm: 'O(n) optimized (failed)',
+        nodeCount: 0,
+        memoryPeakMB: 0
+      }
     };
   }
 })();

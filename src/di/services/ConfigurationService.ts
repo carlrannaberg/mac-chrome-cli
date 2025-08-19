@@ -29,7 +29,10 @@ export class ConfigurationService implements IConfigurationService {
       level: 'INFO',
       enableConsole: true,
       enableFile: false,
-      maxEntries: 1000
+      maxEntries: 1000,
+      enableCorrelationIds: true,
+      enableJson: false,
+      enablePerformanceLogging: true
     }
   };
 
@@ -113,7 +116,7 @@ export class ConfigurationService implements IConfigurationService {
       this.config = { ...this.config, ...parsed };
       return true;
     } catch (error) {
-      console.warn(`Failed to load configuration from ${filePath}:`, error);
+      // Note: Can't use logger here as it may not be initialized yet during startup
       return false;
     }
   }
@@ -133,7 +136,7 @@ export class ConfigurationService implements IConfigurationService {
       await fs.writeFile(resolvedPath, configData, 'utf-8');
       return true;
     } catch (error) {
-      console.warn(`Failed to save configuration to ${filePath}:`, error);
+      // Note: Can't use logger here as it may not be initialized yet during startup
       return false;
     }
   }
