@@ -24,11 +24,6 @@ export interface MetaInfo {
     macosVersion: string | undefined;
     macosMinimum: string;
   };
-  commands: {
-    implemented: string[];
-    total: number;
-    categories: string[];
-  };
   capabilities: string[];
   repository: string;
   license: string;
@@ -42,7 +37,6 @@ export interface CommandInfo {
   name: string;
   description: string;
   category: string;
-  implemented: boolean;
   options?: CommandOption[];
   examples?: string[];
   permissions: string[];
@@ -114,7 +108,6 @@ function getCommandRegistry(): CommandInfo[] {
       name: 'doctor',
       description: 'Diagnose system setup and dependencies',
       category: 'System Diagnostics',
-      implemented: true,
       permissions: ['accessibility', 'automation'],
       examples: ['mac-chrome-cli doctor']
     },
@@ -122,7 +115,6 @@ function getCommandRegistry(): CommandInfo[] {
       name: 'test',
       description: 'Test command to verify CLI is working',
       category: 'System Diagnostics',
-      implemented: true,
       permissions: [],
       examples: ['mac-chrome-cli test']
     },
@@ -132,14 +124,12 @@ function getCommandRegistry(): CommandInfo[] {
       name: 'nav',
       description: 'Navigation and page control commands',
       category: 'Navigation',
-      implemented: false,
       permissions: ['automation'],
       subcommands: [
         {
           name: 'nav go',
           description: 'Navigate to URL',
           category: 'Navigation',
-          implemented: false,
           permissions: ['automation'],
           options: [{
             name: '--url',
@@ -152,7 +142,6 @@ function getCommandRegistry(): CommandInfo[] {
           name: 'nav reload',
           description: 'Reload current page',
           category: 'Navigation',
-          implemented: false,
           permissions: ['automation'],
           options: [{
             name: '--hard',
@@ -165,14 +154,12 @@ function getCommandRegistry(): CommandInfo[] {
           name: 'nav back',
           description: 'Navigate back in history',
           category: 'Navigation',
-          implemented: false,
           permissions: ['automation']
         },
         {
           name: 'nav forward',
           description: 'Navigate forward in history',
           category: 'Navigation',
-          implemented: false,
           permissions: ['automation']
         }
       ]
@@ -183,14 +170,12 @@ function getCommandRegistry(): CommandInfo[] {
       name: 'tab',
       description: 'Tab management commands',
       category: 'Tab Management',
-      implemented: false,
       permissions: ['automation'],
       subcommands: [
         {
           name: 'tab focus',
           description: 'Focus tab by match criteria',
           category: 'Tab Management',
-          implemented: false,
           permissions: ['automation'],
           options: [{
             name: '--match',
@@ -207,28 +192,24 @@ function getCommandRegistry(): CommandInfo[] {
       name: 'shot',
       description: 'Screenshot capture commands',
       category: 'Screenshot Capture',
-      implemented: false,
       permissions: ['screen-recording', 'automation'],
       subcommands: [
         {
           name: 'shot viewport',
           description: 'Capture viewport screenshot',
           category: 'Screenshot Capture',
-          implemented: false,
           permissions: ['screen-recording', 'automation']
         },
         {
           name: 'shot window',
           description: 'Capture window screenshot',
           category: 'Screenshot Capture',
-          implemented: false,
           permissions: ['screen-recording', 'automation']
         },
         {
           name: 'shot element',
           description: 'Capture element screenshot',
           category: 'Screenshot Capture',
-          implemented: false,
           permissions: ['screen-recording', 'automation'],
           options: [{
             name: '--selector',
@@ -245,14 +226,12 @@ function getCommandRegistry(): CommandInfo[] {
       name: 'mouse',
       description: 'Mouse interaction commands',
       category: 'Input Control',
-      implemented: false,
       permissions: ['accessibility', 'automation'],
       subcommands: [
         {
           name: 'mouse click',
           description: 'Click at coordinates or element',
           category: 'Input Control',
-          implemented: false,
           permissions: ['accessibility', 'automation'],
           options: [
             {
@@ -286,7 +265,6 @@ function getCommandRegistry(): CommandInfo[] {
           name: 'mouse move',
           description: 'Move mouse to coordinates or element',
           category: 'Input Control',
-          implemented: false,
           permissions: ['accessibility', 'automation'],
           options: [
             {
@@ -317,14 +295,12 @@ function getCommandRegistry(): CommandInfo[] {
       name: 'keyboard',
       description: 'Keyboard input commands',
       category: 'Input Control',
-      implemented: false,
       permissions: ['accessibility', 'automation'],
       subcommands: [
         {
           name: 'keyboard type',
           description: 'Type text',
           category: 'Input Control',
-          implemented: false,
           permissions: ['accessibility', 'automation'],
           options: [
             {
@@ -346,7 +322,6 @@ function getCommandRegistry(): CommandInfo[] {
           name: 'keyboard keys',
           description: 'Send key combination',
           category: 'Input Control',
-          implemented: false,
           permissions: ['accessibility', 'automation'],
           options: [{
             name: '--combo',
@@ -363,14 +338,12 @@ function getCommandRegistry(): CommandInfo[] {
       name: 'input',
       description: 'Form input commands',
       category: 'Form Control',
-      implemented: false,
       permissions: ['automation'],
       subcommands: [
         {
           name: 'input fill',
           description: 'Fill input field',
           category: 'Form Control',
-          implemented: false,
           permissions: ['automation'],
           options: [
             {
@@ -401,7 +374,6 @@ function getCommandRegistry(): CommandInfo[] {
       name: 'dom eval',
       description: 'Execute JavaScript in page context',
       category: 'DOM Evaluation',
-      implemented: true,
       permissions: ['automation'],
       options: [
         {
@@ -443,7 +415,6 @@ function getCommandRegistry(): CommandInfo[] {
       name: 'wait',
       description: 'Wait for specified duration',
       category: 'Utility Commands',
-      implemented: true,
       permissions: [],
       options: [{
         name: '--ms',
@@ -460,14 +431,12 @@ function getCommandRegistry(): CommandInfo[] {
       name: 'netlog',
       description: 'Network monitoring and logging commands',
       category: 'Network Monitoring',
-      implemented: true,
       permissions: ['automation'],
       subcommands: [
         {
           name: 'netlog start',
           description: 'Start network monitoring',
           category: 'Network Monitoring',
-          implemented: true,
           permissions: ['automation'],
           options: [
             {
@@ -490,14 +459,12 @@ function getCommandRegistry(): CommandInfo[] {
           name: 'netlog stop',
           description: 'Stop network monitoring',
           category: 'Network Monitoring',
-          implemented: true,
           permissions: ['automation']
         },
         {
           name: 'netlog dump',
           description: 'Dump captured network events',
           category: 'Network Monitoring',
-          implemented: true,
           permissions: ['automation'],
           options: [{
             name: '--format',
@@ -511,7 +478,6 @@ function getCommandRegistry(): CommandInfo[] {
           name: 'netlog clear',
           description: 'Clear captured network events',
           category: 'Network Monitoring',
-          implemented: true,
           permissions: ['automation']
         }
       ]
@@ -522,14 +488,12 @@ function getCommandRegistry(): CommandInfo[] {
       name: 'snapshot',
       description: 'Page structure extraction commands',
       category: 'Page Snapshots',
-      implemented: true,
       permissions: ['automation'],
       subcommands: [
         {
           name: 'snapshot outline',
           description: 'Capture flat list of interactive elements',
           category: 'Page Snapshots',
-          implemented: true,
           permissions: ['automation'],
           options: [{
             name: '--visible-only',
@@ -542,7 +506,6 @@ function getCommandRegistry(): CommandInfo[] {
           name: 'snapshot dom-lite',
           description: 'Capture pruned DOM hierarchy',
           category: 'Page Snapshots',
-          implemented: true,
           permissions: ['automation'],
           options: [
             {
@@ -568,14 +531,12 @@ function getCommandRegistry(): CommandInfo[] {
       name: 'scroll',
       description: 'Page scrolling commands',
       category: 'Scrolling Control',
-      implemented: true,
       permissions: ['automation'],
       subcommands: [
         {
           name: 'scroll to',
           description: 'Scroll to element (centers in viewport)',
           category: 'Scrolling Control',
-          implemented: true,
           permissions: ['automation'],
           options: [
             {
@@ -610,7 +571,6 @@ function getCommandRegistry(): CommandInfo[] {
           name: 'scroll by',
           description: 'Scroll by pixel amount',
           category: 'Scrolling Control',
-          implemented: true,
           permissions: ['automation'],
           options: [
             {
@@ -651,7 +611,6 @@ function getCommandRegistry(): CommandInfo[] {
           name: 'scroll position',
           description: 'Get current scroll position',
           category: 'Scrolling Control',
-          implemented: true,
           permissions: ['automation'],
           options: [
             {
@@ -678,14 +637,12 @@ function getCommandRegistry(): CommandInfo[] {
       name: 'files',
       description: 'File upload and management commands',
       category: 'File Operations',
-      implemented: true,
       permissions: ['automation'],
       subcommands: [
         {
           name: 'files upload',
           description: 'Upload files to a file input element',
           category: 'File Operations',
-          implemented: true,
           permissions: ['automation'],
           options: [
             {
@@ -712,7 +669,6 @@ function getCommandRegistry(): CommandInfo[] {
           name: 'files dragdrop',
           description: 'Simulate drag and drop file upload to a dropzone',
           category: 'File Operations',
-          implemented: true,
           permissions: ['automation'],
           options: [
             {
@@ -743,42 +699,36 @@ function getCommandRegistry(): CommandInfo[] {
       name: 'meta',
       description: 'CLI information and statistics commands',
       category: 'System Diagnostics',
-      implemented: true,
       permissions: [],
       subcommands: [
         {
           name: 'meta info',
           description: 'Show CLI version, capabilities, and implementation status',
           category: 'System Diagnostics',
-          implemented: true,
           permissions: []
         },
         {
           name: 'meta stats',
           description: 'Show CLI runtime statistics and performance metrics',
           category: 'System Diagnostics',
-          implemented: true,
           permissions: []
         },
         {
           name: 'meta commands',
           description: 'List all available commands with descriptions and status',
           category: 'System Diagnostics',
-          implemented: true,
           permissions: []
         },
         {
           name: 'meta permissions',
           description: 'Show permission requirements for all features',
           category: 'System Diagnostics',
-          implemented: true,
           permissions: []
         },
         {
           name: 'meta performance',
           description: 'Show performance statistics and optimization recommendations',
           category: 'System Diagnostics',
-          implemented: true,
           permissions: []
         }
       ]
@@ -786,50 +736,6 @@ function getCommandRegistry(): CommandInfo[] {
   ];
 }
 
-/**
- * Get list of implemented commands
- */
-function getImplementedCommands(): { implemented: string[]; total: number; categories: string[] } {
-  const commandRegistry = getCommandRegistry();
-  const implementedCommands: string[] = [];
-  const categories = new Set<string>();
-  
-  function extractCommands(commands: CommandInfo[]) {
-    for (const cmd of commands) {
-      categories.add(cmd.category);
-      
-      if (cmd.implemented) {
-        implementedCommands.push(cmd.name);
-      }
-      
-      if (cmd.subcommands) {
-        extractCommands(cmd.subcommands);
-      }
-    }
-  }
-  
-  extractCommands(commandRegistry);
-  
-  // Count total possible commands (including subcommands)
-  function countTotalCommands(commands: CommandInfo[]): number {
-    let total = 0;
-    for (const cmd of commands) {
-      total += 1;
-      if (cmd.subcommands) {
-        total += countTotalCommands(cmd.subcommands);
-      }
-    }
-    return total;
-  }
-  
-  const totalPossibleCommands = countTotalCommands(commandRegistry);
-
-  return {
-    implemented: implementedCommands.sort(),
-    total: totalPossibleCommands,
-    categories: Array.from(categories).sort()
-  };
-}
 
 /**
  * Get external dependencies
@@ -943,7 +849,6 @@ async function getMacOSVersion(): Promise<string | undefined> {
 export async function getMetaInfo(): Promise<Result<MetaInfo, string>> {
   const result = await executeWithContext(async () => {
     const packageInfo = getPackageInfo();
-    const commandInfo = getImplementedCommands();
     const capabilities = getCapabilities();
     const dependencies = getExternalDependencies();
     const macosVersion = await getMacOSVersion();
@@ -959,7 +864,6 @@ export async function getMetaInfo(): Promise<Result<MetaInfo, string>> {
         macosVersion: macosVersion,
         macosMinimum: '10.15'
       },
-      commands: commandInfo,
       capabilities,
       repository: packageInfo.repository,
       license: packageInfo.license,
@@ -1151,7 +1055,7 @@ export function formatCommandsOutput(commandsResult: Result<CommandInfo[], strin
     output += `▼ ${category}:\n`;
     
     for (const cmd of categoryCommands.sort((a, b) => a.name.localeCompare(b.name))) {
-      const status = cmd.implemented ? '✅' : '⏳';
+      const status = '✅'; // All existing commands are available
       const permissions = cmd.permissions.length > 0 ? ` (permissions: ${cmd.permissions.join(', ')})` : '';
       
       output += `   ${status} ${cmd.name}\n`;
@@ -1178,10 +1082,8 @@ export function formatCommandsOutput(commandsResult: Result<CommandInfo[], strin
   }
   
   const totalCommands = Array.from(categories.values()).reduce((sum, cmds) => sum + cmds.length, 0);
-  const implementedCommands = Array.from(categories.values()).reduce((sum, cmds) => sum + cmds.filter(c => c.implemented).length, 0);
-  const completionPercentage = Math.round((implementedCommands / totalCommands) * 100);
   
-  output += `📊 Summary: ${implementedCommands}/${totalCommands} commands implemented (${completionPercentage}%)\n`;
+  output += `\n📊 Total: ${totalCommands} commands available\n`;
   
   return output.trim();
 }
