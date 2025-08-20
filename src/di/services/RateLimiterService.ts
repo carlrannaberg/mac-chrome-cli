@@ -336,12 +336,10 @@ export class RateLimiterService implements IRateLimiterService {
   }
   
   async cleanup(): Promise<number> {
-    const now = Date.now();
     let cleanedCount = 0;
     
-    // Use the new comprehensive cleanup
-    this.cleanupExpiredWindows();
-    this.enforceMemoryLimit();
+    // Use the new comprehensive cleanup and track cleaned count
+    cleanedCount += this.cleanupExpiredWindows();
     
     // Clean up orphaned token buckets
     for (const operation of Array.from(this.tokenBuckets.keys())) {
@@ -767,20 +765,23 @@ export class RateLimiterService implements IRateLimiterService {
   /**
    * Clean up expired windows with lastActivity tracking
    */
-  private cleanupExpiredWindows(): void {
+  private cleanupExpiredWindows(): number {
     const now = Date.now();
     const maxIdleTime = 5 * 60 * 1000; // 5 minutes
+    let cleanedCount = 0;
     
     for (const [operation, window] of Array.from(this.windows.entries())) {
       const rule = this.findApplicableRule(operation);
       if (!rule) {
         this.windows.delete(operation);
+        cleanedCount++;
         continue;
       }
       
       // Remove if no activity for too long
       if (now - window.lastActivity > maxIdleTime) {
         this.windows.delete(operation);
+        cleanedCount++;
         continue;
       }
       
@@ -793,11 +794,17 @@ export class RateLimiterService implements IRateLimiterService {
       window.count = window.operations.length;
       window.totalWeight = window.operations.reduce((sum, op) => sum + op.weight, 0);
       
+      // Count cleaned operations
+      cleanedCount += beforeCount - window.operations.length;
+      
       // Remove empty windows
       if (window.operations.length === 0) {
         this.windows.delete(operation);
+        cleanedCount++;
       }
     }
+    
+    return cleanedCount;
   }
 
   /**
