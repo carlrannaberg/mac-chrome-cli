@@ -37,7 +37,8 @@ export interface ScreenshotResult {
  */
 function generateScreenshotPath(format: string = 'png', customPath?: string): string {
   if (customPath) {
-    return expandPath(customPath);
+    // Expand tilde and resolve relative paths to absolute
+    return expandPath(customPath, true);
   }
   
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -107,25 +108,33 @@ async function getViewportInfo(windowIndex: number = 1): Promise<ViewportInfo | 
       })();
     `;
     
-    let viewport = { width: bounds.width, height: bounds.height, scrollX: 0, scrollY: 0 };
-    
-    // Try to get more accurate viewport dimensions via JavaScript
-    const viewportResult = await execChromeJS(viewportJS, 1, windowIndex, 5000);
-    if (viewportResult.success && viewportResult.data) {
-      viewport = viewportResult.data as { width: number; height: number; scrollX: number; scrollY: number };
-    }
-    
     // Calculate viewport area (excluding title bar and chrome UI)
     const titleBarHeight = 24; // Standard macOS title bar
     const chromeUIHeight = 75; // Approximate height of Chrome's address bar/tabs
     
+    // Try to get more accurate viewport dimensions via JavaScript
+    let viewportWidth = bounds.width;
+    let viewportHeight = bounds.height - titleBarHeight - chromeUIHeight;
+    let scrollX = 0;
+    let scrollY = 0;
+    
+    const viewportResult = await execChromeJS(viewportJS, 1, windowIndex, 5000);
+    if (viewportResult.success && viewportResult.data) {
+      const jsViewport = viewportResult.data as { width: number; height: number; scrollX: number; scrollY: number };
+      // Use JavaScript-reported dimensions if available (more accurate)
+      viewportWidth = jsViewport.width;
+      viewportHeight = jsViewport.height;
+      scrollX = jsViewport.scrollX;
+      scrollY = jsViewport.scrollY;
+    }
+    
     return {
       x: bounds.x,
       y: bounds.y + titleBarHeight + chromeUIHeight,
-      width: Math.min(viewport.width, bounds.width),
-      height: Math.min(viewport.height, bounds.height - titleBarHeight - chromeUIHeight),
-      scrollX: viewport.scrollX,
-      scrollY: viewport.scrollY,
+      width: viewportWidth,
+      height: viewportHeight,
+      scrollX,
+      scrollY,
       windowTitle
     };
     

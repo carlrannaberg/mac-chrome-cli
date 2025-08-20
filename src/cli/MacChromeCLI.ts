@@ -46,8 +46,7 @@ export class MacChromeCLI {
     this.program
       .option('--json', 'output in JSON format')
       .option('--timeout <ms>', 'command timeout in milliseconds', '30000')
-      .option('--preview-max <bytes>', 'maximum preview size in bytes', '1572864') // 1.5MB
-      .option('--out <path>', 'output file path for screenshots/files');
+      .option('--preview-max <bytes>', 'maximum preview size in bytes', '1572864'); // 1.5MB
   }
 
   /**

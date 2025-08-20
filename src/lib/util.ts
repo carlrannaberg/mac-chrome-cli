@@ -327,12 +327,21 @@ export async function createWebPPreview(
 }
 
 /**
- * Expand tilde in file paths
+ * Expand tilde in file paths and optionally resolve relative paths
+ * @param path The path to expand
+ * @param resolveRelative If true, resolves relative paths to absolute paths based on cwd
  */
-export function expandPath(path: string): string {
+export function expandPath(path: string, resolveRelative: boolean = false): string {
+  // Expand tilde
   if (path.startsWith('~/')) {
     return join(homedir(), path.slice(2));
   }
+  
+  // Optionally resolve relative paths
+  if (resolveRelative && !path.startsWith('/')) {
+    return join(process.cwd(), path);
+  }
+  
   return path;
 }
 
