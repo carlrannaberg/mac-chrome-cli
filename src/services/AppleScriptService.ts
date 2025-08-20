@@ -405,10 +405,67 @@ end tell`;
   }
 
   /**
+   * Get Chrome window bounds using pure AppleScript (no JavaScript execution)
+   * This is a fallback method for when JavaScript execution is blocked by Chrome security
+   * 
+   * @private
+   */
+  private async getChromeWindowBoundsViaAppleScript(windowIndex: number = 1): Promise<AppleScriptResult<ChromeWindow>> {
+    const appleScript = `
+tell application "Google Chrome"
+  if not running then
+    return "ERROR: Chrome is not running"
+  end if
+  
+  try
+    set targetWindow to window ${windowIndex}
+    set windowBounds to bounds of targetWindow
+    set windowTitle to title of targetWindow
+    
+    -- Return as JSON-like string
+    return "{" & ¬
+      "\\"id\\":" & ${windowIndex} & "," & ¬
+      "\\"title\\":\\"" & windowTitle & "\\"," & ¬
+      "\\"bounds\\":{" & ¬
+        "\\"x\\":" & (item 1 of windowBounds) & "," & ¬
+        "\\"y\\":" & (item 2 of windowBounds) & "," & ¬
+        "\\"width\\":" & ((item 3 of windowBounds) - (item 1 of windowBounds)) & "," & ¬
+        "\\"height\\":" & ((item 4 of windowBounds) - (item 2 of windowBounds)) & ¬
+      "}," & ¬
+      "\\"visible\\":true" & ¬
+      "}"
+  on error errorMessage
+    return "ERROR: " & errorMessage
+  end try
+end tell`;
+
+    const result = await this.executeScript(appleScript, 5000);
+    
+    if (!result.success) {
+      return error(result.error, result.code);
+    }
+    
+    const output = result.data?.trim();
+    
+    if (output?.startsWith('ERROR:')) {
+      const errorMsg = output.substring(6).trim();
+      return error(errorMsg, errorMsg.includes('Chrome is not running') ? ERROR_CODES.CHROME_NOT_FOUND : ERROR_CODES.UNKNOWN_ERROR);
+    }
+    
+    try {
+      const windowData = JSON.parse(output || '{}') as ChromeWindow;
+      return ok(windowData, ERROR_CODES.OK);
+    } catch (parseError) {
+      return error(`Failed to parse window data: ${parseError}`, ERROR_CODES.UNKNOWN_ERROR);
+    }
+  }
+
+  /**
    * Get Chrome window bounds and metadata
    * 
    * Retrieves detailed information about a Chrome window including position,
-   * dimensions, title, and visibility state using JavaScript execution.
+   * dimensions, title, and visibility state. First attempts JavaScript execution,
+   * then falls back to pure AppleScript if JavaScript is blocked.
    * 
    * @param windowIndex Target window index (1-based, default: 1)
    * @returns Promise resolving to Chrome window information
@@ -433,6 +490,7 @@ end tell`;
    * @throws {ErrorCode.UNKNOWN_ERROR} When an unexpected error occurs during window bounds retrieval
    */
   async getChromeWindowBounds(windowIndex: number = 1): Promise<AppleScriptResult<ChromeWindow>> {
+    // First try JavaScript execution (more accurate, includes document title)
     const javascript = `
 (function() {
   const win = window;
@@ -449,10 +507,23 @@ end tell`;
   };
 })();`;
 
-    return this.executeJavaScript<ChromeWindow>(javascript, { 
+    const jsResult = await this.executeJavaScript<ChromeWindow>(javascript, { 
       tabIndex: 1, 
       windowIndex 
     });
+    
+    // If JavaScript execution succeeded, return the result
+    if (jsResult.success) {
+      return jsResult;
+    }
+    
+    // If JavaScript execution failed due to access restrictions, fall back to pure AppleScript
+    if (jsResult.error?.includes('Access not allowed') || jsResult.error?.includes('Can\'t get')) {
+      return this.getChromeWindowBoundsViaAppleScript(windowIndex);
+    }
+    
+    // For other errors, return the original error
+    return jsResult;
   }
 
   /**

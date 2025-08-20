@@ -85,7 +85,7 @@ interface ImageMetadata {
  */
 async function getViewportInfo(windowIndex: number = 1): Promise<ViewportInfo | null> {
   try {
-    // Get Chrome window bounds
+    // Get Chrome window bounds using the service (with automatic fallback)
     const windowBounds = await getChromeWindowBounds(windowIndex);
     
     if (!windowBounds.success || !windowBounds.data) {
@@ -95,7 +95,7 @@ async function getViewportInfo(windowIndex: number = 1): Promise<ViewportInfo | 
     const bounds = windowBounds.data.bounds;
     const windowTitle = windowBounds.data.title;
     
-    // Get viewport dimensions from the browser
+    // Try to get viewport dimensions from the browser
     const viewportJS = `
       (function() {
         return {
@@ -107,12 +107,13 @@ async function getViewportInfo(windowIndex: number = 1): Promise<ViewportInfo | 
       })();
     `;
     
-    const viewportResult = await execChromeJS(viewportJS, 1, windowIndex, 5000);
-    if (!viewportResult.success || !viewportResult.data) {
-      return null;
-    }
+    let viewport = { width: bounds.width, height: bounds.height, scrollX: 0, scrollY: 0 };
     
-    const viewport = viewportResult.data as { width: number; height: number; scrollX: number; scrollY: number };
+    // Try to get more accurate viewport dimensions via JavaScript
+    const viewportResult = await execChromeJS(viewportJS, 1, windowIndex, 5000);
+    if (viewportResult.success && viewportResult.data) {
+      viewport = viewportResult.data as { width: number; height: number; scrollX: number; scrollY: number };
+    }
     
     // Calculate viewport area (excluding title bar and chrome UI)
     const titleBarHeight = 24; // Standard macOS title bar
@@ -489,6 +490,7 @@ export async function captureWindow(
   windowIndex: number = 1
 ): Promise<ScreenshotResult> {
   try {
+    // Get window bounds using the service (with automatic fallback)
     const windowBounds = await getChromeWindowBounds(windowIndex);
     
     if (!windowBounds.success || !windowBounds.data) {
