@@ -29,6 +29,8 @@ interface RateLimitWindow {
   count: number;
   /** Total weight in window */
   totalWeight: number;
+  /** Last activity timestamp for cleanup purposes */
+  lastActivity: number;
 }
 
 /**
@@ -221,6 +223,9 @@ export class RateLimiterService implements IRateLimiterService {
     
     // Clean up existing windows for this operation pattern
     this.cleanupOperationWindows(operation);
+    
+    // Restart cleanup timer to adapt to new load
+    this.startCleanupTimer();
   }
   
   async removeLimit(operation: string): Promise<boolean> {
@@ -251,7 +256,7 @@ export class RateLimiterService implements IRateLimiterService {
       this.tokenBuckets.delete(operation);
       
       // Reset pattern-matched operations
-      for (const key of this.windows.keys()) {
+      for (const key of Array.from(this.windows.keys())) {
         if (this.matchesPattern(key, operation)) {
           this.windows.delete(key);
         }
@@ -270,7 +275,7 @@ export class RateLimiterService implements IRateLimiterService {
   async getStats(): Promise<RateLimitStats> {
     const operationStats: Record<string, { checked: number; allowed: number; denied: number; avgWeight: number }> = {};
     
-    for (const [op, stats] of this.stats.operationStats) {
+    for (const [op, stats] of Array.from(this.stats.operationStats)) {
       operationStats[op] = {
         checked: stats.checked,
         allowed: stats.allowed,
@@ -284,7 +289,7 @@ export class RateLimiterService implements IRateLimiterService {
     
     // Calculate peak operations
     let peakOperations = 0;
-    for (const window of this.windows.values()) {
+    for (const window of Array.from(this.windows.values())) {
       peakOperations = Math.max(peakOperations, window.count);
     }
     
@@ -304,36 +309,42 @@ export class RateLimiterService implements IRateLimiterService {
       memoryUsageKB
     };
   }
+
+  /**
+   * Get detailed memory statistics for monitoring
+   */
+  public getMemoryStats(): {
+    memoryUsageKB: number;
+    windowCount: number;
+    totalOperations: number;
+    averageOperationsPerWindow: number;
+  } {
+    const memoryUsageKB = this.estimateMemoryUsage();
+    const windowCount = this.windows.size;
+    let totalOperations = 0;
+    
+    for (const window of Array.from(this.windows.values())) {
+      totalOperations += window.operations.length;
+    }
+    
+    return {
+      memoryUsageKB,
+      windowCount,
+      totalOperations,
+      averageOperationsPerWindow: windowCount > 0 ? totalOperations / windowCount : 0
+    };
+  }
   
   async cleanup(): Promise<number> {
     const now = Date.now();
     let cleanedCount = 0;
     
-    // Clean up expired windows
-    for (const [operation, window] of this.windows.entries()) {
-      const rule = this.findApplicableRule(operation);
-      if (!rule) continue;
-      
-      const windowStart = now - rule.windowMs;
-      
-      // Remove expired operations from window
-      const beforeCount = window.operations.length;
-      window.operations = window.operations.filter(op => op.timestamp > windowStart);
-      
-      // Update window stats
-      window.count = window.operations.length;
-      window.totalWeight = window.operations.reduce((sum, op) => sum + op.weight, 0);
-      
-      cleanedCount += beforeCount - window.operations.length;
-      
-      // Remove empty windows
-      if (window.operations.length === 0) {
-        this.windows.delete(operation);
-      }
-    }
+    // Use the new comprehensive cleanup
+    this.cleanupExpiredWindows();
+    this.enforceMemoryLimit();
     
     // Clean up orphaned token buckets
-    for (const operation of this.tokenBuckets.keys()) {
+    for (const operation of Array.from(this.tokenBuckets.keys())) {
       if (!this.findApplicableRule(operation)) {
         this.tokenBuckets.delete(operation);
         cleanedCount++;
@@ -441,6 +452,7 @@ export class RateLimiterService implements IRateLimiterService {
     window.operations = window.operations.filter(op => op.timestamp > windowStart);
     window.count = window.operations.length;
     window.totalWeight = window.operations.reduce((sum, op) => sum + op.weight, 0);
+    window.lastActivity = now;
     
     // Check if adding this operation would exceed limits
     const newTotal = window.totalWeight + weight;
@@ -522,6 +534,8 @@ export class RateLimiterService implements IRateLimiterService {
       window.startTime = windowStart;
     }
     
+    window.lastActivity = now;
+    
     // Check if adding this operation would exceed limits
     const newTotal = window.totalWeight + weight;
     const allowed = newTotal <= rule.maxOperations;
@@ -559,6 +573,7 @@ export class RateLimiterService implements IRateLimiterService {
     const leaked = elapsed * leakRate;
     window.totalWeight = Math.max(0, window.totalWeight - leaked);
     window.startTime = now;
+    window.lastActivity = now;
     
     // Remove leaked operations from the front of the queue
     let remainingLeak = leaked;
@@ -608,19 +623,43 @@ export class RateLimiterService implements IRateLimiterService {
       return;
     }
     
+    await this.recordOperation(operation, rule, weight, now, metadata);
+  }
+
+  /**
+   * Record an operation with memory-safe handling
+   */
+  private async recordOperation(
+    operation: string,
+    rule: RateLimitRule,
+    weight: number = 1,
+    now: number = Date.now(),
+    metadata?: Record<string, unknown>
+  ): Promise<void> {
     const window = this.getOrCreateWindow(operation, now);
     
-    // Add operation to window
-    window.operations.push({ timestamp: now, weight, metadata });
+    // Add operation
+    window.operations.push({
+      timestamp: now,
+      weight,
+      metadata
+    });
     window.count++;
     window.totalWeight += weight;
+    window.lastActivity = now;
     
-    // Limit window history size to prevent memory growth
-    if (window.operations.length > this.defaults.maxWindowHistory) {
-      const excess = window.operations.length - this.defaults.maxWindowHistory;
-      const removed = window.operations.splice(0, excess);
-      window.count -= excess;
-      window.totalWeight -= removed.reduce((sum, op) => sum + op.weight, 0);
+    // Limit operations array size to prevent memory growth
+    const MAX_OPERATIONS_PER_WINDOW = 10000;
+    if (window.operations.length > MAX_OPERATIONS_PER_WINDOW) {
+      // Keep only recent operations within the window
+      const cutoff = now - rule.windowMs;
+      window.operations = window.operations
+        .filter(op => op.timestamp >= cutoff)
+        .slice(-MAX_OPERATIONS_PER_WINDOW);
+      
+      // Recalculate window stats after cleanup
+      window.count = window.operations.length;
+      window.totalWeight = window.operations.reduce((sum, op) => sum + op.weight, 0);
     }
   }
   
@@ -633,7 +672,8 @@ export class RateLimiterService implements IRateLimiterService {
         startTime: now,
         operations: [],
         count: 0,
-        totalWeight: 0
+        totalWeight: 0,
+        lastActivity: now
       });
     }
     return this.windows.get(operation)!;
@@ -698,7 +738,7 @@ export class RateLimiterService implements IRateLimiterService {
    * Clean up windows for operations matching a pattern
    */
   private cleanupOperationWindows(pattern: string): void {
-    for (const operation of this.windows.keys()) {
+    for (const operation of Array.from(this.windows.keys())) {
       if (this.matchesPattern(operation, pattern)) {
         this.windows.delete(operation);
       }
@@ -706,27 +746,108 @@ export class RateLimiterService implements IRateLimiterService {
   }
   
   /**
-   * Start automatic cleanup timer
+   * Start automatic cleanup timer with adaptive scheduling
    */
   private startCleanupTimer(): void {
+    // Run cleanup more frequently under high load
+    const baseInterval = 60000; // 1 minute
+    const loadFactor = Math.min(this.windows.size / 100, 10); // Scale with load
+    const cleanupInterval = Math.max(baseInterval / (1 + loadFactor), 10000); // Min 10s
+    
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer);
+    }
+    
     this.cleanupTimer = setInterval(() => {
-      this.cleanup().catch(console.error);
-    }, this.defaults.cleanupIntervalMs);
+      this.cleanupExpiredWindows();
+      this.enforceMemoryLimit(); // Add memory pressure relief
+    }, cleanupInterval);
+  }
+
+  /**
+   * Clean up expired windows with lastActivity tracking
+   */
+  private cleanupExpiredWindows(): void {
+    const now = Date.now();
+    const maxIdleTime = 5 * 60 * 1000; // 5 minutes
+    
+    for (const [operation, window] of Array.from(this.windows.entries())) {
+      const rule = this.findApplicableRule(operation);
+      if (!rule) {
+        this.windows.delete(operation);
+        continue;
+      }
+      
+      // Remove if no activity for too long
+      if (now - window.lastActivity > maxIdleTime) {
+        this.windows.delete(operation);
+        continue;
+      }
+      
+      // Clean expired operations
+      const windowStart = now - rule.windowMs;
+      const beforeCount = window.operations.length;
+      window.operations = window.operations.filter(op => op.timestamp > windowStart);
+      
+      // Update window stats
+      window.count = window.operations.length;
+      window.totalWeight = window.operations.reduce((sum, op) => sum + op.weight, 0);
+      
+      // Remove empty windows
+      if (window.operations.length === 0) {
+        this.windows.delete(operation);
+      }
+    }
+  }
+
+  /**
+   * Enforce memory limits and perform emergency cleanup if needed
+   */
+  private enforceMemoryLimit(): void {
+    const currentMemoryKB = this.estimateMemoryUsage();
+    const memoryLimitKB = 50 * 1024; // 50MB hard limit
+    
+    if (currentMemoryKB > memoryLimitKB) {
+      // Emergency cleanup - remove oldest windows
+      const sortedWindows = Array.from(this.windows.entries())
+        .sort((a, b) => a[1].lastActivity - b[1].lastActivity);
+      
+      const targetSize = Math.floor(sortedWindows.length * 0.5); // Remove 50%
+      for (let i = 0; i < targetSize; i++) {
+        this.windows.delete(sortedWindows[i][0]);
+      }
+      
+      console.warn(`Rate limiter memory limit exceeded (${currentMemoryKB}KB). Cleaned ${targetSize} windows.`);
+    }
   }
   
   /**
-   * Estimate memory usage of rate limiting data
+   * Estimate memory usage of rate limiting data with improved accuracy
    */
   private estimateMemoryUsage(): number {
     let sizeBytes = 0;
     
-    // Rules map
-    sizeBytes += this.rules.size * 200; // Estimate per rule
+    // More accurate estimation based on actual object sizes
+    // Rule object: ~300 bytes per rule (was 200)
+    sizeBytes += this.rules.size * 300;
     
-    // Windows map
-    for (const window of this.windows.values()) {
-      sizeBytes += 100; // Base window size
-      sizeBytes += window.operations.length * 50; // Per operation
+    for (const window of Array.from(this.windows.values())) {
+      // Base window object: ~150 bytes (was 100)
+      sizeBytes += 150;
+      
+      // Each operation: ~80 bytes base (was 50)
+      sizeBytes += window.operations.length * 80;
+      
+      // Account for metadata objects which can be large
+      const metadataSize = window.operations.reduce((sum, op) => {
+        if (op.metadata) {
+          // Estimate metadata size more accurately
+          const metadataStr = JSON.stringify(op.metadata);
+          return sum + metadataStr.length * 2; // 2 bytes per char in memory
+        }
+        return sum;
+      }, 0);
+      sizeBytes += metadataSize;
     }
     
     // Token buckets map
@@ -735,7 +856,11 @@ export class RateLimiterService implements IRateLimiterService {
     // Stats
     sizeBytes += this.stats.operationStats.size * 80; // Per operation stats
     
-    return Math.ceil(sizeBytes / 1024); // Convert to KB
+    // Add 20% buffer for object overhead and growth
+    sizeBytes = Math.ceil(sizeBytes * 1.2);
+    
+    // Convert to KB
+    return Math.ceil(sizeBytes / 1024);
   }
   
   /**
