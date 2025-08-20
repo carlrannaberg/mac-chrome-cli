@@ -493,6 +493,11 @@ end tell
 
 /**
  * Start network monitoring
+ * 
+ * @throws {CHROME_NOT_RUNNING} When Chrome browser is not running or accessible
+ * @throws {JAVASCRIPT_ERROR} When network monitoring script injection fails
+ * @throws {APPLESCRIPT_ERROR} When underlying AppleScript execution fails
+ * @throws {UNKNOWN_ERROR} When unexpected errors occur during monitoring setup
  */
 export async function startNetworkMonitoring(options: NetworkLogOptions = {}): Promise<{ success: boolean; error?: string }> {
   // First inject the hooks
@@ -529,6 +534,11 @@ if (window.__netlog) {
 
 /**
  * Stop network monitoring
+ * 
+ * @throws {CHROME_NOT_RUNNING} When Chrome browser is not running or accessible
+ * @throws {JAVASCRIPT_ERROR} When network monitoring script execution fails
+ * @throws {APPLESCRIPT_ERROR} When underlying AppleScript execution fails
+ * @throws {UNKNOWN_ERROR} When unexpected errors occur during monitoring stop
  */
 export async function stopNetworkMonitoring(): Promise<{ success: boolean; error?: string }> {
   const stopScript = `
@@ -555,6 +565,11 @@ if (window.__netlog) {
 
 /**
  * Dump network monitoring data
+ * 
+ * @throws {CHROME_NOT_RUNNING} When Chrome browser is not running or accessible
+ * @throws {JAVASCRIPT_ERROR} When network data retrieval script execution fails
+ * @throws {APPLESCRIPT_ERROR} When underlying AppleScript execution fails
+ * @throws {UNKNOWN_ERROR} When unexpected errors occur during data dump
  */
 export async function dumpNetworkLog(): Promise<{ success: boolean; data?: NetworkLogState; error?: string }> {
   const dumpScript = `
@@ -688,6 +703,11 @@ export function convertToHAR(events: NetworkEvent[]): HAR {
 
 /**
  * Clear network monitoring data
+ * 
+ * @throws {CHROME_NOT_RUNNING} When Chrome browser is not running or accessible
+ * @throws {JAVASCRIPT_ERROR} When network log clearing script execution fails
+ * @throws {APPLESCRIPT_ERROR} When underlying AppleScript execution fails
+ * @throws {UNKNOWN_ERROR} When unexpected errors occur during log clearing
  */
 export async function clearNetworkLog(): Promise<{ success: boolean; error?: string }> {
   const clearScript = `

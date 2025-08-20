@@ -6,7 +6,7 @@ import { createFormattedResponse, ErrorUtils } from '../core/ErrorUtils.js';
 import { createServiceContainer } from '../di/ServiceRegistry.js';
 import { SERVICE_TOKENS } from '../di/ServiceTokens.js';
 import { initializeLogger } from '../lib/logger.js';
-import type { IServiceContainer } from '../di/ServiceContainer.js';
+import type { IServiceContainer, ServiceContainer } from '../di/ServiceContainer.js';
 
 /**
  * Main CLI application class
@@ -141,7 +141,27 @@ export class MacChromeCLI {
       }
       
       process.exit(formatted.exitCode);
+    } finally {
+      // Ensure cleanup always happens
+      await this.cleanup();
     }
+  }
+
+  /**
+   * Cleanup method to dispose of services and resources
+   */
+  private async cleanup(): Promise<void> {
+    if (this.serviceContainer && 'dispose' in this.serviceContainer) {
+      (this.serviceContainer as ServiceContainer).dispose();
+    }
+  }
+
+  /**
+   * Handle process termination gracefully
+   * @throws {Error} When service container cleanup fails
+   */
+  public async shutdown(): Promise<void> {
+    await this.cleanup();
   }
 
   /**

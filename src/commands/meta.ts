@@ -845,6 +845,11 @@ async function getMacOSVersion(): Promise<string | undefined> {
 
 /**
  * Get comprehensive meta information about the CLI
+ * 
+ * @throws {SYSTEM_ERROR} When unable to retrieve system information
+ * @throws {FILE_READ_ERROR} When package.json cannot be read
+ * @throws {TIMEOUT} When system command execution times out
+ * @throws {UNKNOWN_ERROR} When unexpected errors occur during information gathering
  */
 export async function getMetaInfo(): Promise<Result<MetaInfo, string>> {
   const result = await executeWithContext(async () => {
@@ -881,6 +886,9 @@ export async function getMetaInfo(): Promise<Result<MetaInfo, string>> {
 
 /**
  * Get detailed command information
+ * 
+ * @throws {SYSTEM_ERROR} When unable to retrieve command registry information
+ * @throws {UNKNOWN_ERROR} When unexpected errors occur during command information gathering
  */
 export async function getCommands(): Promise<Result<CommandInfo[], string>> {
   const result = await executeWithContext(async () => {
@@ -892,6 +900,9 @@ export async function getCommands(): Promise<Result<CommandInfo[], string>> {
 
 /**
  * Get permission requirements
+ * 
+ * @throws {SYSTEM_ERROR} When unable to retrieve permission information
+ * @throws {UNKNOWN_ERROR} When unexpected errors occur during permission information gathering
  */
 export async function getPermissions(): Promise<Result<PermissionInfo[], string>> {
   const result = await executeWithContext(async () => {
@@ -921,6 +932,12 @@ export interface CliStats {
   };
 }
 
+/**
+ * Get CLI statistics and usage information
+ * 
+ * @throws {SYSTEM_ERROR} When unable to retrieve process information
+ * @throws {UNKNOWN_ERROR} When unexpected errors occur during statistics gathering  
+ */
 export async function getCliStats(): Promise<Result<CliStats, string>> {
   const result = await executeWithContext(async () => {
     const stats: CliStats = {
@@ -970,6 +987,9 @@ export interface PerformanceInfo {
 
 /**
  * Get performance statistics and recommendations
+ * 
+ * @throws {SYSTEM_ERROR} When unable to retrieve performance statistics
+ * @throws {UNKNOWN_ERROR} When unexpected errors occur during performance information gathering
  */
 export async function getPerformanceInfo(): Promise<Result<PerformanceInfo, string>> {
   const result = await executeWithContext(async () => {

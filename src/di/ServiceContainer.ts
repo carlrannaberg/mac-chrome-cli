@@ -264,19 +264,37 @@ export interface ServiceToken<T = unknown> {
 }
 
 /**
- * Service descriptor for registration
+ * Service descriptor for registration with instance tracking
  */
 export interface ServiceDescriptor<T = unknown> {
   token: ServiceToken<T>;
   factory: ServiceFactory<T>;
   lifetime: ServiceLifetime;
   dependencies?: ServiceToken<unknown>[];
+  instance?: T; // Track created instance for disposal
 }
 
 /**
  * Service factory function type
  */
 export type ServiceFactory<T> = (container: IServiceContainer) => T | Promise<T>;
+
+/**
+ * Interface for services that can be disposed
+ */
+export interface IDisposable {
+  dispose(): void;
+}
+
+/**
+ * Type guard to check if an object implements IDisposable
+ */
+function isDisposable(obj: unknown): obj is IDisposable {
+  return obj !== null && 
+         typeof obj === 'object' && 
+         'dispose' in obj && 
+         typeof (obj as Record<string, unknown>).dispose === 'function';
+}
 
 /**
  * Service container interface
@@ -576,6 +594,8 @@ export class ServiceContainer implements IServiceContainer {
       // Store singleton instance
       if (descriptor.lifetime === ServiceLifetime.Singleton) {
         this.singletonInstances.set(tokenName, instance);
+        // Also track instance in descriptor for disposal
+        descriptor.instance = instance;
       }
       
       // Cache in resolution context
@@ -600,6 +620,11 @@ export class ServiceContainer implements IServiceContainer {
    * Clear all services and reset container
    */
   clear(): void {
+    // Clear instance references from descriptors
+    Array.from(this.services.values()).forEach(descriptor => {
+      descriptor.instance = undefined;
+    });
+    
     this.services.clear();
     this.singletonInstances.clear();
     this.resolutionCache.clear();
@@ -640,10 +665,39 @@ export class ServiceContainer implements IServiceContainer {
    * Dispose of the container and clean up resources
    */
   dispose(): void {
+    // Clear cleanup timer
     if (this.cleanupTimer) {
       clearInterval(this.cleanupTimer);
       this.cleanupTimer = undefined;
     }
+    
+    // Dispose all singleton services that implement IDisposable
+    // Dispose in reverse initialization order to handle dependencies correctly
+    const servicesToDispose = Array.from(this.services.entries())
+      .filter(([, descriptor]) => 
+        descriptor.lifetime === ServiceLifetime.Singleton && 
+        descriptor.instance && 
+        isDisposable(descriptor.instance)
+      );
+    
+    // Sort by reverse initialization order (last initialized first)
+    const orderedDisposal = this.initializationOrder.length > 0
+      ? servicesToDispose.sort((a, b) => {
+          const indexA = this.initializationOrder.indexOf(a[0]);
+          const indexB = this.initializationOrder.indexOf(b[0]);
+          return indexB - indexA; // Reverse order
+        })
+      : servicesToDispose;
+    
+    orderedDisposal.forEach(([token, descriptor]) => {
+      try {
+        (descriptor.instance as IDisposable).dispose();
+      } catch (error) {
+        console.error(`Error disposing service ${token}:`, error);
+      }
+    });
+    
+    // Clear all caches and services
     this.clear();
   }
 
