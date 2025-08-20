@@ -194,6 +194,60 @@ export class TabCommand extends BrowserCommandBase {
    * 
    * @param options Tab focus options
    * @returns Promise resolving to focused tab data or error
+   * 
+   * @throws {ErrorCode.INVALID_INPUT} When multiple targeting criteria provided, invalid index/tabId values, or windowIndex out of range (1-50)
+   * @throws {ErrorCode.INVALID_SELECTOR} When regex pattern is malformed and cannot be compiled
+   * @throws {ErrorCode.MISSING_REQUIRED_PARAM} When no targeting criteria provided (match, index, or tabId required)
+   * @throws {ErrorCode.VALIDATION_FAILED} When pattern validation fails or empty strings provided
+   * 
+   * @throws {ErrorCode.TARGET_NOT_FOUND} When specified tab pattern, index, or ID matches no existing tabs
+   * @throws {ErrorCode.MULTIPLE_TARGETS_FOUND} When pattern matches multiple tabs and ambiguous target resolution fails
+   * 
+   * @throws {ErrorCode.CHROME_NOT_RUNNING} When Chrome browser is not running or accessible
+   * @throws {ErrorCode.CHROME_NOT_FOUND} When Chrome application cannot be found on system
+   * @throws {ErrorCode.WINDOW_NOT_FOUND} When specified window index does not exist
+   * @throws {ErrorCode.TAB_NOT_FOUND} When tab exists but cannot be accessed or activated
+   * 
+   * @throws {ErrorCode.PERMISSION_DENIED} When system permissions block tab automation
+   * @throws {ErrorCode.ACCESSIBILITY_DENIED} When accessibility permissions not granted for automation
+   * @throws {ErrorCode.APPLE_EVENTS_DENIED} When Apple Events permissions not granted for Chrome control
+   * 
+   * @throws {ErrorCode.UI_AUTOMATION_FAILED} When tab activation fails due to UI automation issues
+   * @throws {ErrorCode.APPLESCRIPT_ERROR} When underlying AppleScript execution fails
+   * @throws {ErrorCode.TIMEOUT} When tab focus operation exceeds timeout limits
+   * @throws {ErrorCode.SYSTEM_ERROR} When system-level errors prevent tab focus operation
+   * @throws {ErrorCode.UNKNOWN_ERROR} When an unexpected error occurs during tab focus
+   * 
+   * @example
+   * ```typescript
+   * // Focus tab by title pattern with error handling
+   * try {
+   *   const result = await tabCmd.focus({ match: 'Dashboard' });
+   *   if (!result.success) {
+   *     switch (result.code) {
+   *       case ErrorCode.TARGET_NOT_FOUND:
+   *         console.log('No tab found matching "Dashboard"');
+   *         break;
+   *       case ErrorCode.CHROME_NOT_RUNNING:
+   *         console.log('Start Chrome browser first');
+   *         break;
+   *       case ErrorCode.ACCESSIBILITY_DENIED:
+   *         console.log('Grant accessibility permissions in System Preferences');
+   *         break;
+   *     }
+   *   } else {
+   *     console.log(`Focused tab: ${result.data.targetTab?.title}`);
+   *   }
+   * } catch (error) {
+   *   console.error('Unexpected tab focus error:', error);
+   * }
+   * 
+   * // Focus tab by index
+   * const indexResult = await tabCmd.focus({ index: 2 });
+   * 
+   * // Focus tab by ID with exact matching
+   * const idResult = await tabCmd.focus({ tabId: 12345 });
+   * ```
    */
   async focus(options: TabFocusOptions): Promise<Result<TabCommandData, string>> {
     const startTime = Date.now();
@@ -232,6 +286,50 @@ export class TabCommand extends BrowserCommandBase {
    * 
    * @param options Tab list options
    * @returns Promise resolving to tab list data or error
+   * 
+   * @throws {ErrorCode.INVALID_INPUT} When windowIndex is out of range (1-50)
+   * 
+   * @throws {ErrorCode.CHROME_NOT_RUNNING} When Chrome browser is not running or accessible
+   * @throws {ErrorCode.CHROME_NOT_FOUND} When Chrome application cannot be found on system
+   * @throws {ErrorCode.WINDOW_NOT_FOUND} When specified window index does not exist
+   * 
+   * @throws {ErrorCode.PERMISSION_DENIED} When system permissions block tab enumeration
+   * @throws {ErrorCode.ACCESSIBILITY_DENIED} When accessibility permissions not granted for automation
+   * @throws {ErrorCode.APPLE_EVENTS_DENIED} When Apple Events permissions not granted for Chrome control
+   * 
+   * @throws {ErrorCode.APPLESCRIPT_ERROR} When underlying AppleScript execution fails
+   * @throws {ErrorCode.JAVASCRIPT_ERROR} When JavaScript execution fails during tab enumeration
+   * @throws {ErrorCode.TIMEOUT} When tab listing operation exceeds timeout limits
+   * @throws {ErrorCode.SYSTEM_ERROR} When system-level errors prevent tab listing
+   * @throws {ErrorCode.UNKNOWN_ERROR} When an unexpected error occurs during tab listing
+   * 
+   * @example
+   * ```typescript
+   * // List all tabs with error handling
+   * try {
+   *   const result = await tabCmd.list({ windowIndex: 1 });
+   *   if (!result.success) {
+   *     switch (result.code) {
+   *       case ErrorCode.CHROME_NOT_RUNNING:
+   *         console.log('Start Chrome browser first');
+   *         break;
+   *       case ErrorCode.WINDOW_NOT_FOUND:
+   *         console.log('Window not found - check window index');
+   *         break;
+   *     }
+   *   } else {
+   *     console.log(`Found ${result.data.totalTabs} tabs`);
+   *     result.data.tabs?.forEach(tab => {
+   *       console.log(`${tab.id}: ${tab.title} - ${tab.url}`);
+   *     });
+   *   }
+   * } catch (error) {
+   *   console.error('Unexpected tab listing error:', error);
+   * }
+   * 
+   * // List only active tabs
+   * const activeResult = await tabCmd.list({ activeOnly: true });
+   * ```
    */
   async list(options: TabListOptions = {}): Promise<Result<TabCommandData, string>> {
     const startTime = Date.now();
@@ -287,6 +385,61 @@ export class TabCommand extends BrowserCommandBase {
    * 
    * @param options Tab creation options
    * @returns Promise resolving to created tab data or error
+   * 
+   * @throws {ErrorCode.INVALID_URL} When provided URL is malformed or uses unsupported protocol
+   * @throws {ErrorCode.INVALID_INPUT} When windowIndex is out of range (1-50)
+   * 
+   * @throws {ErrorCode.CHROME_NOT_RUNNING} When Chrome browser is not running or accessible
+   * @throws {ErrorCode.CHROME_NOT_FOUND} When Chrome application cannot be found on system
+   * @throws {ErrorCode.WINDOW_NOT_FOUND} When specified window index does not exist
+   * 
+   * @throws {ErrorCode.NAVIGATION_FAILED} When navigation to specified URL fails
+   * @throws {ErrorCode.PAGE_LOAD_FAILED} When page fails to load in new tab
+   * @throws {ErrorCode.NETWORK_ERROR} When network connectivity issues prevent navigation
+   * @throws {ErrorCode.DNS_RESOLUTION_FAILED} When hostname cannot be resolved
+   * @throws {ErrorCode.SSL_ERROR} When SSL/TLS certificate or connection issues occur
+   * 
+   * @throws {ErrorCode.PERMISSION_DENIED} When system permissions block tab creation
+   * @throws {ErrorCode.ACCESSIBILITY_DENIED} When accessibility permissions not granted for automation
+   * @throws {ErrorCode.APPLE_EVENTS_DENIED} When Apple Events permissions not granted for Chrome control
+   * 
+   * @throws {ErrorCode.UI_AUTOMATION_FAILED} When tab creation or activation fails
+   * @throws {ErrorCode.APPLESCRIPT_ERROR} When underlying AppleScript execution fails
+   * @throws {ErrorCode.TIMEOUT} When tab creation operation exceeds timeout limits
+   * @throws {ErrorCode.MEMORY_ERROR} When insufficient memory to create new tab
+   * @throws {ErrorCode.SYSTEM_ERROR} When system-level errors prevent tab creation
+   * @throws {ErrorCode.UNKNOWN_ERROR} When an unexpected error occurs during tab creation
+   * 
+   * @example
+   * ```typescript
+   * // Create new tab with URL and error handling
+   * try {
+   *   const result = await tabCmd.create({
+   *     url: 'https://example.com',
+   *     activate: true
+   *   });
+   *   if (!result.success) {
+   *     switch (result.code) {
+   *       case ErrorCode.INVALID_URL:
+   *         console.log('Check URL format and protocol');
+   *         break;
+   *       case ErrorCode.CHROME_NOT_RUNNING:
+   *         console.log('Start Chrome browser first');
+   *         break;
+   *       case ErrorCode.NAVIGATION_FAILED:
+   *         console.log('Failed to navigate to URL');
+   *         break;
+   *     }
+   *   } else {
+   *     console.log(`Created tab: ${result.data.newTab?.title}`);
+   *   }
+   * } catch (error) {
+   *   console.error('Unexpected tab creation error:', error);
+   * }
+   * 
+   * // Create tab in background
+   * const bgResult = await tabCmd.create({ background: true });
+   * ```
    */
   async create(options: TabCreateOptions = {}): Promise<Result<TabCommandData, string>> {
     const startTime = Date.now();
@@ -336,6 +489,58 @@ export class TabCommand extends BrowserCommandBase {
    * 
    * @param options Tab close options
    * @returns Promise resolving to closed tab data or error
+   * 
+   * @throws {ErrorCode.INVALID_INPUT} When index/tabId values are invalid or windowIndex out of range (1-50)
+   * @throws {ErrorCode.MISSING_REQUIRED_PARAM} When pattern is empty string
+   * @throws {ErrorCode.VALIDATION_FAILED} When targeting criteria validation fails
+   * 
+   * @throws {ErrorCode.TARGET_NOT_FOUND} When specified tab pattern, index, or ID matches no existing tabs
+   * @throws {ErrorCode.TAB_NOT_FOUND} When active tab cannot be found (for current tab close)
+   * 
+   * @throws {ErrorCode.CHROME_NOT_RUNNING} When Chrome browser is not running or accessible
+   * @throws {ErrorCode.CHROME_NOT_FOUND} When Chrome application cannot be found on system
+   * @throws {ErrorCode.WINDOW_NOT_FOUND} When specified window index does not exist
+   * 
+   * @throws {ErrorCode.PERMISSION_DENIED} When system permissions block tab closure
+   * @throws {ErrorCode.ACCESSIBILITY_DENIED} When accessibility permissions not granted for automation
+   * @throws {ErrorCode.APPLE_EVENTS_DENIED} When Apple Events permissions not granted for Chrome control
+   * 
+   * @throws {ErrorCode.UI_AUTOMATION_FAILED} When tab closure fails due to UI automation issues
+   * @throws {ErrorCode.APPLESCRIPT_ERROR} When underlying AppleScript execution fails
+   * @throws {ErrorCode.TIMEOUT} When tab close operation exceeds timeout limits
+   * @throws {ErrorCode.SYSTEM_ERROR} When system-level errors prevent tab closure
+   * @throws {ErrorCode.UNKNOWN_ERROR} When an unexpected error occurs during tab closure
+   * 
+   * @example
+   * ```typescript
+   * // Close tab by pattern with error handling
+   * try {
+   *   const result = await tabCmd.close({ match: 'Settings' });
+   *   if (!result.success) {
+   *     switch (result.code) {
+   *       case ErrorCode.TARGET_NOT_FOUND:
+   *         console.log('No tab found matching "Settings"');
+   *         break;
+   *       case ErrorCode.CHROME_NOT_RUNNING:
+   *         console.log('Start Chrome browser first');
+   *         break;
+   *       case ErrorCode.UI_AUTOMATION_FAILED:
+   *         console.log('Failed to close tab - may be protected');
+   *         break;
+   *     }
+   *   } else {
+   *     console.log(`Closed tab: ${result.data.closedTab?.title}`);
+   *   }
+   * } catch (error) {
+   *   console.error('Unexpected tab close error:', error);
+   * }
+   * 
+   * // Close current active tab
+   * const currentResult = await tabCmd.close();
+   * 
+   * // Force close tab by index
+   * const forceResult = await tabCmd.close({ index: 3, force: true });
+   * ```
    */
   async close(options: TabCloseOptions = {}): Promise<Result<TabCommandData, string>> {
     const startTime = Date.now();
@@ -368,6 +573,26 @@ export class TabCommand extends BrowserCommandBase {
    * 
    * @param options Tab focus index options
    * @returns Promise resolving to focused tab data or error
+   * 
+   * @throws {ErrorCode.INVALID_INPUT} When tabIndex is out of range (1-100) or windowIndex out of range (1-50)
+   * @throws {ErrorCode.MISSING_REQUIRED_PARAM} When tabIndex is not provided
+   * 
+   * @throws {ErrorCode.TARGET_NOT_FOUND} When specified tab index exceeds available tabs
+   * @throws {ErrorCode.TAB_NOT_FOUND} When tab at index cannot be accessed
+   * 
+   * @throws {ErrorCode.CHROME_NOT_RUNNING} When Chrome browser is not running or accessible
+   * @throws {ErrorCode.CHROME_NOT_FOUND} When Chrome application cannot be found on system
+   * @throws {ErrorCode.WINDOW_NOT_FOUND} When specified window index does not exist
+   * 
+   * @throws {ErrorCode.PERMISSION_DENIED} When system permissions block tab automation
+   * @throws {ErrorCode.ACCESSIBILITY_DENIED} When accessibility permissions not granted for automation
+   * @throws {ErrorCode.APPLE_EVENTS_DENIED} When Apple Events permissions not granted for Chrome control
+   * 
+   * @throws {ErrorCode.UI_AUTOMATION_FAILED} When tab activation fails due to UI automation issues
+   * @throws {ErrorCode.APPLESCRIPT_ERROR} When underlying AppleScript execution fails
+   * @throws {ErrorCode.TIMEOUT} When tab focus operation exceeds timeout limits
+   * @throws {ErrorCode.SYSTEM_ERROR} When system-level errors prevent tab focus operation
+   * @throws {ErrorCode.UNKNOWN_ERROR} When an unexpected error occurs during tab focus
    */
   async focusByIndex(options: TabFocusIndexOptions): Promise<Result<TabCommandData, string>> {
     const startTime = Date.now();
@@ -389,6 +614,25 @@ export class TabCommand extends BrowserCommandBase {
    * 
    * @param options Window options
    * @returns Promise resolving to active tab data or error
+   * 
+   * @throws {ErrorCode.INVALID_INPUT} When windowIndex is out of range (1-50)
+   * 
+   * @throws {ErrorCode.TARGET_NOT_FOUND} When no active tab exists in specified window
+   * @throws {ErrorCode.TAB_NOT_FOUND} When active tab cannot be accessed or retrieved
+   * 
+   * @throws {ErrorCode.CHROME_NOT_RUNNING} When Chrome browser is not running or accessible
+   * @throws {ErrorCode.CHROME_NOT_FOUND} When Chrome application cannot be found on system
+   * @throws {ErrorCode.WINDOW_NOT_FOUND} When specified window index does not exist
+   * 
+   * @throws {ErrorCode.PERMISSION_DENIED} When system permissions block tab information access
+   * @throws {ErrorCode.ACCESSIBILITY_DENIED} When accessibility permissions not granted for automation
+   * @throws {ErrorCode.APPLE_EVENTS_DENIED} When Apple Events permissions not granted for Chrome control
+   * 
+   * @throws {ErrorCode.APPLESCRIPT_ERROR} When underlying AppleScript execution fails
+   * @throws {ErrorCode.JAVASCRIPT_ERROR} When JavaScript execution fails during tab information retrieval
+   * @throws {ErrorCode.TIMEOUT} When active tab retrieval exceeds timeout limits
+   * @throws {ErrorCode.SYSTEM_ERROR} When system-level errors prevent tab information access
+   * @throws {ErrorCode.UNKNOWN_ERROR} When an unexpected error occurs during active tab retrieval
    */
   async getActive(options: { windowIndex?: number } = {}): Promise<Result<TabCommandData, string>> {
     const startTime = Date.now();

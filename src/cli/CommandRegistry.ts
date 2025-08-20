@@ -2,12 +2,16 @@ import { Command } from 'commander';
 import { OutputFormatter, GlobalOptions } from './OutputFormatter.js';
 import { ERROR_CODES } from '../lib/util.js';
 import { ErrorCode } from '../core/ErrorCodes.js';
-import type { NavigationOptions } from '../commands/navigation.js';
 import type { ScreenshotOptions } from '../commands/screenshot.js';
 import type { MouseOptions } from '../commands/mouse.js';
 import type { KeyboardOptions } from '../commands/keyboard.js';
 import type { InputOptions, InputValueOptions, FormSubmitOptions } from '../commands/input.js';
-import type { TabFocusOptions, TabInfoOptions, TabListOptions, TabFocusIndexOptions } from '../commands/tab.js';
+import type { TabFocusOptions, TabListOptions, TabFocusIndexOptions } from '../commands/tab.js';
+import type { IServiceContainer } from '../di/ServiceContainer.js';
+
+interface TabInfoOptions {
+  windowIndex: number;
+}
 
 /**
  * Central registry for all CLI commands
@@ -16,10 +20,29 @@ import type { TabFocusOptions, TabInfoOptions, TabListOptions, TabFocusIndexOpti
 export class CommandRegistry {
   private program: Command;
   private formatter: OutputFormatter;
+  private serviceContainer?: IServiceContainer;
 
   constructor(program: Command, formatter: OutputFormatter) {
     this.program = program;
     this.formatter = formatter;
+  }
+
+  /**
+   * Set the service container for commands that need it
+   */
+  setServiceContainer(container: IServiceContainer): void {
+    this.serviceContainer = container;
+  }
+
+  /**
+   * Get or create service container
+   */
+  private async getServiceContainer(): Promise<IServiceContainer> {
+    if (!this.serviceContainer) {
+      const { createServiceContainer } = await import('../di/ServiceRegistry.js');
+      this.serviceContainer = await createServiceContainer();
+    }
+    return this.serviceContainer;
   }
 
   /**
@@ -436,14 +459,16 @@ export class CommandRegistry {
       .action(async (options) => {
         try {
           const { ScreenshotCommand } = await import('../commands/screenshot.js');
-          const screenshotCmd = new ScreenshotCommand();
+          const container = await this.getServiceContainer();
+          const screenshotCmd = new ScreenshotCommand(container);
           
+          const format = options.format as 'png' | 'jpg' | 'pdf';
           const screenshotOptions: ScreenshotOptions = {
             outputPath: options.out,
-            format: options.format as 'png' | 'jpg' | 'pdf',
+            format,
             preview: options.preview,
             windowIndex: parseInt(options.windowIndex, 10),
-            ...(options.quality && { quality: parseInt(options.quality, 10) }),
+            ...(format === 'jpg' && options.quality && { quality: parseInt(options.quality, 10) }),
             ...(options.previewMax && { previewMaxSize: parseInt(options.previewMax, 10) })
           };
           
@@ -472,14 +497,16 @@ export class CommandRegistry {
       .action(async (options) => {
         try {
           const { ScreenshotCommand } = await import('../commands/screenshot.js');
-          const screenshotCmd = new ScreenshotCommand();
+          const container = await this.getServiceContainer();
+          const screenshotCmd = new ScreenshotCommand(container);
           
+          const format = options.format as 'png' | 'jpg' | 'pdf';
           const screenshotOptions: ScreenshotOptions = {
             outputPath: options.out,
-            format: options.format as 'png' | 'jpg' | 'pdf',
+            format,
             preview: options.preview,
             windowIndex: parseInt(options.windowIndex, 10),
-            ...(options.quality && { quality: parseInt(options.quality, 10) }),
+            ...(format === 'jpg' && options.quality && { quality: parseInt(options.quality, 10) }),
             ...(options.previewMax && { previewMaxSize: parseInt(options.previewMax, 10) })
           };
           
@@ -509,14 +536,16 @@ export class CommandRegistry {
       .action(async (options) => {
         try {
           const { ScreenshotCommand } = await import('../commands/screenshot.js');
-          const screenshotCmd = new ScreenshotCommand();
+          const container = await this.getServiceContainer();
+          const screenshotCmd = new ScreenshotCommand(container);
           
+          const format = options.format as 'png' | 'jpg' | 'pdf';
           const screenshotOptions: ScreenshotOptions = {
             outputPath: options.out,
-            format: options.format as 'png' | 'jpg' | 'pdf',
+            format,
             preview: options.preview,
             windowIndex: parseInt(options.windowIndex, 10),
-            ...(options.quality && { quality: parseInt(options.quality, 10) }),
+            ...(format === 'jpg' && options.quality && { quality: parseInt(options.quality, 10) }),
             ...(options.previewMax && { previewMaxSize: parseInt(options.previewMax, 10) })
           };
           
@@ -544,7 +573,8 @@ export class CommandRegistry {
       .action(async (options) => {
         try {
           const { ScreenshotCommand } = await import('../commands/screenshot.js');
-          const screenshotCmd = new ScreenshotCommand();
+          const container = await this.getServiceContainer();
+          const screenshotCmd = new ScreenshotCommand(container);
           
           const screenshotOptions: ScreenshotOptions = {
             outputPath: options.out,

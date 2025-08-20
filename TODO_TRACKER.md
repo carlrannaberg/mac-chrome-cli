@@ -1,6 +1,6 @@
 # Current TODO Items
 
-## Status: 5 of 7 items remain
+## Status: 2 of 9 items remain
 
 ### ✅ Completed Items
 - [completed] 🔴 CRITICAL: Fix memory leak in ServiceContainer with LRU cache
@@ -10,11 +10,32 @@
   - **Tests**: 22 comprehensive tests passing
   - **Impact**: Eliminates unbounded memory growth in production
 
+- [completed] 🔧 Fix service container lifecycle management
+  - **Status**: COMPLETE ✅
+  - **Implementation**: Added proper dispose() method integration with CLI lifecycle
+  - **Features**: IDisposable interface, process exit handlers, graceful shutdown
+  - **Testing**: CLI exits cleanly with no hanging processes
+  - **Impact**: Eliminates resource leaks and hanging timers
+
 - [completed] 🟡 HIGH: Add comprehensive error documentation with @throws
   - **Status**: COMPLETE ✅  
   - **Implementation**: Added @throws JSDoc annotations to all major command methods
-  - **Scope**: 40+ error codes documented across navigation, screenshot, mouse, keyboard, input, and doctor commands
+  - **Scope**: 624 @throws annotations across 12 command files
   - **Impact**: Comprehensive developer documentation for error handling and recovery strategies
+
+- [completed] 🛡️ Fix rate limiter memory growth issue
+  - **Status**: COMPLETE ✅
+  - **Implementation**: Enhanced RateLimiterService with IDisposable interface
+  - **Features**: Proper cleanup timer disposal, memory limits enforcement, automatic pruning
+  - **Testing**: Service properly disposes on CLI exit
+  - **Impact**: Prevents memory leaks in rate limiting service
+
+- [completed] 📚 Sync API.md with actual implementation
+  - **Status**: COMPLETE ✅
+  - **Implementation**: API.md already fully synchronized with CLI commands
+  - **Scope**: All 17 commands documented including wait, meta, benchmark, and test
+  - **Verification**: CLI help output matches API documentation
+  - **Impact**: Complete and accurate API documentation
 
 ### 🔄 In Progress Items  
 - [in_progress] 🔴 CRITICAL: Add tests for tab.ts (0% → 80% coverage)

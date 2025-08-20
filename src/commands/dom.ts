@@ -152,8 +152,28 @@ const DANGEROUS_PATTERNS = [
  * @param options - Configuration for the JavaScript execution
  * @returns Promise resolving to execution result with metadata
  * 
- * @throws {Error} When dangerous JavaScript patterns are detected
- * @throws {Error} When input validation fails
+ * @throws {ErrorCode.INVALID_INPUT} When JavaScript is empty, contains dangerous patterns, or validation fails
+ * @throws {ErrorCode.MISSING_REQUIRED_PARAM} When js parameter is missing
+ * @throws {ErrorCode.SECURITY_RESTRICTION} When JavaScript contains blocked security patterns
+ * @throws {ErrorCode.VALIDATION_FAILED} When input parameter validation fails
+ * 
+ * @throws {ErrorCode.CHROME_NOT_RUNNING} When Chrome browser is not running or accessible
+ * @throws {ErrorCode.CHROME_NOT_FOUND} When Chrome application cannot be found on system
+ * @throws {ErrorCode.WINDOW_NOT_FOUND} When specified window index does not exist
+ * @throws {ErrorCode.TAB_NOT_FOUND} When specified tab index does not exist in window
+ * 
+ * @throws {ErrorCode.JAVASCRIPT_ERROR} When JavaScript execution fails in browser context
+ * @throws {ErrorCode.SCRIPT_TIMEOUT} When JavaScript execution exceeds timeout
+ * @throws {ErrorCode.APPLESCRIPT_ERROR} When underlying AppleScript execution fails
+ * 
+ * @throws {ErrorCode.PERMISSION_DENIED} When system permissions block browser automation
+ * @throws {ErrorCode.ACCESSIBILITY_DENIED} When accessibility permissions not granted
+ * @throws {ErrorCode.APPLE_EVENTS_DENIED} When Apple Events permissions not granted for Chrome control
+ * 
+ * @throws {ErrorCode.TIMEOUT} When operation exceeds specified timeout
+ * @throws {ErrorCode.MEMORY_ERROR} When insufficient memory to execute JavaScript
+ * @throws {ErrorCode.SYSTEM_ERROR} When system-level errors prevent execution
+ * @throws {ErrorCode.UNKNOWN_ERROR} When an unexpected error occurs during JavaScript execution
  * 
  * @example
  * ```typescript

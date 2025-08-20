@@ -97,7 +97,7 @@ export abstract class CommandBase {
       }
     }
     
-    return ok(undefined);
+    return ok(void 0) as Result<void, string>;
   }
   
   /**
@@ -252,7 +252,7 @@ export abstract class BrowserCommandBase extends CommandBase {
       );
     }
     
-    return ok(undefined);
+    return ok(void 0) as Result<void, string>;
   }
 }
 

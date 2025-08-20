@@ -93,6 +93,19 @@ end tell`;
 
   /**
    * Escape string for AppleScript with sanitization
+   * 
+   * Processes strings to be safely embedded in AppleScript by escaping special
+   * characters, handling null/undefined values, and preventing injection attacks.
+   * 
+   * @param str String to escape for AppleScript inclusion
+   * @returns Safely escaped string for AppleScript
+   * 
+   * @throws {ErrorCode.INVALID_INPUT} When string contains unescapable characters or malformed input
+   * @throws {ErrorCode.SECURITY_RESTRICTION} When string contains potential injection patterns
+   * @throws {ErrorCode.VALIDATION_FAILED} When input sanitization fails
+   * @throws {ErrorCode.MEMORY_ERROR} When string is too large to process
+   * @throws {ErrorCode.SYSTEM_ERROR} When system-level string processing fails
+   * @throws {ErrorCode.UNKNOWN_ERROR} When an unexpected error occurs during escaping
    */
   public escapeAppleScriptString(str: string): string {
     // Handle edge cases
@@ -220,6 +233,33 @@ end tell`;
 
   /**
    * Execute raw AppleScript with error handling and sanitization
+   * 
+   * Executes raw AppleScript code with comprehensive error handling, timeout
+   * protection, and result processing. Includes performance benchmarking
+   * and execution tracking.
+   * 
+   * @param script Raw AppleScript code to execute
+   * @param timeout Maximum execution time in milliseconds (default: 10000)
+   * @returns Promise resolving to AppleScript execution result
+   * 
+   * @throws {ErrorCode.INVALID_INPUT} When script is empty, malformed, or contains invalid syntax
+   * @throws {ErrorCode.MISSING_REQUIRED_PARAM} When script parameter is missing
+   * @throws {ErrorCode.VALIDATION_FAILED} When script validation fails
+   * @throws {ErrorCode.SECURITY_RESTRICTION} When script contains unsafe operations
+   * 
+   * @throws {ErrorCode.APPLESCRIPT_ERROR} When AppleScript execution fails
+   * @throws {ErrorCode.APPLESCRIPT_COMPILATION_FAILED} When AppleScript cannot be compiled
+   * @throws {ErrorCode.TIMEOUT} When script execution exceeds timeout
+   * @throws {ErrorCode.SCRIPT_TIMEOUT} When script execution times out
+   * 
+   * @throws {ErrorCode.PERMISSION_DENIED} When system permissions block AppleScript execution
+   * @throws {ErrorCode.ACCESSIBILITY_DENIED} When accessibility permissions not granted
+   * @throws {ErrorCode.APPLE_EVENTS_DENIED} When Apple Events permissions not granted
+   * 
+   * @throws {ErrorCode.PROCESS_FAILED} When osascript process fails to start or execute
+   * @throws {ErrorCode.SYSTEM_ERROR} When system-level errors prevent execution
+   * @throws {ErrorCode.MEMORY_ERROR} When insufficient memory to execute script
+   * @throws {ErrorCode.UNKNOWN_ERROR} When an unexpected error occurs during execution
    */
   async executeScript(script: string, timeout: number = 10000): Promise<AppleScriptResult<string>> {
     const benchmarkId = startBenchmark('applescript-raw-exec', {
@@ -243,6 +283,37 @@ end tell`;
 
   /**
    * Execute JavaScript in Chrome tab via AppleScript with caching
+   * 
+   * Executes JavaScript code in a specific Chrome tab using AppleScript bridge.
+   * Features script caching, connection pooling, and comprehensive error handling.
+   * Includes automatic JSON parsing and performance optimization.
+   * 
+   * @param javascript JavaScript code to execute in Chrome
+   * @param options Execution options including timeout, tab/window targeting, and caching
+   * @returns Promise resolving to JavaScript execution result with type safety
+   * 
+   * @throws {ErrorCode.INVALID_INPUT} When JavaScript is empty, malformed, or contains invalid syntax
+   * @throws {ErrorCode.MISSING_REQUIRED_PARAM} When javascript parameter is missing
+   * @throws {ErrorCode.VALIDATION_FAILED} When JavaScript validation fails
+   * @throws {ErrorCode.INVALID_JSON} When JavaScript result cannot be parsed as JSON
+   * 
+   * @throws {ErrorCode.CHROME_NOT_RUNNING} When Chrome browser is not running or accessible
+   * @throws {ErrorCode.CHROME_NOT_FOUND} When Chrome application cannot be found
+   * @throws {ErrorCode.WINDOW_NOT_FOUND} When specified window index does not exist
+   * @throws {ErrorCode.TAB_NOT_FOUND} When specified tab index does not exist in window
+   * 
+   * @throws {ErrorCode.JAVASCRIPT_ERROR} When JavaScript execution fails in browser context
+   * @throws {ErrorCode.APPLESCRIPT_ERROR} When underlying AppleScript execution fails
+   * @throws {ErrorCode.TIMEOUT} When operation exceeds specified timeout
+   * @throws {ErrorCode.SCRIPT_TIMEOUT} When JavaScript execution times out
+   * 
+   * @throws {ErrorCode.PERMISSION_DENIED} When system permissions block browser automation
+   * @throws {ErrorCode.ACCESSIBILITY_DENIED} When accessibility permissions not granted
+   * @throws {ErrorCode.APPLE_EVENTS_DENIED} When Apple Events permissions not granted for Chrome control
+   * 
+   * @throws {ErrorCode.MEMORY_ERROR} When insufficient memory to execute JavaScript or cache scripts
+   * @throws {ErrorCode.SYSTEM_ERROR} When system-level errors prevent execution
+   * @throws {ErrorCode.UNKNOWN_ERROR} When an unexpected error occurs during JavaScript execution
    */
   async executeJavaScript<T = unknown>(
     javascript: string,
@@ -335,6 +406,31 @@ end tell`;
 
   /**
    * Get Chrome window bounds and metadata
+   * 
+   * Retrieves detailed information about a Chrome window including position,
+   * dimensions, title, and visibility state using JavaScript execution.
+   * 
+   * @param windowIndex Target window index (1-based, default: 1)
+   * @returns Promise resolving to Chrome window information
+   * 
+   * @throws {ErrorCode.INVALID_INPUT} When windowIndex is not a valid number or out of range
+   * @throws {ErrorCode.VALIDATION_FAILED} When window index validation fails
+   * 
+   * @throws {ErrorCode.CHROME_NOT_RUNNING} When Chrome browser is not running or accessible
+   * @throws {ErrorCode.CHROME_NOT_FOUND} When Chrome application cannot be found
+   * @throws {ErrorCode.WINDOW_NOT_FOUND} When specified window index does not exist
+   * @throws {ErrorCode.TAB_NOT_FOUND} When no tabs exist in the specified window
+   * 
+   * @throws {ErrorCode.JAVASCRIPT_ERROR} When JavaScript execution fails in browser context
+   * @throws {ErrorCode.APPLESCRIPT_ERROR} When underlying AppleScript execution fails
+   * @throws {ErrorCode.TIMEOUT} When window bounds retrieval exceeds timeout
+   * 
+   * @throws {ErrorCode.PERMISSION_DENIED} When system permissions block browser automation
+   * @throws {ErrorCode.ACCESSIBILITY_DENIED} When accessibility permissions not granted
+   * @throws {ErrorCode.APPLE_EVENTS_DENIED} When Apple Events permissions not granted for Chrome control
+   * 
+   * @throws {ErrorCode.SYSTEM_ERROR} When system-level errors prevent window bounds retrieval
+   * @throws {ErrorCode.UNKNOWN_ERROR} When an unexpected error occurs during window bounds retrieval
    */
   async getChromeWindowBounds(windowIndex: number = 1): Promise<AppleScriptResult<ChromeWindow>> {
     const javascript = `
@@ -361,6 +457,31 @@ end tell`;
 
   /**
    * Get active Chrome tab information
+   * 
+   * Retrieves detailed information about the currently active tab in a Chrome
+   * window including title, URL, and metadata using JavaScript execution.
+   * 
+   * @param windowIndex Target window index (1-based, default: 1)
+   * @returns Promise resolving to active Chrome tab information
+   * 
+   * @throws {ErrorCode.INVALID_INPUT} When windowIndex is not a valid number or out of range
+   * @throws {ErrorCode.VALIDATION_FAILED} When window index validation fails
+   * 
+   * @throws {ErrorCode.CHROME_NOT_RUNNING} When Chrome browser is not running or accessible
+   * @throws {ErrorCode.CHROME_NOT_FOUND} When Chrome application cannot be found
+   * @throws {ErrorCode.WINDOW_NOT_FOUND} When specified window index does not exist
+   * @throws {ErrorCode.TAB_NOT_FOUND} When no active tab exists in the specified window
+   * 
+   * @throws {ErrorCode.JAVASCRIPT_ERROR} When JavaScript execution fails in browser context
+   * @throws {ErrorCode.APPLESCRIPT_ERROR} When underlying AppleScript execution fails
+   * @throws {ErrorCode.TIMEOUT} When active tab retrieval exceeds timeout
+   * 
+   * @throws {ErrorCode.PERMISSION_DENIED} When system permissions block browser automation
+   * @throws {ErrorCode.ACCESSIBILITY_DENIED} When accessibility permissions not granted
+   * @throws {ErrorCode.APPLE_EVENTS_DENIED} When Apple Events permissions not granted for Chrome control
+   * 
+   * @throws {ErrorCode.SYSTEM_ERROR} When system-level errors prevent tab information retrieval
+   * @throws {ErrorCode.UNKNOWN_ERROR} When an unexpected error occurs during tab information retrieval
    */
   async getActiveTab(windowIndex: number = 1): Promise<AppleScriptResult<ChromeTab>> {
     const javascript = `

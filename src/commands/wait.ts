@@ -31,6 +31,54 @@ const MIN_WAIT_MS = 1;
 
 /**
  * Wait for the specified duration
+ * 
+ * Pauses execution for the specified number of milliseconds. Provides accurate
+ * timing with validation and interruption handling. Useful for adding delays
+ * between operations or waiting for page changes to settle.
+ * 
+ * @param options Wait configuration options
+ * @param options.milliseconds Duration to wait in milliseconds (default: 800, min: 1, max: 600000)
+ * @returns Promise resolving to wait result with timing information
+ * 
+ * @throws {ErrorCode.INVALID_INPUT} When milliseconds is not a number, NaN, or invalid value
+ * @throws {ErrorCode.VALIDATION_FAILED} When milliseconds is negative infinity, below minimum (1ms), or above maximum (600000ms)
+ * @throws {ErrorCode.MISSING_REQUIRED_PARAM} When options parameter is malformed
+ * 
+ * @throws {ErrorCode.TIMEOUT} When wait operation is interrupted by system signals
+ * @throws {ErrorCode.PROCESS_FAILED} When wait promise rejection occurs due to external factors
+ * @throws {ErrorCode.SYSTEM_ERROR} When system-level errors prevent wait operation
+ * @throws {ErrorCode.UNKNOWN_ERROR} When an unexpected error occurs during wait
+ * 
+ * @example
+ * ```typescript
+ * // Wait with default duration (800ms) and error handling
+ * try {
+ *   const result = await waitIdle();
+ *   if (!result.success) {
+ *     switch (result.code) {
+ *       case ErrorCode.VALIDATION_FAILED:
+ *         console.log('Invalid wait duration specified');
+ *         break;
+ *       case ErrorCode.TIMEOUT:
+ *         console.log('Wait was interrupted');
+ *         break;
+ *     }
+ *   } else {
+ *     console.log(`Waited ${result.data.actualMs}ms successfully`);
+ *   }
+ * } catch (error) {
+ *   console.error('Unexpected wait error:', error);
+ * }
+ * 
+ * // Wait for custom duration
+ * const customResult = await waitIdle({ milliseconds: 2000 });
+ * 
+ * // Wait for minimum duration
+ * const minResult = await waitIdle({ milliseconds: 1 });
+ * 
+ * // Wait for page transitions
+ * await waitIdle({ milliseconds: 1500 }); // Allow time for animations
+ * ```
  */
 export async function waitIdle(options: WaitOptions = {}): Promise<Result<WaitResult, string>> {
   const requestedMs = options.milliseconds ?? DEFAULT_WAIT_MS;

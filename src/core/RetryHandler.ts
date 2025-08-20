@@ -101,7 +101,7 @@ export async function withRetry<T, E>(
               retryDelayHistory: retryContext.delayHistory,
               recoveryStrategy: 'retry_successful'
             }
-          });
+          }) as Result<T, E>;
         }
         return result;
       }
@@ -138,7 +138,7 @@ export async function withRetry<T, E>(
           ...(stackTrace && { stackTrace })
         };
         
-        return withContext(result, finalContext);
+        return withContext(result, finalContext) as Result<T, E>;
       }
       
       // Calculate delay for next attempt

@@ -19,6 +19,72 @@ export interface ScrollResult {
 
 /**
  * Scroll to element by CSS selector
+ * 
+ * Scrolls the page to bring the specified element into view. Supports both smooth
+ * and instant scrolling behaviors, with the element positioned in the center of
+ * the viewport when possible.
+ * 
+ * @param selector CSS selector for the target element
+ * @param smooth Whether to use smooth scrolling animation (default: false)
+ * @param tabIndex Target tab index (1-based, default: 1)
+ * @param windowIndex Target window index (1-based, default: 1)
+ * @param timeoutMs Operation timeout in milliseconds (default: 10000)
+ * @returns Promise resolving to scroll result with position and viewport information
+ * 
+ * @throws {ErrorCode.INVALID_INPUT} When selector is empty, not a string, or contains invalid characters
+ * @throws {ErrorCode.INVALID_SELECTOR} When CSS selector is malformed or invalid
+ * @throws {ErrorCode.MISSING_REQUIRED_PARAM} When selector parameter is missing
+ * @throws {ErrorCode.VALIDATION_FAILED} When input parameter validation fails
+ * 
+ * @throws {ErrorCode.TARGET_NOT_FOUND} When element with specified selector does not exist on page
+ * @throws {ErrorCode.ELEMENT_NOT_VISIBLE} When element exists but cannot be scrolled into view
+ * @throws {ErrorCode.TARGET_OUTSIDE_VIEWPORT} When element is outside scrollable area
+ * 
+ * @throws {ErrorCode.CHROME_NOT_RUNNING} When Chrome browser is not running or accessible
+ * @throws {ErrorCode.CHROME_NOT_FOUND} When Chrome application cannot be found on system
+ * @throws {ErrorCode.WINDOW_NOT_FOUND} When specified window index does not exist
+ * @throws {ErrorCode.TAB_NOT_FOUND} When specified tab index does not exist in window
+ * 
+ * @throws {ErrorCode.JAVASCRIPT_ERROR} When JavaScript execution fails during scroll operation
+ * @throws {ErrorCode.PAGE_LOAD_FAILED} When page is not fully loaded or accessible
+ * @throws {ErrorCode.SCRIPT_TIMEOUT} When scroll operation exceeds timeout
+ * 
+ * @throws {ErrorCode.PERMISSION_DENIED} When system permissions block browser automation
+ * @throws {ErrorCode.ACCESSIBILITY_DENIED} When accessibility permissions not granted for automation
+ * @throws {ErrorCode.APPLE_EVENTS_DENIED} When Apple Events permissions not granted for Chrome control
+ * 
+ * @throws {ErrorCode.APPLESCRIPT_ERROR} When underlying AppleScript execution fails
+ * @throws {ErrorCode.TIMEOUT} When operation exceeds specified timeout
+ * @throws {ErrorCode.SYSTEM_ERROR} When system-level errors prevent scroll operation
+ * @throws {ErrorCode.UNKNOWN_ERROR} When an unexpected error occurs during scroll
+ * 
+ * @example
+ * ```typescript
+ * // Scroll to element with error handling
+ * try {
+ *   const result = await scrollToElement('#target-section', true);
+ *   if (!result.success) {
+ *     switch (result.code) {
+ *       case ErrorCode.TARGET_NOT_FOUND:
+ *         console.log('Element not found - check selector');
+ *         break;
+ *       case ErrorCode.INVALID_SELECTOR:
+ *         console.log('Invalid CSS selector syntax');
+ *         break;
+ *       case ErrorCode.CHROME_NOT_RUNNING:
+ *         console.log('Start Chrome browser first');
+ *         break;
+ *     }
+ *   } else {
+ *     console.log(`Scrolled to position: ${result.data.position.x}, ${result.data.position.y}`);
+ *   }
+ * } catch (error) {
+ *   console.error('Unexpected scroll error:', error);
+ * }
+ * 
+ * // Scroll with custom timeout
+ * const customResult = await scrollToElement('.footer', false, 1, 1, 5000);
+ * ```
  */
 export async function scrollToElement(
   selector: string,
@@ -86,6 +152,68 @@ export async function scrollToElement(
 
 /**
  * Scroll by pixel amount
+ * 
+ * Scrolls the page by a specified number of pixels in either horizontal or
+ * vertical direction. Supports both smooth and instant scrolling behaviors.
+ * 
+ * @param pixels Number of pixels to scroll (must be positive)
+ * @param smooth Whether to use smooth scrolling animation (default: false)
+ * @param direction Scroll direction - 'horizontal' or 'vertical' (default: 'vertical')
+ * @param tabIndex Target tab index (1-based, default: 1)
+ * @param windowIndex Target window index (1-based, default: 1)
+ * @param timeoutMs Operation timeout in milliseconds (default: 10000)
+ * @returns Promise resolving to scroll result with position and viewport information
+ * 
+ * @throws {ErrorCode.INVALID_INPUT} When pixels is not a number, is negative, or direction is invalid
+ * @throws {ErrorCode.VALIDATION_FAILED} When input parameter validation fails
+ * @throws {ErrorCode.MISSING_REQUIRED_PARAM} When pixels parameter is missing
+ * 
+ * @throws {ErrorCode.CHROME_NOT_RUNNING} When Chrome browser is not running or accessible
+ * @throws {ErrorCode.CHROME_NOT_FOUND} When Chrome application cannot be found on system
+ * @throws {ErrorCode.WINDOW_NOT_FOUND} When specified window index does not exist
+ * @throws {ErrorCode.TAB_NOT_FOUND} When specified tab index does not exist in window
+ * 
+ * @throws {ErrorCode.JAVASCRIPT_ERROR} When JavaScript execution fails during scroll operation
+ * @throws {ErrorCode.PAGE_LOAD_FAILED} When page is not fully loaded or accessible
+ * @throws {ErrorCode.SCRIPT_TIMEOUT} When scroll operation exceeds timeout
+ * 
+ * @throws {ErrorCode.PERMISSION_DENIED} When system permissions block browser automation
+ * @throws {ErrorCode.ACCESSIBILITY_DENIED} When accessibility permissions not granted for automation
+ * @throws {ErrorCode.APPLE_EVENTS_DENIED} When Apple Events permissions not granted for Chrome control
+ * 
+ * @throws {ErrorCode.APPLESCRIPT_ERROR} When underlying AppleScript execution fails
+ * @throws {ErrorCode.TIMEOUT} When operation exceeds specified timeout
+ * @throws {ErrorCode.SYSTEM_ERROR} When system-level errors prevent scroll operation
+ * @throws {ErrorCode.UNKNOWN_ERROR} When an unexpected error occurs during scroll
+ * 
+ * @example
+ * ```typescript
+ * // Scroll down by 500 pixels with error handling
+ * try {
+ *   const result = await scrollByPixels(500, true, 'vertical');
+ *   if (!result.success) {
+ *     switch (result.code) {
+ *       case ErrorCode.INVALID_INPUT:
+ *         console.log('Check pixels value and direction parameter');
+ *         break;
+ *       case ErrorCode.CHROME_NOT_RUNNING:
+ *         console.log('Start Chrome browser first');
+ *         break;
+ *       case ErrorCode.SCRIPT_TIMEOUT:
+ *         console.log('Scroll operation timed out');
+ *         break;
+ *     }
+ *   } else {
+ *     console.log(`Scrolled: ${result.data.scrolled}`);
+ *     console.log(`New position: ${result.data.position.x}, ${result.data.position.y}`);
+ *   }
+ * } catch (error) {
+ *   console.error('Unexpected scroll error:', error);
+ * }
+ * 
+ * // Scroll horizontally with instant behavior
+ * const horizontalResult = await scrollByPixels(300, false, 'horizontal');
+ * ```
  */
 export async function scrollByPixels(
   pixels: number,
@@ -158,6 +286,61 @@ export async function scrollByPixels(
 
 /**
  * Get current scroll position
+ * 
+ * Retrieves the current scroll position and viewport information from the page.
+ * Returns both horizontal and vertical scroll offsets along with viewport dimensions.
+ * 
+ * @param tabIndex Target tab index (1-based, default: 1)
+ * @param windowIndex Target window index (1-based, default: 1)
+ * @param timeoutMs Operation timeout in milliseconds (default: 10000)
+ * @returns Promise resolving to scroll position result with viewport information
+ * 
+ * @throws {ErrorCode.CHROME_NOT_RUNNING} When Chrome browser is not running or accessible
+ * @throws {ErrorCode.CHROME_NOT_FOUND} When Chrome application cannot be found on system
+ * @throws {ErrorCode.WINDOW_NOT_FOUND} When specified window index does not exist
+ * @throws {ErrorCode.TAB_NOT_FOUND} When specified tab index does not exist in window
+ * 
+ * @throws {ErrorCode.JAVASCRIPT_ERROR} When JavaScript execution fails during position retrieval
+ * @throws {ErrorCode.PAGE_LOAD_FAILED} When page is not fully loaded or accessible
+ * @throws {ErrorCode.SCRIPT_TIMEOUT} When position retrieval exceeds timeout
+ * 
+ * @throws {ErrorCode.PERMISSION_DENIED} When system permissions block browser automation
+ * @throws {ErrorCode.ACCESSIBILITY_DENIED} When accessibility permissions not granted for automation
+ * @throws {ErrorCode.APPLE_EVENTS_DENIED} When Apple Events permissions not granted for Chrome control
+ * 
+ * @throws {ErrorCode.APPLESCRIPT_ERROR} When underlying AppleScript execution fails
+ * @throws {ErrorCode.TIMEOUT} When operation exceeds specified timeout
+ * @throws {ErrorCode.SYSTEM_ERROR} When system-level errors prevent position retrieval
+ * @throws {ErrorCode.UNKNOWN_ERROR} When an unexpected error occurs during position retrieval
+ * 
+ * @example
+ * ```typescript
+ * // Get current scroll position with error handling
+ * try {
+ *   const result = await getScrollPosition();
+ *   if (!result.success) {
+ *     switch (result.code) {
+ *       case ErrorCode.CHROME_NOT_RUNNING:
+ *         console.log('Start Chrome browser first');
+ *         break;
+ *       case ErrorCode.TAB_NOT_FOUND:
+ *         console.log('No active tab found');
+ *         break;
+ *       case ErrorCode.JAVASCRIPT_ERROR:
+ *         console.log('Failed to execute position script');
+ *         break;
+ *     }
+ *   } else {
+ *     console.log(`Scroll position: ${result.data.position.x}, ${result.data.position.y}`);
+ *     console.log(`Viewport: ${result.data.viewport?.width}x${result.data.viewport?.height}`);
+ *   }
+ * } catch (error) {
+ *   console.error('Unexpected position retrieval error:', error);
+ * }
+ * 
+ * // Get position from specific tab and window
+ * const specificResult = await getScrollPosition(2, 1, 5000);
+ * ```
  */
 export async function getScrollPosition(
   tabIndex: number = 1,

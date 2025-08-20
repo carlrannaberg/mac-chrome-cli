@@ -215,7 +215,7 @@ export class ErrorUtils {
       }
     };
     
-    return withContext(result, additionalContext);
+    return withContext(result, additionalContext) as Result<T, E>;
   }
   
   /**
@@ -298,7 +298,7 @@ export function validateInputParam(
   }
   
   if (value === undefined || value === null) {
-    return ok(undefined); // Optional parameter
+    return ok(void 0) as Result<void, string>; // Optional parameter
   }
   
   let isValid = false;
@@ -326,7 +326,7 @@ export function validateInputParam(
     );
   }
   
-  return ok(undefined);
+  return ok(void 0) as Result<void, string>;
 }
 
 /**

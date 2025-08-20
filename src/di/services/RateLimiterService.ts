@@ -16,6 +16,7 @@ import type {
   RateLimitStats,
   RateLimitAlgorithm
 } from '../IRateLimiterService.js';
+import type { IDisposable } from '../ServiceContainer.js';
 
 /**
  * Internal rate limit window data for tracking operations
@@ -57,7 +58,7 @@ interface TokenBucketState {
  * - Comprehensive statistics and monitoring
  * - Memory-efficient storage with automatic pruning
  */
-export class RateLimiterService implements IRateLimiterService {
+export class RateLimiterService implements IRateLimiterService, IDisposable {
   /** Rate limit rules indexed by operation pattern */
   private rules = new Map<string, RateLimitRule>();
   
@@ -80,8 +81,11 @@ export class RateLimiterService implements IRateLimiterService {
     globalMaxOperations: 100,
     globalWindowMs: 60000,
     defaultAlgorithm: 'sliding_window' as RateLimitAlgorithm,
-    cleanupIntervalMs: 30000,
-    maxWindowHistory: 1000
+    cleanupIntervalMs: 15000, // More frequent cleanup - every 15 seconds
+    maxWindowHistory: 500, // Reduced from 1000 to prevent memory growth
+    maxMemoryLimitKB: 10 * 1024, // Reduced from 50MB to 10MB
+    memoryWarningThresholdKB: 8 * 1024, // Warning at 8MB
+    maxWindowsPerOperation: 10 // Limit windows per operation pattern
   };
   
   /** Cleanup timer for expired data */
@@ -812,20 +816,50 @@ export class RateLimiterService implements IRateLimiterService {
    */
   private enforceMemoryLimit(): void {
     const currentMemoryKB = this.estimateMemoryUsage();
-    const memoryLimitKB = 50 * 1024; // 50MB hard limit
+    const memoryLimitKB = this.defaults.maxMemoryLimitKB;
+    const memoryWarningKB = this.defaults.memoryWarningThresholdKB;
     
-    if (currentMemoryKB > memoryLimitKB) {
-      // Emergency cleanup - remove oldest windows
-      const sortedWindows = Array.from(this.windows.entries())
-        .sort((a, b) => a[1].lastActivity - b[1].lastActivity);
+    if (currentMemoryKB > memoryWarningKB) {
+      // Progressive cleanup based on memory pressure
+      const overageRatio = currentMemoryKB / memoryLimitKB;
+      let cleanupRatio = 0.2; // Start with 20% cleanup
       
-      const targetSize = Math.floor(sortedWindows.length * 0.5); // Remove 50%
-      for (let i = 0; i < targetSize; i++) {
-        this.windows.delete(sortedWindows[i][0]);
+      if (overageRatio > 1.2) {
+        cleanupRatio = 0.5; // 50% cleanup for severe overage
+      } else if (overageRatio > 1.0) {
+        cleanupRatio = 0.3; // 30% cleanup for mild overage
       }
       
-      console.warn(`Rate limiter memory limit exceeded (${currentMemoryKB}KB). Cleaned ${targetSize} windows.`);
+      // Sort windows by activity and memory impact
+      const sortedWindows = Array.from(this.windows.entries())
+        .sort((a, b) => {
+          const aScore = a[1].lastActivity + (a[1].operations.length * 1000);
+          const bScore = b[1].lastActivity + (b[1].operations.length * 1000);
+          return aScore - bScore; // Oldest and largest first
+        });
+      
+      const targetCleanupCount = Math.floor(sortedWindows.length * cleanupRatio);
+      let cleanedCount = 0;
+      
+      for (let i = 0; i < targetCleanupCount && i < sortedWindows.length; i++) {
+        this.windows.delete(sortedWindows[i][0]);
+        cleanedCount++;
+      }
+      
+      // Also cleanup operation stats for removed operations
+      for (const [operation] of sortedWindows.slice(0, targetCleanupCount)) {
+        this.stats.operationStats.delete(operation);
+      }
+      
+      if (currentMemoryKB > memoryLimitKB) {
+        console.warn(`Rate limiter memory limit exceeded (${currentMemoryKB}KB). Emergency cleanup: removed ${cleanedCount} windows.`);
+      } else {
+        console.info(`Rate limiter memory warning (${currentMemoryKB}KB). Preventive cleanup: removed ${cleanedCount} windows.`);
+      }
     }
+    
+    // Enforce per-operation window limits
+    this.enforcePerOperationLimits();
   }
   
   /**
@@ -871,9 +905,64 @@ export class RateLimiterService implements IRateLimiterService {
   }
   
   /**
+   * Enforce per-operation window limits to prevent runaway memory growth
+   */
+  private enforcePerOperationLimits(): void {
+    const maxWindowsPerOp = this.defaults.maxWindowsPerOperation;
+    
+    // Group windows by operation pattern
+    const operationGroups = new Map<string, string[]>();
+    
+    for (const [operation] of this.windows.entries()) {
+      // Extract base pattern (remove specific IDs, timestamps, etc.)
+      const basePattern = this.extractBasePattern(operation);
+      
+      if (!operationGroups.has(basePattern)) {
+        operationGroups.set(basePattern, []);
+      }
+      operationGroups.get(basePattern)!.push(operation);
+    }
+    
+    // Remove excess windows for each operation pattern
+    for (const [pattern, operations] of operationGroups.entries()) {
+      if (operations.length > maxWindowsPerOp) {
+        // Sort by last activity and keep only the most recent
+        const sortedOps = operations
+          .map(op => ({ op, activity: this.windows.get(op)?.lastActivity || 0 }))
+          .sort((a, b) => b.activity - a.activity)
+          .slice(maxWindowsPerOp); // Remove excess
+        
+        for (const { op } of sortedOps) {
+          this.windows.delete(op);
+        }
+      }
+    }
+  }
+  
+  /**
+   * Extract base operation pattern for grouping related operations
+   */
+  private extractBasePattern(operation: string): string {
+    // Remove common variable parts like IDs, timestamps, etc.
+    return operation
+      .replace(/\b\d{10,}\b/g, '{timestamp}') // Timestamps
+      .replace(/\b[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\b/g, '{uuid}') // UUIDs
+      .replace(/\b\d+\b/g, '{id}') // Generic IDs
+      .replace(/\{[^}]+\}/g, '{var}'); // Already parameterized variables
+  }
+  
+  /**
    * Cleanup resources when service is destroyed
    */
   destroy(): void {
+    this.dispose();
+  }
+
+  /**
+   * Dispose of the service and clean up all resources
+   * Implements IDisposable interface for proper lifecycle management
+   */
+  dispose(): void {
     if (this.cleanupTimer) {
       clearInterval(this.cleanupTimer);
       this.cleanupTimer = undefined;

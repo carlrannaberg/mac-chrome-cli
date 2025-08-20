@@ -211,7 +211,7 @@ export class NavigationCommand extends BrowserCommandBase {
       return error(optionsValidation.error, ErrorCode.VALIDATION_FAILED);
     }
 
-    return this.executeBrowserCommand(async () => {
+    return this.executeBrowserCommand<NavigationData>(async () => {
       // Execute navigation with normalized URL
       const navResult = await navigateToURL(normalizedUrl, windowIndex);
       
@@ -263,7 +263,7 @@ export class NavigationCommand extends BrowserCommandBase {
         return withRecoveryHint(result, 'check_target');
       }
       return result;
-    });
+    }) as Promise<Result<NavigationData, string>>;
   }
 
   /**
@@ -340,7 +340,7 @@ export class NavigationCommand extends BrowserCommandBase {
       return error(optionsValidation.error, ErrorCode.VALIDATION_FAILED);
     }
 
-    return this.executeBrowserCommand(async () => {
+    return this.executeBrowserCommand<NavigationData>(async () => {
       // Execute reload
       const reloadResult = await reloadPage(hardReload, windowIndex);
       
@@ -381,7 +381,7 @@ export class NavigationCommand extends BrowserCommandBase {
         return withRecoveryHint(result, 'retry');
       }
       return result;
-    });
+    }) as Promise<Result<NavigationData, string>>;
   }
 
   /**
@@ -451,7 +451,7 @@ export class NavigationCommand extends BrowserCommandBase {
       return error(optionsValidation.error, ErrorCode.VALIDATION_FAILED);
     }
 
-    return this.executeBrowserCommand(async () => {
+    return this.executeBrowserCommand<NavigationData>(async () => {
       // Execute back navigation
       const backResult = await navigateBack(windowIndex);
       
@@ -492,7 +492,7 @@ export class NavigationCommand extends BrowserCommandBase {
         return withRecoveryHint(result, 'retry');
       }
       return result;
-    });
+    }) as Promise<Result<NavigationData, string>>;
   }
 
   /**
@@ -562,7 +562,7 @@ export class NavigationCommand extends BrowserCommandBase {
       return error(optionsValidation.error, ErrorCode.VALIDATION_FAILED);
     }
 
-    return this.executeBrowserCommand(async () => {
+    return this.executeBrowserCommand<NavigationData>(async () => {
       // Execute forward navigation
       const forwardResult = await navigateForward(windowIndex);
       
@@ -603,7 +603,7 @@ export class NavigationCommand extends BrowserCommandBase {
         return withRecoveryHint(result, 'retry');
       }
       return result;
-    });
+    }) as Promise<Result<NavigationData, string>>;
   }
 
   /**
@@ -662,7 +662,7 @@ export class NavigationCommand extends BrowserCommandBase {
         }
       }
       
-      return ok(undefined);
+      return ok(void 0) as Result<void, string>;
     } catch (urlError) {
       return error(
         `Invalid URL format: ${urlError instanceof Error ? urlError.message : 'Unknown error'}`,

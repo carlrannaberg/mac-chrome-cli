@@ -57,6 +57,18 @@ export interface LegacyJSONResult<T = unknown> {
 
 /**
  * Execute a command with timeout and proper error handling using unified Result<T,E> pattern
+ * 
+ * @param command Command to execute
+ * @param args Command arguments array
+ * @param timeoutMs Timeout in milliseconds (default: 30000)
+ * @returns Promise resolving to execution result
+ * 
+ * @throws {ErrorCode.INVALID_INPUT} When command is empty or arguments are malformed
+ * @throws {ErrorCode.TIMEOUT} When command execution exceeds timeout
+ * @throws {ErrorCode.PROCESS_FAILED} When command fails to start or execute
+ * @throws {ErrorCode.PERMISSION_DENIED} When insufficient permissions to execute command
+ * @throws {ErrorCode.SYSTEM_ERROR} When system-level errors prevent execution
+ * @throws {ErrorCode.UNKNOWN_ERROR} When unexpected errors occur during execution
  */
 export async function execWithTimeout(
   command: string,

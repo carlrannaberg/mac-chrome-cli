@@ -289,7 +289,7 @@ export function withRecoveryHint<T, E>(
     return withContext(result, { 
       ...result.context,
       recoveryHint 
-    });
+    }) as Result<T, E>;
   }
   return result;
 }

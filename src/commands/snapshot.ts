@@ -901,12 +901,49 @@ ${getElementStateScript}
  * @param options.visibleOnly - If true, only capture elements visible in the viewport
  * @returns Promise resolving to a JavaScriptResult containing the snapshot data
  * 
+ * @throws {ErrorCode.CHROME_NOT_RUNNING} When Chrome browser is not running or accessible
+ * @throws {ErrorCode.CHROME_NOT_FOUND} When Chrome application cannot be found on system
+ * @throws {ErrorCode.WINDOW_NOT_FOUND} When target window does not exist
+ * @throws {ErrorCode.TAB_NOT_FOUND} When no active tab exists in the window
+ * 
+ * @throws {ErrorCode.JAVASCRIPT_ERROR} When JavaScript execution fails in browser context
+ * @throws {ErrorCode.SCRIPT_TIMEOUT} When snapshot script execution exceeds 15 second timeout
+ * @throws {ErrorCode.MEMORY_ERROR} When insufficient memory to process DOM elements
+ * @throws {ErrorCode.PAGE_LOAD_FAILED} When page is not fully loaded or accessible
+ * 
+ * @throws {ErrorCode.PERMISSION_DENIED} When system permissions block browser automation
+ * @throws {ErrorCode.ACCESSIBILITY_DENIED} When accessibility permissions not granted for automation
+ * @throws {ErrorCode.APPLE_EVENTS_DENIED} When Apple Events permissions not granted for Chrome control
+ * 
+ * @throws {ErrorCode.APPLESCRIPT_ERROR} When underlying AppleScript execution fails
+ * @throws {ErrorCode.SYSTEM_ERROR} When system-level errors prevent snapshot operation
+ * @throws {ErrorCode.UNKNOWN_ERROR} When an unexpected error occurs during snapshot capture
+ * 
  * @example
  * ```typescript
- * // Capture all interactive elements
- * const result = await captureOutline();
+ * // Capture all interactive elements with error handling
+ * try {
+ *   const result = await captureOutline();
+ *   if (!result.success) {
+ *     switch (result.code) {
+ *       case ErrorCode.CHROME_NOT_RUNNING:
+ *         console.log('Start Chrome browser first');
+ *         break;
+ *       case ErrorCode.SCRIPT_TIMEOUT:
+ *         console.log('Page too complex - try with visibleOnly: true');
+ *         break;
+ *       case ErrorCode.JAVASCRIPT_ERROR:
+ *         console.log('Page scripts interfered with snapshot');
+ *         break;
+ *     }
+ *   } else if (result.data) {
+ *     console.log(`Captured ${result.data.nodes.length} interactive elements`);
+ *   }
+ * } catch (error) {
+ *   console.error('Unexpected snapshot error:', error);
+ * }
  * 
- * // Capture only visible elements
+ * // Capture only visible elements for better performance
  * const visibleResult = await captureOutline({ visibleOnly: true });
  * ```
  */
@@ -930,14 +967,54 @@ export async function captureOutline(options: { visibleOnly?: boolean } = {}): P
  * @param options.visibleOnly - If true, only capture elements visible in the viewport
  * @returns Promise resolving to a JavaScriptResult containing the hierarchical snapshot data
  * 
+ * @throws {ErrorCode.INVALID_INPUT} When maxDepth is negative or exceeds reasonable limits
+ * 
+ * @throws {ErrorCode.CHROME_NOT_RUNNING} When Chrome browser is not running or accessible
+ * @throws {ErrorCode.CHROME_NOT_FOUND} When Chrome application cannot be found on system
+ * @throws {ErrorCode.WINDOW_NOT_FOUND} When target window does not exist
+ * @throws {ErrorCode.TAB_NOT_FOUND} When no active tab exists in the window
+ * 
+ * @throws {ErrorCode.JAVASCRIPT_ERROR} When JavaScript execution fails in browser context
+ * @throws {ErrorCode.SCRIPT_TIMEOUT} When snapshot script execution exceeds 20 second timeout
+ * @throws {ErrorCode.MEMORY_ERROR} When insufficient memory to process DOM hierarchy
+ * @throws {ErrorCode.PAGE_LOAD_FAILED} When page is not fully loaded or accessible
+ * @throws {ErrorCode.CPU_LIMIT_EXCEEDED} When DOM traversal exceeds processing limits
+ * 
+ * @throws {ErrorCode.PERMISSION_DENIED} When system permissions block browser automation
+ * @throws {ErrorCode.ACCESSIBILITY_DENIED} When accessibility permissions not granted for automation
+ * @throws {ErrorCode.APPLE_EVENTS_DENIED} When Apple Events permissions not granted for Chrome control
+ * 
+ * @throws {ErrorCode.APPLESCRIPT_ERROR} When underlying AppleScript execution fails
+ * @throws {ErrorCode.SYSTEM_ERROR} When system-level errors prevent snapshot operation
+ * @throws {ErrorCode.UNKNOWN_ERROR} When an unexpected error occurs during snapshot capture
+ * 
  * @example
  * ```typescript
- * // Capture with default settings
- * const result = await captureDomLite();
+ * // Capture DOM hierarchy with error handling
+ * try {
+ *   const result = await captureDomLite({ maxDepth: 5, visibleOnly: true });
+ *   if (!result.success) {
+ *     switch (result.code) {
+ *       case ErrorCode.CHROME_NOT_RUNNING:
+ *         console.log('Start Chrome browser first');
+ *         break;
+ *       case ErrorCode.SCRIPT_TIMEOUT:
+ *         console.log('Page too complex - reduce maxDepth or use visibleOnly');
+ *         break;
+ *       case ErrorCode.MEMORY_ERROR:
+ *         console.log('Page too large - try with visibleOnly: true');
+ *         break;
+ *     }
+ *   } else if (result.data) {
+ *     console.log(`Captured ${result.data.nodes.length} hierarchical elements`);
+ *   }
+ * } catch (error) {
+ *   console.error('Unexpected DOM-lite snapshot error:', error);
+ * }
  * 
- * // Capture with limited depth and visible elements only
- * const limitedResult = await captureDomLite({ 
- *   maxDepth: 5, 
+ * // Capture with optimized settings for large pages
+ * const optimizedResult = await captureDomLite({ 
+ *   maxDepth: 3, 
  *   visibleOnly: true 
  * });
  * ```
@@ -963,15 +1040,38 @@ export async function captureDomLite(options: { maxDepth?: number; visibleOnly?:
  * @param result - The raw JavaScript execution result from Chrome
  * @returns Formatted snapshot result or error object with consistent structure
  * 
+ * @throws {ErrorCode.INVALID_INPUT} When result parameter is null, undefined, or malformed
+ * @throws {ErrorCode.INVALID_JSON} When result contains invalid JSON data structures
+ * @throws {ErrorCode.VALIDATION_FAILED} When result data doesn't match expected SnapshotResult format
+ * 
+ * @throws {ErrorCode.UNKNOWN_ERROR} When formatting fails due to unexpected data structure
+ * @throws {ErrorCode.MEMORY_ERROR} When insufficient memory to process large snapshot results
+ * @throws {ErrorCode.SYSTEM_ERROR} When system-level errors prevent result formatting
+ * 
  * @example
  * ```typescript
- * const jsResult = await execChromeJS(script);
- * const formatted = formatSnapshotResult(jsResult);
- * 
- * if ('success' in formatted && !formatted.success) {
- *   console.error('Snapshot failed:', formatted.error);
- * } else if ('ok' in formatted && formatted.ok) {
- *   console.log(`Captured ${formatted.nodes.length} elements`);
+ * // Format snapshot result with error handling
+ * try {
+ *   const jsResult = await execChromeJS(script);
+ *   const formatted = formatSnapshotResult(jsResult);
+ *   
+ *   if ('success' in formatted && !formatted.success) {
+ *     switch (formatted.code) {
+ *       case ErrorCode.INVALID_JSON:
+ *         console.error('Malformed snapshot data received');
+ *         break;
+ *       case ErrorCode.VALIDATION_FAILED:
+ *         console.error('Snapshot data format validation failed');
+ *         break;
+ *       default:
+ *         console.error('Snapshot failed:', formatted.error);
+ *     }
+ *   } else if ('ok' in formatted && formatted.ok) {
+ *     console.log(`Successfully captured ${formatted.nodes.length} elements`);
+ *     console.log(`Page: ${formatted.meta?.title} (${formatted.meta?.url})`);
+ *   }
+ * } catch (error) {
+ *   console.error('Unexpected formatting error:', error);
  * }
  * ```
  */

@@ -102,6 +102,10 @@ export class MacChromeCLI {
    * Register all commands with the program
    */
   private async registerCommands(): Promise<void> {
+    // Pass service container to registry if available
+    if (this.serviceContainer) {
+      this.registry.setServiceContainer(this.serviceContainer);
+    }
     await this.registry.registerAll();
   }
 

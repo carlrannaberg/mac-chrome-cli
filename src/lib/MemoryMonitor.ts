@@ -151,7 +151,7 @@ export class MemoryMonitor extends EventEmitter {
         cleanedItems++;
       } catch (error) {
         const logger = getLogger();
-        logger.error('Memory cleanup callback failed', error, 'memory-monitor', {
+        logger.error('Memory cleanup callback failed', error instanceof Error ? error : undefined, 'memory-monitor', {
           operation: 'cleanup',
           item: cleanedItems
         });
