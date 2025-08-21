@@ -128,7 +128,7 @@ async function getViewportInfo(windowIndex: number = 1): Promise<ViewportInfo | 
       scrollY = jsViewport.scrollY;
     }
     
-    return {
+    const viewportInfo = {
       x: bounds.x,
       y: bounds.y + titleBarHeight + chromeUIHeight,
       width: viewportWidth,
@@ -137,6 +137,8 @@ async function getViewportInfo(windowIndex: number = 1): Promise<ViewportInfo | 
       scrollY,
       windowTitle
     };
+    
+    return viewportInfo;
     
   } catch (error) {
     return null;
@@ -406,6 +408,12 @@ export async function captureViewport(
   windowIndex: number = 1
 ): Promise<ScreenshotResult> {
   try {
+    // Activate Chrome window to ensure it's in front
+    await execWithTimeout('osascript', ['-e', `tell application "Google Chrome" to activate window ${windowIndex}`], 2000);
+    
+    // Small delay to ensure window is fully activated
+    await new Promise(resolve => setTimeout(resolve, 200));
+    
     // Get accurate viewport information using enhanced coordinate calculation
     const viewportInfo = await getViewportInfo(windowIndex);
     
@@ -499,6 +507,12 @@ export async function captureWindow(
   windowIndex: number = 1
 ): Promise<ScreenshotResult> {
   try {
+    // Activate Chrome window to ensure it's in front
+    await execWithTimeout('osascript', ['-e', `tell application "Google Chrome" to activate window ${windowIndex}`], 2000);
+    
+    // Small delay to ensure window is fully activated
+    await new Promise(resolve => setTimeout(resolve, 200));
+    
     // Get window bounds using the service (with automatic fallback)
     const windowBounds = await getChromeWindowBounds(windowIndex);
     
