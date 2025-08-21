@@ -1,5 +1,5 @@
 import { execWithTimeout, createWebPPreview, expandPath, ERROR_CODES, type ErrorCode } from './util.js';
-import { getChromeWindowBounds, execChromeJS } from './apple.js';
+import { getChromeWindowBounds, execChromeJS, focusChromeWindow } from './apple.js';
 import { selectorToScreen, validateElementVisibility } from './coords.js';
 import { existsSync, mkdirSync, statSync } from 'fs';
 import { dirname, join } from 'path';
@@ -394,6 +394,27 @@ async function takeScreenshot(
 }
 
 /**
+ * Ensure Chrome window is properly focused and brought to front.
+ * This is critical for screenshot capture to work correctly on macOS.
+ * 
+ * @param windowIndex Chrome window index (1-based)
+ * @returns Promise that resolves when window is activated
+ */
+async function ensureChromeWindowActivated(windowIndex: number): Promise<void> {
+  // Use the existing focusChromeWindow function which implements the two-step activation:
+  // 1. Activates the Chrome application
+  // 2. Sets the window index to bring it to front
+  const result = await focusChromeWindow(windowIndex);
+  
+  if (!result.success) {
+    throw new Error(`Failed to focus Chrome window: ${result.error}`);
+  }
+  
+  // Ensure window is fully activated with sufficient delay for screenshot capture
+  await new Promise(resolve => setTimeout(resolve, 500));
+}
+
+/**
  * Capture viewport screenshot with enhanced coordinate calculation and error handling
  * 
  * This implementation uses proper viewport coordinate calculation, dedicated screen capture
@@ -408,11 +429,8 @@ export async function captureViewport(
   windowIndex: number = 1
 ): Promise<ScreenshotResult> {
   try {
-    // Activate Chrome window to ensure it's in front
-    await execWithTimeout('osascript', ['-e', `tell application "Google Chrome" to activate window ${windowIndex}`], 2000);
-    
-    // Small delay to ensure window is fully activated
-    await new Promise(resolve => setTimeout(resolve, 200));
+    // Ensure Chrome window is properly activated for screenshot capture
+    await ensureChromeWindowActivated(windowIndex);
     
     // Get accurate viewport information using enhanced coordinate calculation
     const viewportInfo = await getViewportInfo(windowIndex);
@@ -507,11 +525,8 @@ export async function captureWindow(
   windowIndex: number = 1
 ): Promise<ScreenshotResult> {
   try {
-    // Activate Chrome window to ensure it's in front
-    await execWithTimeout('osascript', ['-e', `tell application "Google Chrome" to activate window ${windowIndex}`], 2000);
-    
-    // Small delay to ensure window is fully activated
-    await new Promise(resolve => setTimeout(resolve, 200));
+    // Ensure Chrome window is properly activated for screenshot capture
+    await ensureChromeWindowActivated(windowIndex);
     
     // Get window bounds using the service (with automatic fallback)
     const windowBounds = await getChromeWindowBounds(windowIndex);

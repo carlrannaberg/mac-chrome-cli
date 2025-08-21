@@ -25,7 +25,8 @@ This guide covers the macOS permission requirements and setup process for `mac-c
 4. Click the **+** button to add an application
 5. Navigate to and select **Terminal** (or your terminal application)
 6. Ensure the checkbox next to **Terminal** is checked
-7. If using from scripts or other applications, also add:
+7. **Important**: Your terminal application (Terminal, iTerm2, etc.) MUST be granted permission to control your computer
+8. If using from scripts or other applications, also add:
    - **Node.js** (if installed via installer)
    - **iTerm2** (if using iTerm)
    - Any IDE or editor you're running the CLI from

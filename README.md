@@ -141,6 +141,7 @@ mac-chrome-cli snapshot outline --visible-only
 - Google Chrome installed
 - System accessibility permissions (see [PERMISSIONS.md](./PERMISSIONS.md))
 - Node.js 18.0.0 or later
+- Terminal app permissions: Your terminal application (Terminal, iTerm2, etc.) must have permission to control your computer in System Settings → Privacy & Security → Accessibility
 
 ## Common Examples
 
