@@ -94,10 +94,30 @@ describe('Utility Functions', () => {
       expect(expandPath('/usr/local/bin')).toBe('/usr/local/bin');
     });
 
-    it('should leave relative paths unchanged', () => {
+    it('should leave relative paths unchanged by default', () => {
       expect(expandPath('relative/path')).toBe('relative/path');
       expect(expandPath('./current/path')).toBe('./current/path');
       expect(expandPath('../parent/path')).toBe('../parent/path');
+    });
+
+    it('should resolve relative paths when resolveRelative is true', () => {
+      const cwd = process.cwd();
+      expect(expandPath('relative/path', true)).toBe(`${cwd}/relative/path`);
+      expect(expandPath('./current/path', true)).toBe(`${cwd}/current/path`);
+      // Note: path.join normalizes '..' paths, so '../parent/path' becomes the actual parent directory
+      const parentPath = require('path').join(cwd, '../parent/path');
+      expect(expandPath('../parent/path', true)).toBe(parentPath);
+    });
+
+    it('should not resolve absolute paths even with resolveRelative', () => {
+      expect(expandPath('/absolute/path', true)).toBe('/absolute/path');
+      expect(expandPath('/usr/local/bin', true)).toBe('/usr/local/bin');
+    });
+
+    it('should expand tilde and resolve relative paths when both apply', () => {
+      const homePath = process.env.HOME || '/Users/test';
+      expect(expandPath('~/test.txt', true)).toBe(`${homePath}/test.txt`);
+      expect(expandPath('~/Documents/file.pdf', false)).toBe(`${homePath}/Documents/file.pdf`);
     });
   });
 
