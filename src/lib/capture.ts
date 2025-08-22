@@ -1,7 +1,7 @@
 import { execWithTimeout, createWebPPreview, expandPath, ERROR_CODES, type ErrorCode } from './util.js';
 import { getChromeWindowBounds, execChromeJS, focusChromeWindow } from './apple.js';
 import { selectorToScreen, validateElementVisibility } from './coords.js';
-import { existsSync, mkdirSync, statSync } from 'fs';
+import { existsSync, mkdirSync, statSync, writeFileSync, unlinkSync } from 'fs';
 import { dirname, join } from 'path';
 import { tmpdir } from 'os';
 import { spawn } from 'child_process';
@@ -57,16 +57,54 @@ function ensureDirectoryExists(filePath: string): void {
 }
 
 /**
- * Viewport coordinates information
+ * Rectangle coordinates
  */
-interface ViewportInfo {
+interface Rectangle {
   x: number;
   y: number;
   width: number;
   height: number;
+}
+
+/**
+ * Viewport coordinates information
+ */
+interface ViewportInfo extends Rectangle {
   scrollX: number;
   scrollY: number;
   windowTitle?: string;
+}
+
+/**
+ * Screenshot capture configuration
+ */
+interface CaptureConfig {
+  rectangle: Rectangle;
+  outputPath: string;
+  format: string;
+  timeout?: number;
+}
+
+/**
+ * UI layout constants
+ */
+const UI_CONSTANTS = {
+  TITLE_BAR_HEIGHT: 24,
+  CHROME_UI_HEIGHT: 75,
+  DEFAULT_TIMEOUT: 10000,
+  CROP_TIMEOUT: 15000,
+  MIN_FILE_SIZE: 1000
+} as const;
+
+/**
+ * Screenshot capture method results for fallback handling
+ */
+interface CaptureMethodResult {
+  success: boolean;
+  method: string;
+  path?: string;
+  error?: string;
+  shouldFallback: boolean;
 }
 
 /**
@@ -109,12 +147,11 @@ async function getViewportInfo(windowIndex: number = 1): Promise<ViewportInfo | 
     `;
     
     // Calculate viewport area (excluding title bar and chrome UI)
-    const titleBarHeight = 24; // Standard macOS title bar
-    const chromeUIHeight = 75; // Approximate height of Chrome's address bar/tabs
+    const { TITLE_BAR_HEIGHT, CHROME_UI_HEIGHT } = UI_CONSTANTS;
     
     // Try to get more accurate viewport dimensions via JavaScript
     let viewportWidth = bounds.width;
-    let viewportHeight = bounds.height - titleBarHeight - chromeUIHeight;
+    let viewportHeight = bounds.height - TITLE_BAR_HEIGHT - CHROME_UI_HEIGHT;
     let scrollX = 0;
     let scrollY = 0;
     
@@ -128,9 +165,9 @@ async function getViewportInfo(windowIndex: number = 1): Promise<ViewportInfo | 
       scrollY = jsViewport.scrollY;
     }
     
-    const viewportInfo = {
+    return {
       x: bounds.x,
-      y: bounds.y + titleBarHeight + chromeUIHeight,
+      y: bounds.y + TITLE_BAR_HEIGHT + CHROME_UI_HEIGHT,
       width: viewportWidth,
       height: viewportHeight,
       scrollX,
@@ -138,134 +175,241 @@ async function getViewportInfo(windowIndex: number = 1): Promise<ViewportInfo | 
       windowTitle
     };
     
-    return viewportInfo;
-    
   } catch (error) {
     return null;
   }
 }
 
 /**
- * Capture screen using macOS screencapture command with proper error handling
+ * Capture window by window ID using macOS screencapture command
+ * This is the most reliable method for capturing Chrome windows
  * @private
  */
-async function captureScreen(
-  x: number,
-  y: number,
-  width: number,
-  height: number,
+async function captureWindowById(
+  windowId: string,
   outputPath: string,
   format: string = 'png'
-): Promise<ScreenshotResult> {
-  return new Promise((resolve) => {
-    try {
-      ensureDirectoryExists(outputPath);
-      
-      const args = [
-        '-x', // Don't play sound
-        '-R', // Capture rectangle
-        `${x},${y},${width},${height}`
-      ];
-      
-      // Add format-specific arguments
-      if (format === 'jpg') {
-        args.push('-t', 'jpg');
-      } else if (format === 'pdf') {
-        args.push('-t', 'pdf');
+): Promise<CaptureMethodResult> {
+  try {
+    ensureDirectoryExists(outputPath);
+    
+    const args = [
+      '-x', // Don't play sound
+      '-l', windowId, // Capture window by ID
+    ];
+    
+    // Add format-specific arguments
+    if (format === 'jpg') {
+      args.push('-t', 'jpg');
+    }
+    
+    args.push(outputPath);
+    
+    const result = await execWithTimeout('screencapture', args, 10000);
+    
+    if (result.success && existsSync(outputPath)) {
+      return {
+        success: true,
+        method: 'window-id',
+        path: outputPath,
+        shouldFallback: false
+      };
+    } else {
+      const errorMessage = result.error || 'Window capture failed';
+      return {
+        success: false,
+        method: 'window-id',
+        error: errorMessage.includes('permissions') 
+          ? 'Screen recording permission required. Grant permission in System Settings → Privacy & Security → Screen Recording'
+          : `Window ID capture failed: ${errorMessage}`,
+        shouldFallback: !errorMessage.includes('permissions')
+      };
+    }
+  } catch (error) {
+    return {
+      success: false,
+      method: 'window-id',
+      error: `Window ID capture error: ${error}`,
+      shouldFallback: true
+    };
+  }
+}
+
+/**
+ * Build capture configuration from rectangle coordinates
+ * @private
+ */
+function createCaptureConfig(
+  rectangle: Rectangle,
+  outputPath: string,
+  format: string = 'png',
+  timeout?: number
+): CaptureConfig {
+  return {
+    rectangle,
+    outputPath,
+    format,
+    timeout: timeout || UI_CONSTANTS.DEFAULT_TIMEOUT
+  };
+}
+
+/**
+ * Capture screen using rectangle coordinates
+ * Tries direct rectangle capture first, then falls back to full screen + crop
+ * @private
+ */
+async function captureScreenRect(
+  config: CaptureConfig
+): Promise<CaptureMethodResult> {
+  const { rectangle, outputPath, format } = config;
+  
+  try {
+    ensureDirectoryExists(outputPath);
+    
+    // Method 1: Direct rectangle capture (faster, but may not work with Chrome GPU acceleration)
+    const rectResult = await captureRectangle(config);
+    if (rectResult.success) {
+      return rectResult;
+    }
+    
+    // Method 2: Full screen + crop (slower but reliable)
+    if (rectResult.shouldFallback) {
+      return await captureFullScreenAndCrop(config);
+    }
+    
+    return rectResult;
+    
+  } catch (error) {
+    return buildCaptureError('rectangle', `Screen capture error: ${error}`);
+  }
+}
+
+/**
+ * Direct rectangle capture using screencapture -R
+ * @private
+ */
+async function captureRectangle(
+  config: CaptureConfig
+): Promise<CaptureMethodResult> {
+  const { rectangle: { x, y, width, height }, outputPath, format, timeout } = config;
+  
+  try {
+    const args = [
+      '-x', // Don't play sound
+      '-R', `${x},${y},${width},${height}` // Rectangle capture
+    ];
+    
+    if (format === 'jpg') {
+      args.push('-t', 'jpg');
+    }
+    
+    args.push(outputPath);
+    
+    const result = await execWithTimeout('screencapture', args, timeout || UI_CONSTANTS.DEFAULT_TIMEOUT);
+    
+    if (result.success && existsSync(outputPath)) {
+      // Verify the captured image has reasonable content (not just desktop background)
+      const stats = statSync(outputPath);
+      if (stats.size < UI_CONSTANTS.MIN_FILE_SIZE) { // Very small file likely means capture failed
+        return {
+          success: false,
+          method: 'rectangle-direct',
+          error: 'Rectangle capture produced unusable result',
+          shouldFallback: true
+        };
       }
       
-      args.push(outputPath);
-      
-      const child = spawn('screencapture', args, {
-        stdio: ['pipe', 'pipe', 'pipe']
-      });
-      
-      let stderr = '';
-      let timedOut = false;
-      
-      // 15 second timeout for screenshot capture
-      const timeout = setTimeout(() => {
-        timedOut = true;
-        child.kill('SIGTERM');
-        resolve({
-          success: false,
-          action: 'viewport_screenshot',
-          error: 'Screenshot capture timed out after 15 seconds',
-          code: ERROR_CODES.TIMEOUT
-        });
-      }, 15000);
-      
-      child.stderr?.on('data', (data) => {
-        stderr += data.toString();
-      });
-      
-      child.on('close', (code) => {
-        if (timedOut) return;
-        
-        clearTimeout(timeout);
-        
-        if (code !== 0) {
-          // Check for permission issues
-          if (stderr.includes('not authorized') || stderr.includes('permission') || 
-              stderr.includes('Screen Recording') || code === 1) {
-            resolve({
-              success: false,
-              action: 'viewport_screenshot',
-              error: 'Screen recording permission denied. Please grant permission in System Preferences > Privacy & Security > Screen Recording and restart the application.',
-              code: ERROR_CODES.PERMISSION_DENIED
-            });
-            return;
-          }
-          
-          resolve({
-            success: false,
-            action: 'viewport_screenshot',
-            error: stderr || `screencapture exited with code ${code}`,
-            code: ERROR_CODES.UNKNOWN_ERROR
-          });
-          return;
-        }
-        
-        // Verify file was created
-        if (!existsSync(outputPath)) {
-          resolve({
-            success: false,
-            action: 'viewport_screenshot',
-            error: 'Screenshot file was not created',
-            code: ERROR_CODES.UNKNOWN_ERROR
-          });
-          return;
-        }
-        
-        resolve({
-          success: true,
-          action: 'viewport_screenshot',
-          path: outputPath,
-          code: ERROR_CODES.OK
-        });
-      });
-      
-      child.on('error', (err) => {
-        if (timedOut) return;
-        
-        clearTimeout(timeout);
-        resolve({
-          success: false,
-          action: 'viewport_screenshot',
-          error: `Failed to execute screencapture: ${err.message}`,
-          code: ERROR_CODES.UNKNOWN_ERROR
-        });
-      });
-      
-    } catch (error) {
-      resolve({
+      return {
+        success: true,
+        method: 'rectangle-direct',
+        path: outputPath,
+        shouldFallback: false
+      };
+    } else {
+      return {
         success: false,
-        action: 'viewport_screenshot',
-        error: `Screenshot preparation failed: ${error}`,
-        code: ERROR_CODES.UNKNOWN_ERROR
-      });
+        method: 'rectangle-direct',
+        error: result.error || 'Rectangle capture failed',
+        shouldFallback: true
+      };
     }
-  });
+  } catch (error) {
+    return buildCaptureError('rectangle-direct', `Rectangle capture error: ${error}`);
+  }
+}
+
+/**
+ * Full screen capture followed by cropping
+ * This is the most reliable method but less efficient
+ * @private
+ */
+async function captureFullScreenAndCrop(
+  config: CaptureConfig
+): Promise<CaptureMethodResult> {
+  const { rectangle: { x, y, width, height }, outputPath } = config;
+  const tempPath = `/tmp/temp-screenshot-${Date.now()}.png`;
+  
+  try {
+    // Step 1: Capture full screen
+    const fullScreenArgs = ['-x', tempPath];
+    const captureResult = await execWithTimeout('screencapture', fullScreenArgs, UI_CONSTANTS.CROP_TIMEOUT);
+    
+    if (!captureResult.success || !existsSync(tempPath)) {
+      return {
+        success: false,
+        method: 'fullscreen-crop',
+        error: captureResult.error || 'Full screen capture failed',
+        shouldFallback: false
+      };
+    }
+    
+    // Step 2: Crop using sips
+    const cropArgs = [
+      '-c', `${height}`, `${width}`,
+      '--cropOffset', `${x}`, `${y}`,
+      tempPath,
+      '--out', outputPath
+    ];
+    
+    const cropResult = await execWithTimeout('sips', cropArgs, UI_CONSTANTS.CROP_TIMEOUT);
+    
+    // Clean up temp file
+    try {
+      if (existsSync(tempPath)) {
+        unlinkSync(tempPath);
+      }
+    } catch (e) {
+      // Ignore cleanup errors
+    }
+    
+    if (!cropResult.success || !existsSync(outputPath)) {
+      return {
+        success: false,
+        method: 'fullscreen-crop',
+        error: cropResult.error || 'Image cropping failed',
+        shouldFallback: false
+      };
+    }
+    
+    return {
+      success: true,
+      method: 'fullscreen-crop',
+      path: outputPath,
+      shouldFallback: false
+    };
+    
+  } catch (error) {
+    // Clean up temp file on error
+    try {
+      if (existsSync(tempPath)) {
+        unlinkSync(tempPath);
+      }
+    } catch (e) {
+      // Ignore cleanup errors
+    }
+    
+    return buildCaptureError('fullscreen-crop', `Full screen capture error: ${error}`, false);
+  }
 }
 
 /**
@@ -401,24 +545,41 @@ async function takeScreenshot(
  * @returns Promise that resolves when window is activated
  */
 async function ensureChromeWindowActivated(windowIndex: number): Promise<void> {
-  // Use the existing focusChromeWindow function which implements the two-step activation:
-  // 1. Activates the Chrome application
-  // 2. Sets the window index to bring it to front
-  const result = await focusChromeWindow(windowIndex);
+  // Step 1: Use System Events to bring Chrome window to current Space
+  const switchToChromeSpaceScript = `
+tell application "Google Chrome"
+  activate
+  set index of window ${windowIndex} to 1
+end tell
+
+tell application "System Events"
+  tell process "Google Chrome"
+    set frontmost to true
+    perform action "AXRaise" of window 1
+  end tell
+end tell`;
   
-  if (!result.success) {
-    throw new Error(`Failed to focus Chrome window: ${result.error}`);
+  try {
+    await execWithTimeout('osascript', ['-e', switchToChromeSpaceScript], 3000);
+  } catch (e) {
+    // If space switching fails, try basic focus
+    const result = await focusChromeWindow(windowIndex);
+    if (!result.success) {
+      throw new Error(`Failed to focus Chrome window: ${result.error}`);
+    }
   }
   
-  // Ensure window is fully activated with sufficient delay for screenshot capture
-  await new Promise(resolve => setTimeout(resolve, 500));
+  // Step 2: Wait for Space switch animation to complete
+  await new Promise(resolve => setTimeout(resolve, 1000));
 }
 
 /**
- * Capture viewport screenshot with enhanced coordinate calculation and error handling
+ * Capture viewport screenshot using progressive fallback strategy
  * 
- * This implementation uses proper viewport coordinate calculation, dedicated screen capture
- * with permission error handling, and metadata extraction as specified in SHOT-002.
+ * Tries multiple capture methods in order of reliability:
+ * 1. Window ID capture (most reliable for Chrome)
+ * 2. Rectangle capture (faster but may fail with GPU acceleration)
+ * 3. Full screen + crop (slowest but most reliable)
  * 
  * @param options Screenshot options including format, quality, preview settings
  * @param windowIndex Chrome window index (1-based)
@@ -432,7 +593,7 @@ export async function captureViewport(
     // Ensure Chrome window is properly activated for screenshot capture
     await ensureChromeWindowActivated(windowIndex);
     
-    // Get accurate viewport information using enhanced coordinate calculation
+    // Get accurate viewport information
     const viewportInfo = await getViewportInfo(windowIndex);
     
     if (!viewportInfo) {
@@ -457,55 +618,66 @@ export async function captureViewport(
     const outputPath = generateScreenshotPath(options.format, options.outputPath);
     const format = options.format || 'png';
     
-    // Use enhanced screen capture with proper error handling
-    const captureResult = await captureScreen(
-      viewportInfo.x,
-      viewportInfo.y,
-      viewportInfo.width,
-      viewportInfo.height,
+    // Progressive fallback strategy
+    let captureResult: CaptureMethodResult;
+    let finalError = 'All capture methods failed';
+    
+    // Method 1: Try window ID capture first (most reliable for Chrome)
+    try {
+      const windowIdScript = `tell application "Google Chrome" to id of window ${windowIndex}`;
+      const windowIdResult = await execWithTimeout('osascript', ['-e', windowIdScript], 2000);
+      
+      if (windowIdResult.success && windowIdResult.data?.stdout) {
+        const windowId = windowIdResult.data.stdout.trim();
+        captureResult = await captureWindowById(windowId, outputPath, format);
+        
+        if (captureResult.success) {
+          return await buildSuccessResult(
+            outputPath, 
+            viewportInfo, 
+            options, 
+            `viewport_screenshot (${captureResult.method})`
+          );
+        }
+        
+        if (!captureResult.shouldFallback) {
+          return buildErrorResult(captureResult.error || finalError, captureResult.method);
+        }
+        
+        finalError = captureResult.error || finalError;
+      }
+    } catch (error) {
+      // Continue to next method
+    }
+    
+    // Method 2: Try rectangle capture
+    const captureConfig = createCaptureConfig(
+      {
+        x: viewportInfo.x,
+        y: viewportInfo.y,
+        width: viewportInfo.width,
+        height: viewportInfo.height
+      },
       outputPath,
       format
     );
     
-    if (!captureResult.success) {
-      return captureResult;
+    captureResult = await captureScreenRect(captureConfig);
+    
+    if (captureResult.success) {
+      return await buildSuccessResult(
+        outputPath, 
+        viewportInfo, 
+        options, 
+        `viewport_screenshot (${captureResult.method})`
+      );
     }
     
-    // Extract image metadata after successful capture
-    const metadata = await getImageMetadata(outputPath);
-    
-    const screenshotResult: ScreenshotResult = {
-      success: true,
-      action: 'viewport_screenshot',
-      path: outputPath,
-      code: ERROR_CODES.OK,
-      metadata: {
-        width: metadata?.width || viewportInfo.width,
-        height: metadata?.height || viewportInfo.height,
-        ...(viewportInfo.windowTitle && { windowTitle: viewportInfo.windowTitle })
-      }
-    };
-    
-    // Generate WebP preview when requested
-    if (options.preview !== false) {
-      try {
-        const maxSize = options.previewMaxSize || 1.5 * 1024 * 1024; // 1.5MB default
-        const webpPreview = await createWebPPreview(outputPath, maxSize);
-        
-        if (webpPreview.size > 0) { // Only add preview if generation was successful
-          screenshotResult.preview = {
-            base64: webpPreview.base64,
-            size: webpPreview.size
-          };
-        }
-      } catch (previewError) {
-        // Preview generation failure doesn't fail the screenshot
-        // Log warning but continue with successful screenshot
-        console.warn('WebP preview generation failed:', previewError);
-      }
-    }
-    
-    return screenshotResult;
+    // If we get here, all methods failed
+    return buildErrorResult(
+      captureResult.error || finalError, 
+      'all-methods'
+    );
     
   } catch (error) {
     return {
@@ -518,7 +690,88 @@ export async function captureViewport(
 }
 
 /**
- * Capture full window screenshot
+ * Build a successful screenshot result with metadata and preview
+ * @private
+ */
+async function buildSuccessResult(
+  outputPath: string,
+  viewportInfo: ViewportInfo,
+  options: ScreenshotOptions,
+  action: string
+): Promise<ScreenshotResult> {
+  // Extract image metadata after successful capture
+  const metadata = await getImageMetadata(outputPath);
+  
+  const screenshotResult: ScreenshotResult = {
+    success: true,
+    action,
+    path: outputPath,
+    code: ERROR_CODES.OK,
+    metadata: {
+      width: metadata?.width || viewportInfo.width,
+      height: metadata?.height || viewportInfo.height,
+      ...(viewportInfo.windowTitle && { windowTitle: viewportInfo.windowTitle })
+    }
+  };
+  
+  // Generate WebP preview when requested
+  if (options.preview !== false) {
+    try {
+      const maxSize = options.previewMaxSize || 1.5 * 1024 * 1024; // 1.5MB default
+      const webpPreview = await createWebPPreview(outputPath, maxSize);
+      
+      if (webpPreview.size > 0) { // Only add preview if generation was successful
+        screenshotResult.preview = {
+          base64: webpPreview.base64,
+          size: webpPreview.size
+        };
+      }
+    } catch (previewError) {
+      // Preview generation failure doesn't fail the screenshot
+      // Continue with successful screenshot without preview
+    }
+  }
+  
+  return screenshotResult;
+}
+
+/**
+ * Build capture method error result
+ * @private
+ */
+function buildCaptureError(
+  method: string,
+  error: string | Error,
+  shouldFallback: boolean = true
+): CaptureMethodResult {
+  const errorMessage = error instanceof Error ? error.message : error;
+  
+  return {
+    success: false,
+    method,
+    error: errorMessage,
+    shouldFallback
+  };
+}
+
+/**
+ * Build an error result with context
+ * @private
+ */
+function buildErrorResult(errorMessage: string, method: string): ScreenshotResult {
+  const isPermissionError = errorMessage.includes('permission');
+  
+  return {
+    success: false,
+    action: 'viewport_screenshot',
+    error: errorMessage,
+    code: isPermissionError ? ERROR_CODES.PERMISSION_DENIED : ERROR_CODES.UNKNOWN_ERROR
+  };
+}
+
+/**
+ * Capture full window screenshot with fallback strategies
+ * Tries window ID capture first, then falls back to rectangle capture
  */
 export async function captureWindow(
   options: ScreenshotOptions = {},
@@ -528,7 +781,7 @@ export async function captureWindow(
     // Ensure Chrome window is properly activated for screenshot capture
     await ensureChromeWindowActivated(windowIndex);
     
-    // Get window bounds using the service (with automatic fallback)
+    // Get window bounds for metadata and fallback capture
     const windowBounds = await getChromeWindowBounds(windowIndex);
     
     if (!windowBounds.success || !windowBounds.data) {
@@ -542,31 +795,72 @@ export async function captureWindow(
     
     const bounds = windowBounds.data.bounds;
     const outputPath = generateScreenshotPath(options.format, options.outputPath);
+    const format = options.format || 'png';
     
-    const args = [
-      '-x', // Don't play sound
-      '-R', // Capture rectangle
-      `${bounds.x},${bounds.y},${bounds.width},${bounds.height}`
-    ];
-    
-    if (options.format === 'jpg') {
-      args.push('-t', 'jpg');
-    } else if (options.format === 'pdf') {
-      args.push('-t', 'pdf');
+    // Method 1: Try window ID capture first
+    try {
+      const windowIdScript = `tell application "Google Chrome" to id of window ${windowIndex}`;
+      const windowIdResult = await execWithTimeout('osascript', ['-e', windowIdScript], 2000);
+      
+      if (windowIdResult.success && windowIdResult.data?.stdout) {
+        const windowId = windowIdResult.data.stdout.trim();
+        const captureResult = await captureWindowById(windowId, outputPath, format);
+        
+        if (captureResult.success) {
+          return await buildSuccessResultForWindow(
+            outputPath,
+            bounds,
+            windowBounds.data.title,
+            options,
+            'window_screenshot (window-id)'
+          );
+        }
+        
+        // If window ID capture failed but shouldn't fallback, return error
+        if (!captureResult.shouldFallback) {
+          return {
+            success: false,
+            action: 'window_screenshot',
+            error: captureResult.error || 'Window ID capture failed',
+            code: captureResult.error?.includes('permission') ? ERROR_CODES.PERMISSION_DENIED : ERROR_CODES.UNKNOWN_ERROR
+          };
+        }
+      }
+    } catch (error) {
+      // Continue to fallback method
     }
     
-    const result = await takeScreenshot(args, outputPath, options);
-    
-    if (result.success) {
-      result.action = 'window_screenshot';
-      result.metadata = {
+    // Method 2: Fallback to rectangle capture of entire window
+    const captureConfig = createCaptureConfig(
+      {
+        x: bounds.x,
+        y: bounds.y,
         width: bounds.width,
-        height: bounds.height,
-        windowTitle: windowBounds.data.title
+        height: bounds.height
+      },
+      outputPath,
+      format
+    );
+    
+    const captureResult = await captureScreenRect(captureConfig);
+    
+    if (!captureResult.success) {
+      return {
+        success: false,
+        action: 'window_screenshot',
+        error: captureResult.error || 'Window capture failed',
+        code: ERROR_CODES.UNKNOWN_ERROR
       };
     }
     
-    return result;
+    // Build success result with metadata
+    return await buildSuccessResultForWindow(
+      outputPath,
+      bounds,
+      windowBounds.data.title,
+      options,
+      `window_screenshot (${captureResult.method})`
+    );
     
   } catch (error) {
     return {
@@ -576,6 +870,51 @@ export async function captureWindow(
       code: ERROR_CODES.UNKNOWN_ERROR
     };
   }
+}
+
+/**
+ * Build a successful window screenshot result
+ * @private
+ */
+async function buildSuccessResultForWindow(
+  outputPath: string,
+  bounds: { width: number; height: number },
+  windowTitle: string,
+  options: ScreenshotOptions,
+  action: string = 'window_screenshot'
+): Promise<ScreenshotResult> {
+  const metadata = await getImageMetadata(outputPath);
+  
+  const screenshotResult: ScreenshotResult = {
+    success: true,
+    action,
+    path: outputPath,
+    code: ERROR_CODES.OK,
+    metadata: {
+      width: metadata?.width || bounds.width,
+      height: metadata?.height || bounds.height,
+      windowTitle
+    }
+  };
+  
+  // Generate WebP preview when requested
+  if (options.preview !== false) {
+    try {
+      const maxSize = options.previewMaxSize || 1.5 * 1024 * 1024; // 1.5MB default
+      const webpPreview = await createWebPPreview(outputPath, maxSize);
+      
+      if (webpPreview.size > 0) {
+        screenshotResult.preview = {
+          base64: webpPreview.base64,
+          size: webpPreview.size
+        };
+      }
+    } catch (previewError) {
+      // Preview generation failure doesn't fail the screenshot
+    }
+  }
+  
+  return screenshotResult;
 }
 
 /**

@@ -17,8 +17,18 @@ import type {
 export class AppleScriptService implements IAppleScriptService {
   private readonly scriptCache: LRUCache<string, string>;
   private readonly connectionPool: Map<string, { lastUsed: number; windowIndex: number }>;
-  private readonly maxConnections = 5;
-  private readonly connectionTTL = 30000; // 30 seconds
+  
+  // Configuration constants
+  private static readonly CONFIG = {
+    MAX_CONNECTIONS: 5,
+    CONNECTION_TTL: 30000, // 30 seconds
+    CACHE_SIZE: 100,
+    CACHE_TTL: 1000 * 60 * 30, // 30 minutes
+    DEFAULT_TIMEOUT: 10000,
+    BATCH_TIMEOUT: 30000,
+    SCRIPT_TIMEOUT: 15000,
+    HASH_LENGTH: 8
+  } as const;
   private cacheHits = 0;
   private cacheMisses = 0;
   private executionCount = 0;
@@ -26,8 +36,8 @@ export class AppleScriptService implements IAppleScriptService {
   constructor() {
     // Script compilation cache with optimized settings
     this.scriptCache = new LRUCache<string, string>({
-      max: 100, // Increased cache size for better hit rate
-      ttl: 1000 * 60 * 30, // Extended to 30 minute TTL for better reuse
+      max: AppleScriptService.CONFIG.CACHE_SIZE,
+      ttl: AppleScriptService.CONFIG.CACHE_TTL,
       allowStale: false
     });
 
@@ -145,8 +155,35 @@ end tell`;
     tabIndex: number = 1, 
     windowIndex: number = 1
   ): string {
-    const scriptHash = createHash('md5').update(script).digest('hex').substring(0, 8);
+    const scriptHash = createHash('md5')
+      .update(script)
+      .digest('hex')
+      .substring(0, AppleScriptService.CONFIG.HASH_LENGTH);
     return `${scriptHash}-${tabIndex}-${windowIndex}`;
+  }
+
+  /**
+   * Check if connection is still valid
+   */
+  private isConnectionValid(connection: { lastUsed: number }): boolean {
+    return Date.now() - connection.lastUsed < AppleScriptService.CONFIG.CONNECTION_TTL;
+  }
+
+  /**
+   * Find and remove least recently used connection
+   */
+  private evictOldestConnection(): void {
+    let oldestConnection: { key: string; lastUsed: number } | null = null;
+    
+    for (const [key, conn] of this.connectionPool.entries()) {
+      if (!oldestConnection || conn.lastUsed < oldestConnection.lastUsed) {
+        oldestConnection = { key, lastUsed: conn.lastUsed };
+      }
+    }
+    
+    if (oldestConnection) {
+      this.connectionPool.delete(oldestConnection.key);
+    }
   }
 
   /**
@@ -156,26 +193,18 @@ end tell`;
     const connectionId = `chrome-${windowIndex}`;
     const connection = this.connectionPool.get(connectionId);
     
-    if (connection && Date.now() - connection.lastUsed < this.connectionTTL) {
+    // Return existing valid connection
+    if (connection && this.isConnectionValid(connection)) {
       connection.lastUsed = Date.now();
       return connectionId;
     }
     
-    // Clean up old connections before creating new ones
+    // Clean up expired connections
     this.cleanupConnections();
     
-    // Check if we're at capacity and reuse least recently used connection
-    if (this.connectionPool.size >= this.maxConnections) {
-      let oldestConnection: { key: string; lastUsed: number } | null = null;
-      for (const [key, conn] of this.connectionPool.entries()) {
-        if (!oldestConnection || conn.lastUsed < oldestConnection.lastUsed) {
-          oldestConnection = { key, lastUsed: conn.lastUsed };
-        }
-      }
-      
-      if (oldestConnection) {
-        this.connectionPool.delete(oldestConnection.key);
-      }
+    // Evict oldest connection if at capacity
+    if (this.connectionPool.size >= AppleScriptService.CONFIG.MAX_CONNECTIONS) {
+      this.evictOldestConnection();
     }
     
     // Create new connection
@@ -193,7 +222,7 @@ end tell`;
   private cleanupConnections(): void {
     const now = Date.now();
     for (const [id, connection] of this.connectionPool) {
-      if (now - connection.lastUsed > this.connectionTTL) {
+      if (now - connection.lastUsed > AppleScriptService.CONFIG.CONNECTION_TTL) {
         this.connectionPool.delete(id);
       }
     }
@@ -261,7 +290,7 @@ end tell`;
    * @throws {ErrorCode.MEMORY_ERROR} When insufficient memory to execute script
    * @throws {ErrorCode.UNKNOWN_ERROR} When an unexpected error occurs during execution
    */
-  async executeScript(script: string, timeout: number = 10000): Promise<AppleScriptResult<string>> {
+  async executeScript(script: string, timeout: number = AppleScriptService.CONFIG.DEFAULT_TIMEOUT): Promise<AppleScriptResult<string>> {
     const benchmarkId = startBenchmark('applescript-raw-exec', {
       scriptLength: script.length
     });
@@ -321,7 +350,7 @@ end tell`;
   ): Promise<AppleScriptResult<T>> {
     
     const { 
-      timeout = 10000, 
+      timeout = AppleScriptService.CONFIG.DEFAULT_TIMEOUT, 
       tabIndex = 1, 
       windowIndex = 1, 
       useCache = true 
@@ -422,15 +451,24 @@ tell application "Google Chrome"
     set windowBounds to bounds of targetWindow
     set windowTitle to title of targetWindow
     
-    -- Return as JSON-like string
+    -- Extract window bounds
+    set rawLeft to (item 1 of windowBounds)
+    set rawTop to (item 2 of windowBounds)
+    set rawRight to (item 3 of windowBounds)
+    set rawBottom to (item 4 of windowBounds)
+    
+    -- Return as JSON-like string with debug info
     return "{" & ¬
       "\\"id\\":" & ${windowIndex} & "," & ¬
       "\\"title\\":\\"" & windowTitle & "\\"," & ¬
+      "\\"debug\\":{" & ¬
+        "\\"raw\\":[" & rawLeft & "," & rawTop & "," & rawRight & "," & rawBottom & "]" & ¬
+      "}," & ¬
       "\\"bounds\\":{" & ¬
-        "\\"x\\":" & (item 1 of windowBounds) & "," & ¬
-        "\\"y\\":" & (item 2 of windowBounds) & "," & ¬
-        "\\"width\\":" & ((item 3 of windowBounds) - (item 1 of windowBounds)) & "," & ¬
-        "\\"height\\":" & ((item 4 of windowBounds) - (item 2 of windowBounds)) & ¬
+        "\\"x\\":" & rawLeft & "," & ¬
+        "\\"y\\":" & rawTop & "," & ¬
+        "\\"width\\":" & (rawRight - rawLeft) & "," & ¬
+        "\\"height\\":" & (rawBottom - rawTop) & ¬
       "}," & ¬
       "\\"visible\\":true" & ¬
       "}"
@@ -439,7 +477,7 @@ tell application "Google Chrome"
   end try
 end tell`;
 
-    const result = await this.executeScript(appleScript, 5000);
+    const result = await this.executeScript(appleScript, AppleScriptService.CONFIG.DEFAULT_TIMEOUT / 2);
     
     if (!result.success) {
       return error(result.error, result.code);
@@ -464,8 +502,8 @@ end tell`;
    * Get Chrome window bounds and metadata
    * 
    * Retrieves detailed information about a Chrome window including position,
-   * dimensions, title, and visibility state. First attempts JavaScript execution,
-   * then falls back to pure AppleScript if JavaScript is blocked.
+   * dimensions, title, and visibility state. Uses AppleScript for reliable
+   * window bounds detection that works across different Chrome configurations.
    * 
    * @param windowIndex Target window index (1-based, default: 1)
    * @returns Promise resolving to Chrome window information
@@ -490,40 +528,7 @@ end tell`;
    * @throws {ErrorCode.UNKNOWN_ERROR} When an unexpected error occurs during window bounds retrieval
    */
   async getChromeWindowBounds(windowIndex: number = 1): Promise<AppleScriptResult<ChromeWindow>> {
-    // First try JavaScript execution (more accurate, includes document title)
-    const javascript = `
-(function() {
-  const win = window;
-  return {
-    id: ${windowIndex},
-    title: document.title,
-    bounds: {
-      x: win.screenX,
-      y: win.screenY,
-      width: win.outerWidth,
-      height: win.outerHeight
-    },
-    visible: !document.hidden
-  };
-})();`;
-
-    const jsResult = await this.executeJavaScript<ChromeWindow>(javascript, { 
-      tabIndex: 1, 
-      windowIndex 
-    });
-    
-    // If JavaScript execution succeeded, return the result
-    if (jsResult.success) {
-      return jsResult;
-    }
-    
-    // If JavaScript execution failed due to access restrictions, fall back to pure AppleScript
-    if (jsResult.error?.includes('Access not allowed') || jsResult.error?.includes('Can\'t get')) {
-      return this.getChromeWindowBoundsViaAppleScript(windowIndex);
-    }
-    
-    // For other errors, return the original error
-    return jsResult;
+    return this.getChromeWindowBoundsViaAppleScript(windowIndex);
   }
 
   /**
@@ -583,7 +588,7 @@ tell application "System Events"
 end tell`;
 
     try {
-      const result = await this.executeScript(appleScript, 5000);
+      const result = await this.executeScript(appleScript, AppleScriptService.CONFIG.DEFAULT_TIMEOUT / 2);
       return result.success && result.data?.trim() === 'true';
     } catch {
       return false;
@@ -609,7 +614,7 @@ tell application "Google Chrome"
   end try
 end tell`;
 
-    const result = await this.executeScript(appleScript, 5000);
+    const result = await this.executeScript(appleScript, AppleScriptService.CONFIG.DEFAULT_TIMEOUT / 2);
     
     if (!result.success) {
       return error(result.error, result.code);
@@ -633,7 +638,7 @@ end tell`;
     const { generateTabEnumerationScript } = await import('../lib/tab-manager.js');
     const script = generateTabEnumerationScript(windowIndex);
     
-    const result = await this.executeScript(script, 15000);
+    const result = await this.executeScript(script, AppleScriptService.CONFIG.SCRIPT_TIMEOUT);
     
     if (!result.success) {
       return error(result.error, result.code);
@@ -662,7 +667,7 @@ end tell`;
     const { generateTabFocusScript } = await import('../lib/tab-manager.js');
     const script = generateTabFocusScript(tabIndex, windowIndex);
     
-    const result = await this.executeScript(script, 10000);
+    const result = await this.executeScript(script, AppleScriptService.CONFIG.DEFAULT_TIMEOUT);
     
     if (!result.success) {
       return error(result.error, result.code);
@@ -713,7 +718,7 @@ end tell`;
           }
           
           // Execute as raw AppleScript
-          const result = await this.executeScript(op.script, op.options?.timeout || 30000);
+          const result = await this.executeScript(op.script, op.options?.timeout || AppleScriptService.CONFIG.BATCH_TIMEOUT);
           return result as AppleScriptResult<T>;
         })
       );
