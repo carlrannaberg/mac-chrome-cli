@@ -130,29 +130,15 @@ export async function registerServices(container: IServiceContainer): Promise<vo
     [] // No explicit dependencies for now to maintain backward compatibility
   );
 
-  // Network service placeholder - would be implemented when needed
-  // For now, network functionality is built into commands
-  /*
+  // Network service - wraps existing netlog functionality
   container.registerSingleton(
     SERVICE_TOKENS.NetworkService,
-    async (serviceContainer) => {
-      const [dataSanitizerResult, configResult] = await Promise.all([
-        serviceContainer.resolve(SERVICE_TOKENS.DataSanitizer),
-        serviceContainer.resolve(SERVICE_TOKENS.ConfigurationService)
-      ]);
-      
-      if (!dataSanitizerResult.success || !configResult.success) {
-        throw new Error('Failed to resolve NetworkService dependencies');
-      }
-      
-      return new NetworkService(
-        dataSanitizerResult.data,
-        configResult.data.get('networkMonitoring')
-      );
+    async (_serviceContainer) => {
+      const { NetworkService } = await import('./services/NetworkService.js');
+      return new NetworkService();
     },
-    [SERVICE_TOKENS.DataSanitizer, SERVICE_TOKENS.ConfigurationService]
+    [] // NetworkService is self-contained and uses existing netlog functions
   );
-  */
 }
 
 /**

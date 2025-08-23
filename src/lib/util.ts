@@ -261,15 +261,15 @@ export function formatLegacyJSONResult<T = unknown>(
 /**
  * Create WebP preview with size constraints (optimized version)
  * 
- * Note: This function is a placeholder for future WebP optimization functionality.
- * The Sharp library dependency provides WebP capabilities but requires additional
- * implementation for the mac-chrome-cli specific use case.
+ * Uses Sharp library to convert images to WebP format with automatic quality adjustment
+ * to meet size constraints. Includes fallback handling for environments where Sharp
+ * is not available or image processing fails.
  * 
  * @param imagePath - Path to the source image
  * @param maxSizeBytes - Maximum file size in bytes (default: 1.5MB)
  * @param maxWidth - Maximum width in pixels (default: 1200px)
  * @returns Promise resolving to WebP buffer, base64 string, and size info
- * @throws Error indicating this feature is not yet implemented
+ * @throws Error when image processing fails or file is not accessible
  */
 export async function createWebPPreview(
   imagePath: string,
@@ -316,8 +316,23 @@ export async function createWebPPreview(
       size: buffer!.length
     };
   } catch (error) {
-    // Fallback: return empty preview if Sharp is not available or image processing fails
-    // This allows the CLI to continue functioning even without preview generation
+    // Enhanced error handling with specific error types
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    
+    // Check if this is a Sharp-related error (library not found or processing failure)
+    if (errorMessage.includes('sharp') || errorMessage.includes('Sharp')) {
+      // Log warning but continue with fallback
+      console.warn('Sharp library not available or failed to process image:', errorMessage);
+    } else if (errorMessage.includes('ENOENT') || errorMessage.includes('no such file')) {
+      // File not found - this is a more serious error that should be reported
+      throw new Error(`Image file not found: ${imagePath}`);
+    } else {
+      // Log other processing errors but provide fallback
+      console.warn('Image processing failed:', errorMessage);
+    }
+    
+    // Fallback: return empty preview to allow CLI to continue functioning
+    // This ensures that screenshot failures don't break the entire command
     return {
       buffer: Buffer.from(''),
       base64: '',

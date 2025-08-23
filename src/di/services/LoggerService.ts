@@ -5,6 +5,8 @@
 
 import type { ILoggerService, LogEntry, LogLevel, LoggerOptions } from '../ILoggerService.js';
 import { LogLevel as LogLevelEnum } from '../ILoggerService.js';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 
 /**
  * Generate a correlation ID for request tracing
@@ -194,8 +196,13 @@ export class LoggerService implements ILoggerService {
       this.outputToConsole(entry);
     }
 
-    // TODO: Output to file if enabled
-    // File logging could be implemented here
+    // Output to file if enabled
+    if (this.options.enableFile) {
+      this.outputToFile(entry).catch(error => {
+        // Fallback to console if file logging fails
+        console.error('Failed to write to log file:', error.message);
+      });
+    }
   }
 
   /**
@@ -279,6 +286,95 @@ export class LoggerService implements ILoggerService {
     if (entry.metadata && Object.keys(entry.metadata).length > 0) {
       console.debug('  Metadata:', JSON.stringify(entry.metadata, null, 2));
     }
+  }
+
+  /**
+   * Output log entry to file
+   */
+  private async outputToFile(entry: LogEntry): Promise<void> {
+    try {
+      const logFilePath = this.getLogFilePath();
+      
+      // Ensure log directory exists
+      const logDir = path.dirname(logFilePath);
+      await fs.mkdir(logDir, { recursive: true });
+
+      // Format log message
+      const logMessage = this.options.enableJson 
+        ? this.formatJsonLogMessage(entry)
+        : this.formatTextLogMessage(entry);
+
+      // Append to log file
+      await fs.appendFile(logFilePath, logMessage + '\n', 'utf8');
+    } catch (error) {
+      // Don't throw errors to avoid breaking the logging system
+      // Error handling is done at the caller level
+      throw error;
+    }
+  }
+
+  /**
+   * Get the log file path
+   */
+  private getLogFilePath(): string {
+    if (this.options.filePath) {
+      return this.options.filePath;
+    }
+
+    // Default log file path with date rotation
+    const date = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+    const defaultDir = path.join(process.cwd(), 'logs');
+    return path.join(defaultDir, `mac-chrome-cli-${date}.log`);
+  }
+
+  /**
+   * Format log message as JSON for file output
+   */
+  private formatJsonLogMessage(entry: LogEntry): string {
+    const logData = {
+      timestamp: new Date(entry.timestamp).toISOString(),
+      level: LogLevelEnum[entry.level],
+      message: entry.message,
+      ...(entry.context && { context: entry.context }),
+      ...(entry.correlationId && { correlationId: entry.correlationId }),
+      ...(entry.duration !== undefined && { duration: entry.duration }),
+      ...(entry.metadata && { metadata: entry.metadata }),
+      ...(entry.error && { 
+        error: {
+          name: entry.error.name,
+          message: entry.error.message,
+          stack: entry.error.stack
+        }
+      })
+    };
+
+    return JSON.stringify(logData);
+  }
+
+  /**
+   * Format log message as text for file output
+   */
+  private formatTextLogMessage(entry: LogEntry): string {
+    const timestamp = new Date(entry.timestamp).toISOString();
+    const level = LogLevelEnum[entry.level].padEnd(5);
+    const context = entry.context ? `[${entry.context}]` : '';
+    const correlationId = entry.correlationId ? `{${entry.correlationId}}` : '';
+    const duration = entry.duration !== undefined ? `(${entry.duration}ms)` : '';
+    
+    let message = `${timestamp} ${level} ${context}${correlationId}${duration} ${entry.message}`;
+    
+    if (entry.error) {
+      message += `\n  Error: ${entry.error.message}`;
+      if (entry.error.stack) {
+        message += `\n  Stack: ${entry.error.stack}`;
+      }
+    }
+    
+    if (entry.metadata && Object.keys(entry.metadata).length > 0) {
+      message += `\n  Metadata: ${JSON.stringify(entry.metadata)}`;
+    }
+    
+    return message;
   }
 
   /**
