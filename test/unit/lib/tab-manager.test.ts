@@ -196,7 +196,7 @@ describe('Tab Manager Library', () => {
       const script = generateTabEnumerationScript(3);
 
       expect(script).toContain('window 3');
-      expect(script).toContain('"windowId": " & 3');
+      expect(script).toContain('\\"windowId\\": " & 3');
     });
 
     test('should include error handling', () => {
@@ -222,7 +222,7 @@ describe('Tab Manager Library', () => {
       expect(script).toContain('window 1');
       expect(script).toContain('tab 2');
       expect(script).toContain('set active tab index of targetWindow to 2');
-      expect(script).toContain('"id": " & 2');
+      expect(script).toContain('\\"id\\": " & 2');
     });
 
     test('should include tab index validation', () => {

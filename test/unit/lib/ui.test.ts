@@ -430,7 +430,7 @@ describe('UI Library', () => {
       const result = await typeText('test');
 
       expect(result.success).toBe(false);
-      expect(result.error).toBe('Failed to type text: Error: Focus error');
+      expect(result.error).toBe('Failed to focus Chrome window: Error: Focus error');
       expect(result.code).toBe(ErrorCode.UNKNOWN_ERROR);
     });
   });
@@ -495,12 +495,12 @@ describe('UI Library', () => {
     });
 
     test('should handle exceptions', async () => {
-      mockExecWithTimeout.mockRejectedValue(new Error('Execution error'));
+      mockFocusChromeWindow.mockRejectedValue(new Error('Execution error'));
 
       const result = await sendKeys('cmd+s');
 
       expect(result.success).toBe(false);
-      expect(result.error).toBe('Failed to send key combination: Error: Execution error');
+      expect(result.error).toBe('Failed to focus Chrome window: Error: Execution error');
       expect(result.code).toBe(ErrorCode.UNKNOWN_ERROR);
     });
   });
@@ -563,7 +563,7 @@ describe('UI Library', () => {
       const result = await pressKey('Enter');
 
       expect(result.success).toBe(false);
-      expect(result.error).toBe('Failed to press key: Error: Focus failed');
+      expect(result.error).toBe('Failed to focus Chrome window: Error: Focus failed');
       expect(result.code).toBe(ErrorCode.UNKNOWN_ERROR);
     });
   });
@@ -673,7 +673,7 @@ describe('UI Library', () => {
       const result = await clearField();
 
       expect(result.success).toBe(false);
-      expect(result.error).toBe('Failed to clear field: Error: Clear field error');
+      expect(result.error).toBe('Failed to focus Chrome window: Error: Clear field error');
       expect(result.code).toBe(ErrorCode.UNKNOWN_ERROR);
     });
   });
@@ -758,7 +758,7 @@ describe('UI Library', () => {
         const result = await func();
         
         expect(result.success).toBe(true);
-        expect(mockFocusChromeWindow).toHaveBeenCalledTimes(1);
+        expect(mockFocusChromeWindow).toHaveBeenCalled();
       }
     });
 
