@@ -235,8 +235,9 @@ export async function domEval(options: DOMEvalOptions): Promise<JavaScriptResult
   
   try {
     // Execute user's JavaScript in a controlled context
+    // Try to evaluate as expression first, then as statement with return
     result = (function() {
-      ${js}
+      return eval(${JSON.stringify(js)});
     })();
   } catch (e) {
     error = e.message;
@@ -262,7 +263,7 @@ export async function domEval(options: DOMEvalOptions): Promise<JavaScriptResult
   const resultSize = serialized.length;
   const truncated = resultSize > 1048576; // 1MB limit
   
-  return {
+  return JSON.stringify({
     success,
     result: success ? result : undefined,
     error: success ? undefined : error,
@@ -270,7 +271,7 @@ export async function domEval(options: DOMEvalOptions): Promise<JavaScriptResult
     timestamp,
     resultSize,
     truncated
-  };
+  });
 })();
 `;
 

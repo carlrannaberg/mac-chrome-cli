@@ -37,11 +37,11 @@ export async function navigateToURL(
     const javascript = `
 (function() {
   window.location.href = '${fullUrl.replace(/'/g, "\\'")}';
-  return {
+  return JSON.stringify({
     url: window.location.href,
     title: document.title,
     loading: document.readyState !== 'complete'
-  };
+  });
 })();
 `;
 
@@ -97,22 +97,22 @@ export async function reloadPage(
 (function() {
   // Hard reload - bypass cache
   window.location.reload(true);
-  return {
+  return JSON.stringify({
     url: window.location.href,
     title: document.title,
     loading: true
-  };
+  });
 })();
 `
       : `
 (function() {
   // Normal reload
   window.location.reload();
-  return {
+  return JSON.stringify({
     url: window.location.href,
     title: document.title,
     loading: true
-  };
+  });
 })();
 `;
 
@@ -163,11 +163,11 @@ export async function navigateBack(windowIndex: number = 1): Promise<NavigationR
     const javascript = `
 (function() {
   window.history.back();
-  return {
+  return JSON.stringify({
     url: window.location.href,
     title: document.title,
     loading: document.readyState !== 'complete'
-  };
+  });
 })();
 `;
 
@@ -218,11 +218,11 @@ export async function navigateForward(windowIndex: number = 1): Promise<Navigati
     const javascript = `
 (function() {
   window.history.forward();
-  return {
+  return JSON.stringify({
     url: window.location.href,
     title: document.title,
     loading: document.readyState !== 'complete'
-  };
+  });
 })();
 `;
 
@@ -423,11 +423,11 @@ export async function waitForPageLoad(
     while (Date.now() - startTime < timeoutMs) {
       const javascript = `
 (function() {
-  return {
+  return JSON.stringify({
     loading: document.readyState !== 'complete',
     url: window.location.href,
     title: document.title
-  };
+  });
 })();
 `;
       

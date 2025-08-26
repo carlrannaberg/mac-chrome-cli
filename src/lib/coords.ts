@@ -85,14 +85,14 @@ async function getElementRect(selector: string, windowIndex: number = 1): Promis
   setTimeout(() => {}, 100);
   
   const rect = element.getBoundingClientRect();
-  return {
+  return JSON.stringify({
     x: rect.left,
     y: rect.top,
     width: rect.width,
     height: rect.height,
     centerX: rect.left + rect.width / 2,
     centerY: rect.top + rect.height / 2
-  };
+  });
 })();
 `;
 
@@ -105,12 +105,12 @@ async function getElementRect(selector: string, windowIndex: number = 1): Promis
 async function getViewportInfo(windowIndex: number = 1): Promise<JavaScriptResult<ViewportRect>> {
   const javascript = `
 (function() {
-  return {
+  return JSON.stringify({
     width: window.innerWidth,
     height: window.innerHeight,
     scrollX: window.scrollX || window.pageXOffset,
     scrollY: window.scrollY || window.pageYOffset
-  };
+  });
 })();
 `;
 
@@ -300,7 +300,7 @@ export async function validateElementVisibility(
 (function() {
   const element = document.querySelector('${selector.replace(/'/g, "\\'")}');
   if (!element) {
-    return { visible: false, clickable: false, inViewport: false };
+    return JSON.stringify({ visible: false, clickable: false, inViewport: false });
   }
   
   const rect = element.getBoundingClientRect();
@@ -321,7 +321,7 @@ export async function validateElementVisibility(
                     style.pointerEvents !== 'none' &&
                     !element.hasAttribute('disabled');
   
-  return { visible, clickable, inViewport };
+  return JSON.stringify({ visible, clickable, inViewport });
 })();
 `;
 

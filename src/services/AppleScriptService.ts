@@ -35,6 +35,7 @@ export class AppleScriptService implements IAppleScriptService {
 
   constructor() {
     // Script compilation cache with optimized settings
+    // Force cache invalidation after fix by changing version
     this.scriptCache = new LRUCache<string, string>({
       max: AppleScriptService.CONFIG.CACHE_SIZE,
       ttl: AppleScriptService.CONFIG.CACHE_TTL,
@@ -87,7 +88,7 @@ tell application "Google Chrome"
   try
     set targetWindow to window ${windowIndex}
     set targetTab to tab ${tabIndex} of targetWindow
-    set jsResult to execute javascript "${this.escapeAppleScriptString(pattern)}" in targetTab
+    tell targetTab to set jsResult to execute javascript "${this.escapeAppleScriptString(pattern)}"
     return jsResult as string
   on error errorMessage
     return "ERROR: " & errorMessage
@@ -155,11 +156,12 @@ end tell`;
     tabIndex: number = 1, 
     windowIndex: number = 1
   ): string {
+    // v3: Fixed JavaScript execution syntax - prefix forces cache invalidation
     const scriptHash = createHash('md5')
       .update(script)
       .digest('hex')
       .substring(0, AppleScriptService.CONFIG.HASH_LENGTH);
-    return `${scriptHash}-${tabIndex}-${windowIndex}`;
+    return `v3_${scriptHash}-${tabIndex}-${windowIndex}`;
   }
 
   /**
@@ -387,6 +389,7 @@ end tell`;
       
       if (!cachedScript) {
         // Compile and cache the script template
+        // Fix: Activate Chrome and use more reliable tab targeting
         cachedScript = `
 tell application "Google Chrome"
   if not running then
@@ -394,9 +397,28 @@ tell application "Google Chrome"
   end if
   
   try
+    -- Activate Chrome to ensure it's responsive
+    activate
+    delay 0.2
+    
+    -- Set the target window
     set targetWindow to window ${windowIndex}
-    set targetTab to tab ${tabIndex} of targetWindow
-    set jsResult to execute javascript "${escapedJS}" in targetTab
+    
+    -- Make the target tab active (more reliable than direct access)
+    set active tab index of targetWindow to ${tabIndex}
+    delay 0.1
+    
+    -- Execute JavaScript on the now-active tab
+    set targetTab to active tab of targetWindow
+    
+    -- Check if URL is file:// (these don't support JavaScript execution)
+    set tabURL to URL of targetTab
+    if tabURL starts with "file://" then
+      return "ERROR: JavaScript execution not allowed on file:// URLs"
+    end if
+    
+    -- Execute the JavaScript (without "in targetTab" for better compatibility)
+    tell targetTab to set jsResult to execute javascript "${escapedJS}"
     return jsResult as string
   on error errorMessage
     return "ERROR: " & errorMessage
@@ -430,6 +452,76 @@ end tell`;
     } catch (err) {
       endBenchmark(benchmarkId, false);
       return error(`Failed to execute JavaScript: ${err}`, ERROR_CODES.UNKNOWN_ERROR);
+    }
+  }
+
+  /**
+   * Execute JavaScript on the currently active tab (most reliable method)
+   * This method activates Chrome and uses the active tab, avoiding tab indexing issues
+   */
+  public async executeJavaScriptOnActiveTab<T = unknown>(
+    javascript: string,
+    timeout: number = 10000
+  ): Promise<AppleScriptResult<T>> {
+    const benchmarkId = startBenchmark('executeJavaScriptOnActiveTab', {
+      scriptLength: javascript.length,
+      timeout
+    });
+
+    try {
+      const escapedJS = this.escapeAppleScriptString(javascript);
+      
+      // Use active tab approach which is most reliable
+      const script = `
+tell application "Google Chrome"
+  if not running then
+    return "ERROR: Chrome is not running"
+  end if
+  
+  try
+    -- Activate Chrome to ensure it's responsive
+    activate
+    delay 0.2
+    
+    -- Get the active tab
+    set targetTab to active tab of front window
+    
+    -- Check if URL is file:// (these don't support JavaScript execution)
+    set tabURL to URL of targetTab
+    if tabURL starts with "file://" then
+      return "ERROR: JavaScript execution not allowed on file:// URLs"
+    end if
+    
+    -- Execute the JavaScript (without "in targetTab" for better compatibility)
+    tell targetTab to set jsResult to execute javascript "${escapedJS}"
+    return jsResult as string
+  on error errorMessage
+    return "ERROR: " & errorMessage
+  end try
+end tell`;
+      
+      const result = await execWithTimeout('osascript', ['-e', script], timeout);
+      const processedResult = this.processExecutionResult(result, 'Chrome JavaScript execution on active tab');
+      
+      if (!processedResult.success) {
+        endBenchmark(benchmarkId, false);
+        return processedResult as AppleScriptResult<T>;
+      }
+
+      // Try to parse as JSON, fallback to string
+      let parsedResult: T;
+      try {
+        parsedResult = JSON.parse(processedResult.data!) as T;
+      } catch {
+        parsedResult = processedResult.data! as T;
+      }
+
+      endBenchmark(benchmarkId, true);
+      return ok(parsedResult, ERROR_CODES.OK);
+      
+    } catch (err) {
+      endBenchmark(benchmarkId, false);
+      return error(`Failed to execute JavaScript on active tab: ${err}`, ERROR_CODES.UNKNOWN_ERROR);
     }
   }
 

@@ -64,7 +64,7 @@ describe('Navigation Commands Integration', () => {
     });
 
     test('should handle invalid timeout gracefully', async () => {
-      const result = await runCLI('nav go --url https://example.com --timeout 500');
+      const result = await runCLI('nav go --url https://example.com --timeout -100');
 
       expect(result.exitCode).not.toBe(0);
       // Should fail with some error - timeout validation or execution error

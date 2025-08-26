@@ -119,11 +119,11 @@ export async function scrollToElement(
   const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
   const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
 
-  return {
+  return JSON.stringify({
     scrolled: true,
     position: { x: scrollX, y: scrollY },
     viewport: { width: viewportWidth, height: viewportHeight }
-  };
+  });
 })()`;
 
   // Execute with retry and error context
@@ -263,11 +263,11 @@ export async function scrollByPixels(
   // Check if scroll actually happened
   const scrolled = (newX !== currentX) || (newY !== currentY);
 
-  return {
+  return JSON.stringify({
     scrolled: scrolled,
     position: { x: newX, y: newY },
     viewport: { width: viewportWidth, height: viewportHeight }
-  };
+  });
 })()`;
 
   // Execute with error context
@@ -354,11 +354,11 @@ export async function getScrollPosition(
   const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
   const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
 
-  return {
+  return JSON.stringify({
     scrolled: false,
     position: { x: scrollX, y: scrollY },
     viewport: { width: viewportWidth, height: viewportHeight }
-  };
+  });
 })()`;
 
   // Execute with error context

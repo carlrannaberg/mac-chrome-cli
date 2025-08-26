@@ -137,12 +137,12 @@ async function getViewportInfo(windowIndex: number = 1): Promise<ViewportInfo | 
     // Try to get viewport dimensions from the browser
     const viewportJS = `
       (function() {
-        return {
+        return JSON.stringify({
           width: window.innerWidth,
           height: window.innerHeight,
           scrollX: window.scrollX || window.pageXOffset,
           scrollY: window.scrollY || window.pageYOffset
-        };
+        });
       })();
     `;
     

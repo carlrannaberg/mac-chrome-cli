@@ -849,7 +849,7 @@ ${getElementStateScript}
       performanceMetrics.memoryPeak = Math.round(performance.memory.usedJSHeapSize / 1024 / 1024);
     }
     
-    return {
+    return JSON.stringify({
       ok: true,
       cmd: 'snapshot.' + mode,
       nodes,
@@ -874,9 +874,9 @@ ${getElementStateScript}
           ]
         }
       }
-    };
+    });
   } catch (error) {
-    return {
+    return JSON.stringify({
       ok: false,
       cmd: 'snapshot.' + mode,
       nodes: [],
@@ -886,7 +886,7 @@ ${getElementStateScript}
         nodeCount: 0,
         memoryPeakMB: 0
       }
-    };
+    });
   }
 })();
 `;
@@ -1085,7 +1085,10 @@ export function formatSnapshotResult(result: JavaScriptResult<SnapshotResult>): 
     };
   }
   
-  if (!result.data) {
+  // At this point, TypeScript knows result.success is true, so result.data exists
+  const resultData = result.data;
+  
+  if (!resultData) {
     return {
       success: false,
       error: 'No snapshot data returned',
@@ -1094,6 +1097,24 @@ export function formatSnapshotResult(result: JavaScriptResult<SnapshotResult>): 
     };
   }
   
-  // Return the original SnapshotResult object for successful cases
-  return result.data;
+  // Parse the JSON string if needed
+  let parsedData: SnapshotResult;
+  if (typeof resultData === 'string') {
+    try {
+      parsedData = JSON.parse(resultData) as SnapshotResult;
+    } catch (e) {
+      return {
+        success: false,
+        error: `Failed to parse snapshot data: ${e}`,
+        code: ErrorCode.UNKNOWN_ERROR,
+        timestamp: new Date().toISOString()
+      };
+    }
+  } else {
+    // Data is already an object (e.g., from tests or direct calls)
+    parsedData = resultData as SnapshotResult;
+  }
+  
+  // Return the parsed SnapshotResult object for successful cases
+  return parsedData;
 }

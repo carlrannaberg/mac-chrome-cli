@@ -103,7 +103,7 @@ async function getInputElementInfo(selector: string, windowIndex: number = 1) {
     return null;
   }
   
-  return {
+  return JSON.stringify({
     type: element.type || element.tagName.toLowerCase(),
     tagName: element.tagName.toLowerCase(),
     disabled: element.hasAttribute('disabled'),
@@ -112,7 +112,7 @@ async function getInputElementInfo(selector: string, windowIndex: number = 1) {
     value: element.value || element.textContent || element.innerText || '',
     placeholder: element.placeholder || '',
     required: element.hasAttribute('required')
-  };
+  });
 })();
 `;
 

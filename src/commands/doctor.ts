@@ -201,6 +201,57 @@ async function checkChromeAvailability(): Promise<SystemCheck> {
 }
 
 /**
+ * Check Chrome JavaScript settings
+ */
+async function checkChromeJavaScriptSettings(): Promise<SystemCheck> {
+  const isRunning = await isChromeRunning();
+  
+  if (!isRunning) {
+    return {
+      name: 'Chrome JavaScript Settings',
+      status: 'warning',
+      description: 'Cannot check JavaScript settings - Chrome is not running',
+      details: 'Start Chrome to verify JavaScript execution settings'
+    };
+  }
+  
+  // Try to execute a simple JavaScript command
+  try {
+    const { execChromeJS } = await import('../lib/apple.js');
+    const result = await execChromeJS<string>('JSON.stringify("test")', 1, 1, 3000);
+    
+    if (result.success) {
+      return {
+        name: 'Chrome JavaScript Settings',
+        status: 'ok',
+        description: 'JavaScript execution from Apple Events is enabled'
+      };
+    } else if (result.error?.includes('file://')) {
+      return {
+        name: 'Chrome JavaScript Settings',
+        status: 'warning',
+        description: 'Chrome is on a file:// URL - JavaScript execution limited',
+        details: 'Navigate to a web page (http:// or https://) for full functionality'
+      };
+    } else {
+      return {
+        name: 'Chrome JavaScript Settings',
+        status: 'warning',
+        description: 'JavaScript execution may be restricted',
+        details: 'Enable "Allow JavaScript from Apple Events" in Chrome: View → Developer → Allow JavaScript from Apple Events'
+      };
+    }
+  } catch (error) {
+    return {
+      name: 'Chrome JavaScript Settings',
+      status: 'warning',
+      description: 'Could not verify JavaScript settings',
+      details: 'Ensure Chrome Developer menu is enabled and "Allow JavaScript from Apple Events" is checked'
+    };
+  }
+}
+
+/**
  * Check macOS version compatibility
  */
 async function checkMacOSVersion(): Promise<SystemCheck> {
@@ -304,6 +355,7 @@ export async function runDiagnostics(): Promise<DoctorResult> {
     appleScriptPermission,
     screenRecordingPermission,
     chromeAvailability,
+    chromeJavaScriptSettings,
     macOSVersion
   ] = await Promise.all([
     checkChromeCLI(),
@@ -311,12 +363,13 @@ export async function runDiagnostics(): Promise<DoctorResult> {
     checkAppleScriptPermission(),
     checkScreenRecordingPermission(),
     checkChromeAvailability(),
+    checkChromeJavaScriptSettings(),
     checkMacOSVersion()
   ]);
   
   const dependencies = [chromeCLICheck, cliclickCheck];
   const permissions = [appleScriptPermission, screenRecordingPermission];
-  const system = [chromeAvailability, macOSVersion];
+  const system = [chromeAvailability, chromeJavaScriptSettings, macOSVersion];
   
   // Generate recommendations
   const recommendations: string[] = [];
