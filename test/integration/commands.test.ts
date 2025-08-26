@@ -139,7 +139,7 @@ describe('Command Integration Tests', () => {
       expect(['healthy', 'warnings', 'errors'].includes(result.overall)).toBe(true);
       expect(result.dependencies).toHaveLength(2);
       expect(result.permissions).toHaveLength(2);
-      expect(result.system).toHaveLength(2);
+      expect(result.system).toHaveLength(3); // Chrome availability, JavaScript settings, macOS version
 
       // Check dependencies
       const chromeCLI = result.dependencies.find(dep => dep.name === 'chrome-cli');
@@ -261,7 +261,7 @@ describe('Command Integration Tests', () => {
       expect(result).toBeDefined();
       expect(result.dependencies).toHaveLength(2);
       expect(result.permissions).toHaveLength(2);
-      expect(result.system).toHaveLength(2);
+      expect(result.system).toHaveLength(3); // Chrome availability, JavaScript settings, macOS version
 
       // Should still have valid structure even with some failures
       const chromeCLI = result.dependencies.find(dep => dep.name === 'chrome-cli');

@@ -64,10 +64,12 @@ describe('Navigation Commands Integration', () => {
     });
 
     test('should handle invalid timeout gracefully', async () => {
-      const result = await runCLI('nav go --url https://example.com --timeout -100');
+      // Commander.js doesn't parse negative numbers properly when preceded by --
+      // So we test with a too-small positive value instead
+      const result = await runCLI('nav go --url https://example.com --timeout 500');
 
       expect(result.exitCode).not.toBe(0);
-      // Should fail with some error - timeout validation or execution error
+      // Should fail with timeout validation error (must be at least 1000ms)
       const output = result.stderr + result.stdout;
       expect(output.length).toBeGreaterThan(10);
     });
