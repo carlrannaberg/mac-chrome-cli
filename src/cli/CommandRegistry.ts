@@ -77,7 +77,7 @@ export class CommandRegistry {
   }
 
   private registerDoctorCommand(): void {
-    this.program
+    const doctor = this.program
       .command('doctor')
       .description('Diagnose system setup and dependencies')
       .action(async () => {
@@ -152,6 +152,37 @@ export class CommandRegistry {
           }
         } catch (error) {
           this.formatter.output(null, `Doctor command failed: ${error}`, ERROR_CODES.UNKNOWN_ERROR);
+        }
+      });
+
+    // Additional targeted screenshot diagnostics
+    this.program
+      .command('doctor-screenshots')
+      .description('Verify Screen Recording permission and window-id capture path')
+      .action(async () => {
+        try {
+          const { runScreenshotDoctor } = await import('../commands/doctor.js');
+          const result = await runScreenshotDoctor();
+
+          const globalOpts = this.program.opts() as GlobalOptions;
+          if (globalOpts.json) {
+            this.formatter.output(result);
+          } else {
+            console.log('🖼️  Screenshot Diagnostics');
+            console.log(`  Screen Recording: ${result.screenRecordingOk ? '✅ OK' : '❌ Denied'}`);
+            console.log(`  Chrome Running:   ${result.chromeRunning ? '✅ Yes' : '❌ No'}`);
+            console.log(`  AXWindowNumber:   ${result.axWindowNumber !== null ? '✅ ' + result.axWindowNumber : '❌ Not found'}`);
+            console.log(`  Window-ID Capture:${result.windowIdCaptureOk ? '✅ Succeeded' : '❌ Failed'}`);
+            if (result.notes.length) {
+              console.log('  Notes:');
+              result.notes.forEach(n => console.log(`    - ${n}`));
+            }
+            if (!result.screenRecordingOk) {
+              process.exitCode = ERROR_CODES.PERMISSION_DENIED;
+            }
+          }
+        } catch (error) {
+          this.formatter.output(null, `Doctor screenshots failed: ${error}`, ERROR_CODES.UNKNOWN_ERROR);
         }
       });
   }
@@ -456,6 +487,9 @@ export class CommandRegistry {
       .option('--no-preview', 'Disable WebP preview generation')
       .option('--preview-max <size>', 'Maximum preview size in bytes', '1572864')
       .option('--window-index <index>', 'Target window index', '1')
+      .option('--method <method>', 'Capture method (auto|window-id|rect)', 'auto')
+      .option('--delay-ms <ms>', 'Delay before capture (ms)')
+      .option('--frontmost', 'Use frontmost Chrome window')
       .action(async (options) => {
         try {
           const { ScreenshotCommand } = await import('../commands/screenshot.js');
@@ -469,7 +503,10 @@ export class CommandRegistry {
             preview: options.preview,
             windowIndex: parseInt(options.windowIndex, 10),
             ...(format === 'jpg' && options.quality && { quality: parseInt(options.quality, 10) }),
-            ...(options.previewMax && { previewMaxSize: parseInt(options.previewMax, 10) })
+            ...(options.previewMax && { previewMaxSize: parseInt(options.previewMax, 10) }),
+            ...(options.method && { method: options.method }),
+            ...(options.delayMs && { delayMs: parseInt(options.delayMs, 10) }),
+            ...(options.frontmost && { frontmost: true })
           };
           
           const result = await screenshotCmd.viewport(screenshotOptions);
@@ -494,6 +531,9 @@ export class CommandRegistry {
       .option('--no-preview', 'Disable WebP preview generation')
       .option('--preview-max <size>', 'Maximum preview size in bytes', '1572864')
       .option('--window-index <index>', 'Target window index', '1')
+      .option('--method <method>', 'Capture method (auto|window-id|rect)', 'auto')
+      .option('--delay-ms <ms>', 'Delay before capture (ms)')
+      .option('--frontmost', 'Use frontmost Chrome window')
       .action(async (options) => {
         try {
           const { ScreenshotCommand } = await import('../commands/screenshot.js');
@@ -507,7 +547,10 @@ export class CommandRegistry {
             preview: options.preview,
             windowIndex: parseInt(options.windowIndex, 10),
             ...(format === 'jpg' && options.quality && { quality: parseInt(options.quality, 10) }),
-            ...(options.previewMax && { previewMaxSize: parseInt(options.previewMax, 10) })
+            ...(options.previewMax && { previewMaxSize: parseInt(options.previewMax, 10) }),
+            ...(options.method && { method: options.method }),
+            ...(options.delayMs && { delayMs: parseInt(options.delayMs, 10) }),
+            ...(options.frontmost && { frontmost: true })
           };
           
           const result = await screenshotCmd.window(screenshotOptions);

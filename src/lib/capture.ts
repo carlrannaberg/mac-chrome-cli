@@ -12,6 +12,9 @@ export interface ScreenshotOptions {
   quality?: number;
   preview?: boolean;
   previewMaxSize?: number;
+  method?: 'auto' | 'window-id' | 'rect';
+  delayMs?: number;
+  frontmost?: boolean;
 }
 
 export interface ScreenshotResult {
@@ -27,6 +30,8 @@ export interface ScreenshotResult {
     height?: number;
     windowTitle?: string;
     url?: string;
+    captureMethod?: string;
+    windowId?: number;
   };
   error?: string;
   code: ErrorCode;
@@ -120,17 +125,57 @@ interface ImageMetadata {
  * Get viewport information including coordinates and scroll position
  * @private
  */
-async function getViewportInfo(windowIndex: number = 1): Promise<ViewportInfo | null> {
+async function getViewportInfo(windowIndex: number = 1, options: ScreenshotOptions = {}): Promise<ViewportInfo | null> {
   try {
-    // Get Chrome window bounds using the service (with automatic fallback)
-    const windowBounds = await getChromeWindowBounds(windowIndex);
-    
-    if (!windowBounds.success || !windowBounds.data) {
+    let bounds: { x: number; y: number; width: number; height: number } | null = null;
+    let windowTitle: string | undefined;
+
+    const seScript = `
+tell application "System Events"
+  tell process "Google Chrome"
+    if exists window 1 then
+      set pos to position of window 1
+      set sz to size of window 1
+      set x to item 1 of pos
+      set y to item 2 of pos
+      set w to item 1 of sz
+      set h to item 2 of sz
+      return "{\"x\":" & x & ",\"y\":" & y & ",\"width\":" & w & ",\"height\":" & h & "}"
+    else
+      return ""
+    end if
+  end tell
+end tell`;
+
+    const trySE = async () => {
+      const res = await execWithTimeout('osascript', ['-e', seScript], 2000);
+      if (res.success && res.data?.stdout.trim()) {
+        try {
+          const j = JSON.parse(res.data.stdout.trim());
+          return { x: j.x, y: j.y, width: j.width, height: j.height } as { x: number; y: number; width: number; height: number };
+        } catch {}
+      }
       return null;
+    };
+
+    const tryAS = async () => {
+      const wb = await getChromeWindowBounds(windowIndex);
+      if (wb.success && wb.data) {
+        windowTitle = wb.data.title;
+        return wb.data.bounds;
+      }
+      return null;
+    };
+
+    if (options.frontmost) {
+      bounds = await trySE();
+      if (!bounds) bounds = await tryAS();
+    } else {
+      bounds = await tryAS();
+      if (!bounds) bounds = await trySE();
     }
-    
-    const bounds = windowBounds.data.bounds;
-    const windowTitle = windowBounds.data.title;
+
+    if (!bounds) return null;
     
     // Try to get viewport dimensions from the browser
     const viewportJS = `
@@ -612,9 +657,12 @@ export async function captureViewport(
   try {
     // Ensure Chrome window is properly activated for screenshot capture
     await ensureChromeWindowActivated(windowIndex);
+    if (options.delayMs && options.delayMs > 0) {
+      await new Promise(r => setTimeout(r, options.delayMs));
+    }
     
     // Get accurate viewport information
-    const viewportInfo = await getViewportInfo(windowIndex);
+    const viewportInfo = await getViewportInfo(windowIndex, options);
     
     if (!viewportInfo) {
       return {
@@ -638,52 +686,65 @@ export async function captureViewport(
     const outputPath = generateScreenshotPath(options.format, options.outputPath);
     const format = options.format || 'png';
     
+    const forcedMethod = options.method || 'auto';
     // Progressive fallback strategy
     let captureResult: CaptureMethodResult;
     let finalError = 'All capture methods failed';
     
-    // Method 1: Try window ID capture first (most reliable for Chrome)
-    try {
-      // Use AXWindowNumber (CGWindowID) from System Events; retry after ensuring activation
-      const windowIdScript = `
+    // Method 1: Try window ID capture first (most reliable for Chrome), unless forced rect
+    if (forcedMethod !== 'rect') {
+      try {
+        const windowIdScript = `
 tell application "System Events"
   tell process "Google Chrome"
-    if exists window ${windowIndex} then
-      return value of attribute "AXWindowNumber" of window ${windowIndex}
+    if exists window ${options.frontmost ? 1 : windowIndex} then
+      return value of attribute "AXWindowNumber" of window ${options.frontmost ? 1 : windowIndex}
     else
       return ""
     end if
   end tell
 end tell`;
-      let windowIdResult = await execWithTimeout('osascript', ['-e', windowIdScript], 2000);
+        let windowIdResult = await execWithTimeout('osascript', ['-e', windowIdScript], 2000);
 
-      if (!windowIdResult.success || !windowIdResult.data?.stdout.trim()) {
-        // Retry after forcing activation
-        await ensureChromeWindowActivated(windowIndex);
-        windowIdResult = await execWithTimeout('osascript', ['-e', windowIdScript], 2000);
-      }
-      
-      if (windowIdResult.success && windowIdResult.data?.stdout) {
-        const windowId = windowIdResult.data.stdout.trim();
-        captureResult = await captureWindowById(windowId, outputPath, format);
-        
-        if (captureResult.success) {
-          return await buildSuccessResult(
-            outputPath, 
-            viewportInfo, 
-            options, 
-            `viewport_screenshot (${captureResult.method})`
-          );
+        if (!windowIdResult.success || !windowIdResult.data?.stdout.trim()) {
+          // Retry after forcing activation
+          await ensureChromeWindowActivated(windowIndex);
+          windowIdResult = await execWithTimeout('osascript', ['-e', windowIdScript], 2000);
         }
         
-        if (!captureResult.shouldFallback) {
-          return buildErrorResult(captureResult.error || finalError, captureResult.method);
+        if (windowIdResult.success && windowIdResult.data?.stdout) {
+          const windowId = windowIdResult.data.stdout.trim();
+          if (windowId) {
+            captureResult = await captureWindowById(windowId, outputPath, format);
+            
+            if (captureResult.success) {
+              return await buildSuccessResult(
+                outputPath, 
+                viewportInfo, 
+                options, 
+                `viewport_screenshot (${captureResult.method})`,
+                captureResult.method,
+                parseInt(windowId, 10)
+              );
+            }
+            
+            if (forcedMethod === 'window-id') {
+              return buildErrorResult(captureResult.error || finalError, captureResult.method);
+            }
+            
+            if (!captureResult.shouldFallback) {
+              return buildErrorResult(captureResult.error || finalError, captureResult.method);
+            }
+            
+            finalError = captureResult.error || finalError;
+          }
         }
-        
-        finalError = captureResult.error || finalError;
+      } catch (error) {
+        if (forcedMethod === 'window-id') {
+          return buildErrorResult(String(error), 'window-id');
+        }
+        // Continue to next method otherwise
       }
-    } catch (error) {
-      // Continue to next method
     }
     
     // Method 2: Try rectangle capture (only after confirming Chrome is frontmost)
@@ -706,7 +767,8 @@ end tell`;
         outputPath, 
         viewportInfo, 
         options, 
-        `viewport_screenshot (${captureResult.method})`
+        `viewport_screenshot (${captureResult.method})`,
+        captureResult.method
       );
     }
     
@@ -734,7 +796,9 @@ async function buildSuccessResult(
   outputPath: string,
   viewportInfo: ViewportInfo,
   options: ScreenshotOptions,
-  action: string
+  action: string,
+  captureMethod?: string,
+  windowId?: number
 ): Promise<ScreenshotResult> {
   // Extract image metadata after successful capture
   const metadata = await getImageMetadata(outputPath);
@@ -747,7 +811,9 @@ async function buildSuccessResult(
     metadata: {
       width: metadata?.width || viewportInfo.width,
       height: metadata?.height || viewportInfo.height,
-      ...(viewportInfo.windowTitle && { windowTitle: viewportInfo.windowTitle })
+      ...(viewportInfo.windowTitle && { windowTitle: viewportInfo.windowTitle }),
+      ...(captureMethod && { captureMethod }),
+      ...(windowId !== undefined && { windowId })
     }
   };
   
@@ -817,9 +883,42 @@ export async function captureWindow(
   try {
     // Ensure Chrome window is properly activated for screenshot capture
     await ensureChromeWindowActivated(windowIndex);
+    if (options.delayMs && options.delayMs > 0) {
+      await new Promise(r => setTimeout(r, options.delayMs));
+    }
     
     // Get window bounds for metadata and fallback capture
-    const windowBounds = await getChromeWindowBounds(windowIndex);
+    let bounds: { x: number; y: number; width: number; height: number } | null = null;
+    let windowTitle = '';
+    if (options.frontmost) {
+      const seScript = `
+tell application "System Events"
+  tell process "Google Chrome"
+    if exists window 1 then
+      set pos to position of window 1
+      set sz to size of window 1
+      set x to item 1 of pos
+      set y to item 2 of pos
+      set w to item 1 of sz
+      set h to item 2 of sz
+      return "{\"x\":" & x & ",\"y\":" & y & ",\"width\":" & w & ",\"height\":" & h & "}"
+    else
+      return ""
+    end if
+  end tell
+end tell`;
+      const seRes = await execWithTimeout('osascript', ['-e', seScript], 2000);
+      if (seRes.success && seRes.data?.stdout.trim()) {
+        try {
+          const j = JSON.parse(seRes.data.stdout.trim());
+          bounds = { x: j.x, y: j.y, width: j.width, height: j.height };
+        } catch {}
+      }
+    }
+
+    const windowBounds = bounds
+      ? { success: true, data: { bounds, title: 'Google Chrome' } }
+      : await getChromeWindowBounds(windowIndex);
     
     if (!windowBounds.success || !windowBounds.data) {
       return {
@@ -830,64 +929,75 @@ export async function captureWindow(
       };
     }
     
-    const bounds = windowBounds.data.bounds;
+    const boundsResolved = windowBounds.data.bounds;
     const outputPath = generateScreenshotPath(options.format, options.outputPath);
     const format = options.format || 'png';
     
     // Method 1: Try window ID capture first
-    try {
-      // Use AXWindowNumber (CGWindowID) from System Events; retry after ensuring activation
-      const windowIdScript = `
+    const forcedMethod = options.method || 'auto';
+    if (forcedMethod !== 'rect') {
+      try {
+        const windowIdScript = `
 tell application "System Events"
   tell process "Google Chrome"
-    if exists window ${windowIndex} then
-      return value of attribute "AXWindowNumber" of window ${windowIndex}
+    if exists window ${options.frontmost ? 1 : windowIndex} then
+      return value of attribute "AXWindowNumber" of window ${options.frontmost ? 1 : windowIndex}
     else
       return ""
     end if
   end tell
 end tell`;
-      let windowIdResult = await execWithTimeout('osascript', ['-e', windowIdScript], 2000);
-      if (!windowIdResult.success || !windowIdResult.data?.stdout.trim()) {
-        await ensureChromeWindowActivated(windowIndex);
-        windowIdResult = await execWithTimeout('osascript', ['-e', windowIdScript], 2000);
-      }
-      
-      if (windowIdResult.success && windowIdResult.data?.stdout) {
-        const windowId = windowIdResult.data.stdout.trim();
-        const captureResult = await captureWindowById(windowId, outputPath, format);
-        
-        if (captureResult.success) {
-          return await buildSuccessResultForWindow(
-            outputPath,
-            bounds,
-            windowBounds.data.title,
-            options,
-            'window_screenshot (window-id)'
-          );
+        let windowIdResult = await execWithTimeout('osascript', ['-e', windowIdScript], 2000);
+        if (!windowIdResult.success || !windowIdResult.data?.stdout.trim()) {
+          await ensureChromeWindowActivated(windowIndex);
+          windowIdResult = await execWithTimeout('osascript', ['-e', windowIdScript], 2000);
         }
         
-        // If window ID capture failed but shouldn't fallback, return error
-        if (!captureResult.shouldFallback) {
+        if (windowIdResult.success && windowIdResult.data?.stdout) {
+          const windowId = windowIdResult.data.stdout.trim();
+          const captureResult = await captureWindowById(windowId, outputPath, format);
+          
+          if (captureResult.success) {
+            return await buildSuccessResultForWindow(
+              outputPath,
+              { width: boundsResolved.width, height: boundsResolved.height },
+              windowBounds.data.title,
+              options,
+              'window_screenshot (window-id)',
+              captureResult.method,
+              parseInt(windowId, 10)
+            );
+          }
+          
+          if (forcedMethod === 'window-id' || !captureResult.shouldFallback) {
+            return {
+              success: false,
+              action: 'window_screenshot',
+              error: captureResult.error || 'Window ID capture failed',
+              code: captureResult.error?.includes('permission') ? ERROR_CODES.PERMISSION_DENIED : ERROR_CODES.UNKNOWN_ERROR
+            };
+          }
+        }
+      } catch (error) {
+        if (forcedMethod === 'window-id') {
           return {
             success: false,
             action: 'window_screenshot',
-            error: captureResult.error || 'Window ID capture failed',
-            code: captureResult.error?.includes('permission') ? ERROR_CODES.PERMISSION_DENIED : ERROR_CODES.UNKNOWN_ERROR
+            error: String(error),
+            code: ERROR_CODES.UNKNOWN_ERROR
           };
         }
+        // Continue to fallback method
       }
-    } catch (error) {
-      // Continue to fallback method
     }
     
     // Method 2: Fallback to rectangle capture of entire window
     const captureConfig = createCaptureConfig(
       {
-        x: bounds.x,
-        y: bounds.y,
-        width: bounds.width,
-        height: bounds.height
+        x: boundsResolved.x,
+        y: boundsResolved.y,
+        width: boundsResolved.width,
+        height: boundsResolved.height
       },
       outputPath,
       format
@@ -907,10 +1017,11 @@ end tell`;
     // Build success result with metadata
     return await buildSuccessResultForWindow(
       outputPath,
-      bounds,
+      { width: boundsResolved.width, height: boundsResolved.height },
       windowBounds.data.title,
       options,
-      `window_screenshot (${captureResult.method})`
+      `window_screenshot (${captureResult.method})`,
+      captureResult.method
     );
     
   } catch (error) {
@@ -932,7 +1043,9 @@ async function buildSuccessResultForWindow(
   bounds: { width: number; height: number },
   windowTitle: string,
   options: ScreenshotOptions,
-  action: string = 'window_screenshot'
+  action: string = 'window_screenshot',
+  captureMethod?: string,
+  windowId?: number
 ): Promise<ScreenshotResult> {
   const metadata = await getImageMetadata(outputPath);
   
@@ -944,7 +1057,9 @@ async function buildSuccessResultForWindow(
     metadata: {
       width: metadata?.width || bounds.width,
       height: metadata?.height || bounds.height,
-      windowTitle
+      windowTitle,
+      ...(captureMethod && { captureMethod }),
+      ...(windowId !== undefined && { windowId })
     }
   };
   

@@ -32,6 +32,75 @@ export interface DoctorResult {
   recommendations: string[];
 }
 
+export interface ScreenshotDoctorResult {
+  screenRecordingOk: boolean;
+  chromeRunning: boolean;
+  axWindowNumber: number | null;
+  windowIdCaptureOk: boolean;
+  notes: string[];
+}
+
+/**
+ * Verify screenshot pipeline: permissions + AXWindowNumber + window-id capture
+ */
+export async function runScreenshotDoctor(): Promise<ScreenshotDoctorResult> {
+  const notes: string[] = [];
+
+  // Screen recording quick check
+  let screenRecordingOk = false;
+  try {
+    const tmp = `/tmp/mac-chrome-cli-screenrec-test-${Date.now()}.png`;
+    const r = await execWithTimeout('screencapture', ['-x', '-t', 'png', tmp], 5000);
+    screenRecordingOk = r.success;
+    if (screenRecordingOk) await execWithTimeout('rm', ['-f', tmp], 1000);
+  } catch {}
+
+  const chromeRunning = await isChromeRunning();
+  let axWindowNumber: number | null = null;
+  let windowIdCaptureOk = false;
+
+  if (chromeRunning) {
+    // Try to fetch AXWindowNumber for frontmost Chrome window
+    const script = `
+tell application "System Events"
+  tell process "Google Chrome"
+    if exists window 1 then
+      return value of attribute "AXWindowNumber" of window 1
+    else
+      return ""
+    end if
+  end tell
+end tell`;
+    try {
+      const res = await execWithTimeout('osascript', ['-e', script], 2000);
+      const out = res.success ? res.data.stdout.trim() : '';
+      if (out) {
+        axWindowNumber = parseInt(out, 10);
+        if (!Number.isNaN(axWindowNumber)) {
+          // Try window-id capture
+          const tmp = `/tmp/mac-chrome-cli-windowid-test-${Date.now()}.png`;
+          const cap = await execWithTimeout('screencapture', ['-x', '-l', String(axWindowNumber), tmp], 8000);
+          windowIdCaptureOk = cap.success;
+          if (windowIdCaptureOk) await execWithTimeout('rm', ['-f', tmp], 1000);
+        }
+      }
+    } catch (e) {
+      notes.push(`Failed to query AXWindowNumber: ${String(e)}`);
+    }
+  } else {
+    notes.push('Chrome is not running; start Chrome to test window-id capture');
+  }
+
+  if (!screenRecordingOk) {
+    notes.push('Screen Recording may be denied. Grant in System Settings → Privacy & Security → Screen Recording');
+  }
+  if (axWindowNumber === null) {
+    notes.push('Accessibility permission may be required to read AXWindowNumber (System Settings → Privacy & Security → Accessibility)');
+  }
+
+  return { screenRecordingOk, chromeRunning, axWindowNumber, windowIdCaptureOk, notes };
+}
+
 /**
  * Check if a command exists in PATH
  */

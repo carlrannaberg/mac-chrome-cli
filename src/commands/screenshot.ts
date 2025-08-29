@@ -79,6 +79,12 @@ export interface ScreenshotOptions extends RateLimitedCommandOptions {
   previewMaxSize?: number;
   /** Target window index (1-based) */
   windowIndex?: number;
+  /** Force capture method: auto|window-id|rect */
+  method?: 'auto' | 'window-id' | 'rect';
+  /** Delay before capture in ms */
+  delayMs?: number;
+  /** Use frontmost Chrome window instead of specific index */
+  frontmost?: boolean;
 }
 
 /**
@@ -101,6 +107,10 @@ export interface ScreenshotData {
     windowTitle?: string;
     /** Page URL (if applicable) */
     url?: string;
+    /** Method used to capture (window-id, rectangle-direct, fullscreen-crop) */
+    captureMethod?: string;
+    /** Window ID used for capture (when applicable) */
+    windowId?: number;
   };
   /** Optional WebP preview data */
   preview?: {
@@ -204,7 +214,10 @@ export class ScreenshotCommand extends RateLimitedBrowserCommandBase {
           ...(options.format && { format: options.format }),
           ...(options.quality && { quality: options.quality }),
           ...(options.preview !== undefined && { preview: options.preview }),
-          ...(options.previewMaxSize && { previewMaxSize: options.previewMaxSize })
+          ...(options.previewMaxSize && { previewMaxSize: options.previewMaxSize }),
+          ...(options.method && { method: options.method }),
+          ...(options.delayMs !== undefined && { delayMs: options.delayMs }),
+          ...(options.frontmost !== undefined && { frontmost: options.frontmost })
         };
         
         const libResult = await captureViewport(libOptions, options.windowIndex);
@@ -304,7 +317,10 @@ export class ScreenshotCommand extends RateLimitedBrowserCommandBase {
         ...(options.format && { format: options.format }),
         ...(options.quality && { quality: options.quality }),
         ...(options.preview !== undefined && { preview: options.preview }),
-        ...(options.previewMaxSize && { previewMaxSize: options.previewMaxSize })
+        ...(options.previewMaxSize && { previewMaxSize: options.previewMaxSize }),
+        ...(options.method && { method: options.method }),
+        ...(options.delayMs !== undefined && { delayMs: options.delayMs }),
+        ...(options.frontmost !== undefined && { frontmost: options.frontmost })
       };
       
       const libResult = await captureWindow(libOptions, options.windowIndex);
@@ -426,7 +442,10 @@ export class ScreenshotCommand extends RateLimitedBrowserCommandBase {
           ...(options.format && { format: options.format }),
           ...(options.quality && { quality: options.quality }),
           ...(options.preview !== undefined && { preview: options.preview }),
-          ...(options.previewMaxSize && { previewMaxSize: options.previewMaxSize })
+          ...(options.previewMaxSize && { previewMaxSize: options.previewMaxSize }),
+          ...(options.method && { method: options.method }),
+          ...(options.delayMs !== undefined && { delayMs: options.delayMs }),
+          ...(options.frontmost !== undefined && { frontmost: options.frontmost })
         };
         
         const libResult = await captureElement(selector, libOptions, options.windowIndex);
@@ -689,6 +708,39 @@ export class ScreenshotCommand extends RateLimitedBrowserCommandBase {
         );
       }
     }
+
+    // Validate method
+    if (options.method && !['auto', 'window-id', 'rect'].includes(options.method)) {
+      return error(
+        `Invalid method: ${options.method}. Must be auto, window-id, or rect`,
+        ErrorCode.INVALID_INPUT,
+        {
+          recoveryHint: 'user_action',
+          metadata: {
+            parameter: 'method',
+            provided: options.method,
+            allowed: ['auto', 'window-id', 'rect']
+          }
+        }
+      );
+    }
+
+    // Validate delayMs
+    if (options.delayMs !== undefined) {
+      if (typeof options.delayMs !== 'number' || options.delayMs < 0 || !Number.isFinite(options.delayMs)) {
+        return error(
+          `Invalid delayMs: ${options.delayMs}. Must be a non-negative number`,
+          ErrorCode.INVALID_INPUT,
+          {
+            recoveryHint: 'user_action',
+            metadata: {
+              parameter: 'delayMs',
+              provided: options.delayMs
+            }
+          }
+        );
+      }
+    }
     
     // Set defaults
     validatedOptions.format = validatedOptions.format || 'png';
@@ -775,7 +827,9 @@ export class ScreenshotCommand extends RateLimitedBrowserCommandBase {
         height: libResult.metadata?.height || 0,
         timestamp: new Date().toISOString(),
         ...(libResult.metadata?.windowTitle && { windowTitle: libResult.metadata.windowTitle }),
-        ...(libResult.metadata?.url && { url: libResult.metadata.url })
+        ...(libResult.metadata?.url && { url: libResult.metadata.url }),
+        ...((libResult.metadata as any)?.captureMethod && { captureMethod: (libResult.metadata as any).captureMethod }),
+        ...((libResult.metadata as any)?.windowId !== undefined && { windowId: (libResult.metadata as any).windowId })
       }
     };
     
