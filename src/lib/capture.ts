@@ -538,32 +538,59 @@ async function takeScreenshot(
  * @returns Promise that resolves when window is activated
  */
 async function ensureChromeWindowActivated(windowIndex: number): Promise<void> {
-  // Step 1: Use System Events to bring Chrome window to current Space
-  const switchToChromeSpaceScript = `
+  // Step 1: Bring Chrome window to front and ensure it is not minimized
+  const activateScript = `
 tell application "Google Chrome"
   activate
-  set index of window ${windowIndex} to 1
+  if (count of windows) >= ${windowIndex} then
+    set miniaturized of window ${windowIndex} to false
+    set index of window ${windowIndex} to 1
+  end if
 end tell
 
 tell application "System Events"
   tell process "Google Chrome"
     set frontmost to true
-    perform action "AXRaise" of window 1
+    if exists window 1 then
+      try
+        perform action "AXRaise" of window 1
+      end try
+    end if
   end tell
 end tell`;
-  
+
   try {
-    await execWithTimeout('osascript', ['-e', switchToChromeSpaceScript], 3000);
+    await execWithTimeout('osascript', ['-e', activateScript], 4000);
   } catch (e) {
-    // If space switching fails, try basic focus
+    // Fallback: basic focus
     const result = await focusChromeWindow(windowIndex);
     if (!result.success) {
       throw new Error(`Failed to focus Chrome window: ${result.error}`);
     }
   }
-  
-  // Step 2: Wait for Space switch animation to complete
-  await new Promise(resolve => setTimeout(resolve, 1000));
+
+  // Step 2: Wait until Chrome is actually frontmost (poll up to ~2s)
+  const start = Date.now();
+  while (Date.now() - start < 2000) {
+    const frontmostScript = `
+tell application "System Events"
+  set isFront to false
+  if exists process "Google Chrome" then
+    set isFront to frontmost of process "Google Chrome"
+  end if
+  return isFront
+end tell`;
+    try {
+      const res = await execWithTimeout('osascript', ['-e', frontmostScript], 500);
+      if (res.success && res.data?.stdout.trim() === 'true') {
+        break;
+      }
+    } catch {}
+    await new Promise(r => setTimeout(r, 100));
+  }
+
+  // Extra settle time for animations
+  await new Promise(resolve => setTimeout(resolve, 300));
 }
 
 /**
@@ -617,8 +644,24 @@ export async function captureViewport(
     
     // Method 1: Try window ID capture first (most reliable for Chrome)
     try {
-      const windowIdScript = `tell application "Google Chrome" to id of window ${windowIndex}`;
-      const windowIdResult = await execWithTimeout('osascript', ['-e', windowIdScript], 2000);
+      // Use AXWindowNumber (CGWindowID) from System Events; retry after ensuring activation
+      const windowIdScript = `
+tell application "System Events"
+  tell process "Google Chrome"
+    if exists window ${windowIndex} then
+      return value of attribute "AXWindowNumber" of window ${windowIndex}
+    else
+      return ""
+    end if
+  end tell
+end tell`;
+      let windowIdResult = await execWithTimeout('osascript', ['-e', windowIdScript], 2000);
+
+      if (!windowIdResult.success || !windowIdResult.data?.stdout.trim()) {
+        // Retry after forcing activation
+        await ensureChromeWindowActivated(windowIndex);
+        windowIdResult = await execWithTimeout('osascript', ['-e', windowIdScript], 2000);
+      }
       
       if (windowIdResult.success && windowIdResult.data?.stdout) {
         const windowId = windowIdResult.data.stdout.trim();
@@ -643,7 +686,8 @@ export async function captureViewport(
       // Continue to next method
     }
     
-    // Method 2: Try rectangle capture
+    // Method 2: Try rectangle capture (only after confirming Chrome is frontmost)
+    await ensureChromeWindowActivated(windowIndex);
     const captureConfig = createCaptureConfig(
       {
         x: viewportInfo.x,
@@ -792,8 +836,22 @@ export async function captureWindow(
     
     // Method 1: Try window ID capture first
     try {
-      const windowIdScript = `tell application "Google Chrome" to id of window ${windowIndex}`;
-      const windowIdResult = await execWithTimeout('osascript', ['-e', windowIdScript], 2000);
+      // Use AXWindowNumber (CGWindowID) from System Events; retry after ensuring activation
+      const windowIdScript = `
+tell application "System Events"
+  tell process "Google Chrome"
+    if exists window ${windowIndex} then
+      return value of attribute "AXWindowNumber" of window ${windowIndex}
+    else
+      return ""
+    end if
+  end tell
+end tell`;
+      let windowIdResult = await execWithTimeout('osascript', ['-e', windowIdScript], 2000);
+      if (!windowIdResult.success || !windowIdResult.data?.stdout.trim()) {
+        await ensureChromeWindowActivated(windowIndex);
+        windowIdResult = await execWithTimeout('osascript', ['-e', windowIdScript], 2000);
+      }
       
       if (windowIdResult.success && windowIdResult.data?.stdout) {
         const windowId = windowIdResult.data.stdout.trim();
