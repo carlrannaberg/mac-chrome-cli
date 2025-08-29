@@ -166,7 +166,8 @@ export async function runSnapshotBenchmark(
     if (operation === 'outline') {
       snapshotResult = await captureOutline(options);
     } else {
-      snapshotResult = await captureDomLite(options);
+      // Use legacy strategy for performance tests to avoid fallback altering counts
+      snapshotResult = await captureDomLite({ ...options, strategy: 'legacy', mode: 'full' });
     }
     
     if (!snapshotResult.success) {

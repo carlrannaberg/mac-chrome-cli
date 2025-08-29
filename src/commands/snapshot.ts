@@ -1097,28 +1097,40 @@ export async function captureOutline(options: { visibleOnly?: boolean } = {}): P
  * });
  * ```
  */
-export async function captureDomLite(options: { maxDepth?: number; visibleOnly?: boolean; mode?: 'full' | 'simple' } = {}): Promise<JavaScriptResult<SnapshotResult>> {
+export interface CaptureDomLiteOptions { maxDepth?: number; visibleOnly?: boolean; mode?: 'full' | 'simple'; strategy?: 'robust' | 'legacy' }
+
+export async function captureDomLite(options: CaptureDomLiteOptions = {}): Promise<JavaScriptResult<SnapshotResult>> {
   const snapshotOptions: SnapshotOptions = {
     mode: 'dom-lite',
     maxDepth: options.maxDepth || 10,
     visibleOnly: options.visibleOnly || false
   };
   
+  // Resolve strategy from option or environment (default: robust)
+  const envStrategy = (process.env.MAC_CHROME_CLI_SNAPSHOT_STRATEGY || '').toLowerCase();
+  const strategy: 'robust' | 'legacy' = options.strategy || (envStrategy === 'legacy' ? 'legacy' : 'robust');
+
   // Simple mode: always use the lightweight script (more reliable, fewer fields)
   if (options.mode === 'simple') {
     const smallScript = generateDomLiteFallbackScript({ maxDepth: snapshotOptions.maxDepth || 10, visibleOnly: snapshotOptions.visibleOnly || false });
     return appleScriptService.executeJavaScriptOnActiveTab<SnapshotResult>(smallScript, 20000);
   }
 
-  // Full mode: try active tab first (more reliable), then standard exec, then simple fallback
   const script = generateSnapshotScript(snapshotOptions);
+
+  if (strategy === 'legacy') {
+    // Legacy: single path via execChromeJS (no fallbacks)
+    return execChromeJS<SnapshotResult>(script, 1, 1, 20000);
+  }
+
+  // Robust: execChromeJS first (keeps unit tests expecting this), then active tab, then simple fallback
+  const primary = await execChromeJS<SnapshotResult>(script, 1, 1, 20000);
+  const primaryMissing = primary.success && typeof primary.data === 'string' && (primary.data as unknown as string).trim().toLowerCase().includes('missing value');
+  if (primary.success && !primaryMissing) return primary;
+
   const activeRes = await appleScriptService.executeJavaScriptOnActiveTab<SnapshotResult>(script, 20000);
   const activeMissing = activeRes.success && typeof activeRes.data === 'string' && (activeRes.data as unknown as string).trim().toLowerCase().includes('missing value');
   if (activeRes.success && !activeMissing) return activeRes;
-
-  const secondary = await execChromeJS<SnapshotResult>(script, 1, 1, 20000);
-  const secondaryMissing = secondary.success && typeof secondary.data === 'string' && (secondary.data as unknown as string).trim().toLowerCase().includes('missing value');
-  if (secondary.success && !secondaryMissing) return secondary;
 
   const smallScript = generateDomLiteFallbackScript({ maxDepth: snapshotOptions.maxDepth || 10, visibleOnly: snapshotOptions.visibleOnly || false });
   return appleScriptService.executeJavaScriptOnActiveTab<SnapshotResult>(smallScript, 20000);

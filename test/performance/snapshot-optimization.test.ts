@@ -518,7 +518,7 @@ describe('Snapshot Performance Optimization', () => {
         code: 0
       });
 
-      const result = await captureDomLite({ maxDepth: 50 });
+      const result = await captureDomLite({ maxDepth: 50, strategy: 'legacy' });
       
       expect(result.success).toBe(true);
       expect(result.data?.meta?.performance?.algorithmsUsed).toContain('Iterative traversal to prevent stack overflow');

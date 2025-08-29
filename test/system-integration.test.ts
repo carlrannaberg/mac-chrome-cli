@@ -479,7 +479,8 @@ describe('System Integration Tests', () => {
       const outlineResult1 = await captureOutline();
       expect(outlineResult1.success).toBe(true);
 
-      const domLiteResult = await captureDomLite();
+      // Use legacy strategy to avoid fallbacks, so timeout actually fails
+      const domLiteResult = await captureDomLite({ strategy: 'legacy' });
       expect(domLiteResult.success).toBe(false); // Should fail due to timeout
 
       const outlineResult2 = await captureOutline();
