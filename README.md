@@ -156,6 +156,13 @@ mac-chrome-cli shot window --out window.png
 
 # Capture specific element
 mac-chrome-cli shot element --selector "#main-content" --out element.png
+
+# Advanced controls
+# Prefer window-id method, use the frontmost window, and wait 200ms before capture
+mac-chrome-cli shot viewport --method window-id --frontmost --delay-ms 200 --out page.png
+
+# Diagnostics for screenshots
+mac-chrome-cli doctor-screenshots
 ```
 
 ### Page Interaction
@@ -228,6 +235,19 @@ All commands support JSON output for programmatic use:
 ```bash
 mac-chrome-cli snapshot outline --json | jq '.data.elements[0]'
 mac-chrome-cli scroll position --json | jq '.data.y'
+```
+
+### Page Structure Snapshots
+
+```bash
+# Outline: interactive elements only
+mac-chrome-cli snapshot outline --visible-only
+
+# DOM-lite: pruned hierarchy (full algorithm)
+mac-chrome-cli snapshot dom-lite --max-depth 6 --visible-only
+
+# DOM-lite: lightweight fallback algorithm
+mac-chrome-cli snapshot dom-lite --mode simple --max-depth 6 --visible-only
 ```
 
 ## Global Options

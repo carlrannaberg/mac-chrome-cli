@@ -19,6 +19,7 @@
  */
 
 import { execChromeJS, type JavaScriptResult } from '../lib/apple.js';
+import { appleScriptService } from '../services/AppleScriptService.js';
 import { ErrorCode } from '../core/index.js';
 
 /**
@@ -892,6 +893,83 @@ ${getElementStateScript}
 `;
 }
 
+// Smaller fallback script for DOM-lite when standard path returns 'missing value'
+function generateDomLiteFallbackScript(options: { maxDepth: number; visibleOnly: boolean }): string {
+  return `
+(function() {
+  try {
+    const start = Date.now();
+    const nodes = [];
+    const visibleOnly = ${options.visibleOnly ? 'true' : 'false'};
+    const maxDepth = ${Number.isFinite(options.maxDepth) ? options.maxDepth : 10};
+
+    function isVisible(el) {
+      const r = el.getBoundingClientRect();
+      return r.width > 0 && r.height > 0;
+    }
+
+    function getSimpleSelector(el) {
+      const path = [];
+      let e = el;
+      while (e && e !== document.documentElement) {
+        let s = e.tagName.toLowerCase();
+        const p = e.parentElement;
+        if (p) {
+          const i = Array.from(p.children).indexOf(e) + 1;
+          s += ':nth-child(' + i + ')';
+        }
+        path.unshift(s);
+        e = e.parentElement;
+      }
+      return path.join(' > ');
+    }
+
+    const stack = [{ el: document.body, level: 0, parent: '' }];
+    while (stack.length > 0) {
+      const { el, level, parent } = stack.pop();
+      if (level > maxDepth) continue;
+      if (visibleOnly && !isVisible(el)) continue;
+
+      const rect = el.getBoundingClientRect();
+      const selector = getSimpleSelector(el);
+      const node = {
+        role: '',
+        name: '',
+        selector,
+        rect: { x: Math.round(rect.left), y: Math.round(rect.top), w: Math.round(rect.width), h: Math.round(rect.height) },
+        state: {},
+        tagName: el.tagName.toLowerCase(),
+        level
+      };
+      if (parent) node.parent = parent;
+      nodes.push(node);
+
+      const children = Array.from(el.children);
+      for (let i = children.length - 1; i >= 0; i--) {
+        stack.push({ el: children[i], level: level + 1, parent: selector });
+      }
+    }
+
+    return JSON.stringify({
+      ok: true,
+      cmd: 'snapshot.dom-lite',
+      nodes,
+      meta: {
+        url: window.location.href,
+        title: document.title,
+        timestamp: new Date().toISOString(),
+        durationMs: Date.now() - start,
+        visibleOnly,
+        maxDepth
+      }
+    });
+  } catch (e) {
+    return JSON.stringify({ ok: false, cmd: 'snapshot.dom-lite', nodes: [], error: String(e) });
+  }
+})();
+`;
+}
+
 /**
  * Captures a page snapshot in outline mode, returning a flat list of interactive elements.
  * This mode focuses on elements that users can interact with (buttons, links, inputs, etc.)
@@ -1019,15 +1097,31 @@ export async function captureOutline(options: { visibleOnly?: boolean } = {}): P
  * });
  * ```
  */
-export async function captureDomLite(options: { maxDepth?: number; visibleOnly?: boolean } = {}): Promise<JavaScriptResult<SnapshotResult>> {
+export async function captureDomLite(options: { maxDepth?: number; visibleOnly?: boolean; mode?: 'full' | 'simple' } = {}): Promise<JavaScriptResult<SnapshotResult>> {
   const snapshotOptions: SnapshotOptions = {
     mode: 'dom-lite',
     maxDepth: options.maxDepth || 10,
     visibleOnly: options.visibleOnly || false
   };
   
+  // Simple mode: always use the lightweight script (more reliable, fewer fields)
+  if (options.mode === 'simple') {
+    const smallScript = generateDomLiteFallbackScript({ maxDepth: snapshotOptions.maxDepth || 10, visibleOnly: snapshotOptions.visibleOnly || false });
+    return appleScriptService.executeJavaScriptOnActiveTab<SnapshotResult>(smallScript, 20000);
+  }
+
+  // Full mode: try active tab first (more reliable), then standard exec, then simple fallback
   const script = generateSnapshotScript(snapshotOptions);
-  return execChromeJS<SnapshotResult>(script, 1, 1, 20000); // 20 second timeout for more complex traversal
+  const activeRes = await appleScriptService.executeJavaScriptOnActiveTab<SnapshotResult>(script, 20000);
+  const activeMissing = activeRes.success && typeof activeRes.data === 'string' && (activeRes.data as unknown as string).trim().toLowerCase().includes('missing value');
+  if (activeRes.success && !activeMissing) return activeRes;
+
+  const secondary = await execChromeJS<SnapshotResult>(script, 1, 1, 20000);
+  const secondaryMissing = secondary.success && typeof secondary.data === 'string' && (secondary.data as unknown as string).trim().toLowerCase().includes('missing value');
+  if (secondary.success && !secondaryMissing) return secondary;
+
+  const smallScript = generateDomLiteFallbackScript({ maxDepth: snapshotOptions.maxDepth || 10, visibleOnly: snapshotOptions.visibleOnly || false });
+  return appleScriptService.executeJavaScriptOnActiveTab<SnapshotResult>(smallScript, 20000);
 }
 
 
@@ -1100,8 +1194,17 @@ export function formatSnapshotResult(result: JavaScriptResult<SnapshotResult>): 
   // Parse the JSON string if needed
   let parsedData: SnapshotResult;
   if (typeof resultData === 'string') {
+    const trimmed = resultData.trim();
+    if (trimmed.toLowerCase().includes('missing value') && (trimmed.length < 64)) {
+      return {
+        success: false,
+        error: 'Snapshot returned missing value (likely undefined). Try again or enable "Allow JavaScript from Apple Events" in Chrome.',
+        code: ErrorCode.INVALID_JSON,
+        timestamp: new Date().toISOString()
+      };
+    }
     try {
-      parsedData = JSON.parse(resultData) as SnapshotResult;
+      parsedData = JSON.parse(trimmed) as SnapshotResult;
     } catch (e) {
       return {
         success: false,

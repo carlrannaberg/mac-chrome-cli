@@ -1291,13 +1291,15 @@ export class CommandRegistry {
       .description('Capture pruned DOM hierarchy')
       .option('--max-depth <depth>', 'maximum traversal depth', '10')
       .option('--visible-only', 'only include visible elements')
+      .option('--mode <mode>', 'dom-lite algorithm (full|simple)', 'full')
       .action(async (options) => {
         try {
           const { captureDomLite, formatSnapshotResult } = await import('../commands/snapshot.js');
           const maxDepth = parseInt(options.maxDepth, 10) || 10;
           const result = await captureDomLite({ 
             maxDepth, 
-            visibleOnly: options.visibleOnly 
+            visibleOnly: options.visibleOnly,
+            mode: options.mode === 'simple' ? 'simple' : 'full'
           });
           const formattedResult = formatSnapshotResult(result);
           
