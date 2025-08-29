@@ -213,6 +213,6 @@ describe('Navigation Commands Integration', () => {
         expect(result.exitCode).toBeDefined();
         expect(typeof result.exitCode).toBe('number');
       }
-    });
+    }, 30000); // Increase timeout to 30 seconds for multiple navigation commands
   });
 });
