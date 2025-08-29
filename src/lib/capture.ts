@@ -86,11 +86,9 @@ interface CaptureConfig {
 }
 
 /**
- * UI layout constants
+ * Screenshot capture constants
  */
 const UI_CONSTANTS = {
-  TITLE_BAR_HEIGHT: 24,
-  CHROME_UI_HEIGHT: 75,
   DEFAULT_TIMEOUT: 10000,
   CROP_TIMEOUT: 15000,
   MIN_FILE_SIZE: 1000
@@ -146,30 +144,25 @@ async function getViewportInfo(windowIndex: number = 1): Promise<ViewportInfo | 
       })();
     `;
     
-    // Calculate viewport area (excluding title bar and chrome UI)
-    const { TITLE_BAR_HEIGHT, CHROME_UI_HEIGHT } = UI_CONSTANTS;
-    
-    // Try to get more accurate viewport dimensions via JavaScript
-    let viewportWidth = bounds.width;
-    let viewportHeight = bounds.height - TITLE_BAR_HEIGHT - CHROME_UI_HEIGHT;
+    // Try to get viewport scroll information via JavaScript
     let scrollX = 0;
     let scrollY = 0;
     
     const viewportResult = await execChromeJS(viewportJS, 1, windowIndex, 5000);
     if (viewportResult.success && viewportResult.data) {
       const jsViewport = viewportResult.data as { width: number; height: number; scrollX: number; scrollY: number };
-      // Use JavaScript-reported dimensions if available (more accurate)
-      viewportWidth = jsViewport.width;
-      viewportHeight = jsViewport.height;
+      // Extract scroll information from JavaScript (window dimensions not needed for full window capture)
       scrollX = jsViewport.scrollX;
       scrollY = jsViewport.scrollY;
     }
     
+    // For viewport capture, use the full window bounds since coordinate adjustment
+    // often fails due to display scaling, multiple monitors, or UI variations
     return {
       x: bounds.x,
-      y: bounds.y + TITLE_BAR_HEIGHT + CHROME_UI_HEIGHT,
-      width: viewportWidth,
-      height: viewportHeight,
+      y: bounds.y,
+      width: bounds.width,
+      height: bounds.height,
       scrollX,
       scrollY,
       windowTitle

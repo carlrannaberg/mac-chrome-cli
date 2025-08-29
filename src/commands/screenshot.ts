@@ -208,7 +208,7 @@ export class ScreenshotCommand extends RateLimitedBrowserCommandBase {
         };
         
         const libResult = await captureViewport(libOptions, options.windowIndex);
-        const convertedResult = this.convertLibResult(libResult, 'viewport_screenshot', startTime);
+        const convertedResult = this.convertLibResult(libResult, 'viewport_screenshot', startTime, !options.outputPath);
         
         if (!convertedResult.success) {
           const customError = new ScreenshotError(
@@ -308,7 +308,7 @@ export class ScreenshotCommand extends RateLimitedBrowserCommandBase {
       };
       
       const libResult = await captureWindow(libOptions, options.windowIndex);
-      const convertedResult = this.convertLibResult(libResult, 'window_screenshot', startTime);
+      const convertedResult = this.convertLibResult(libResult, 'window_screenshot', startTime, !options.outputPath);
       
       if (!convertedResult.success) {
         // Throw custom error that preserves error code and context
@@ -430,7 +430,7 @@ export class ScreenshotCommand extends RateLimitedBrowserCommandBase {
         };
         
         const libResult = await captureElement(selector, libOptions, options.windowIndex);
-        const convertedResult = this.convertLibResult(libResult, 'element_screenshot', startTime);
+        const convertedResult = this.convertLibResult(libResult, 'element_screenshot', startTime, !options.outputPath);
         
         if (!convertedResult.success) {
           const customError = new ScreenshotError(
@@ -531,7 +531,7 @@ export class ScreenshotCommand extends RateLimitedBrowserCommandBase {
       };
       
       const libResult = await captureFullScreen(libOptions);
-      const convertedResult = this.convertLibResult(libResult, 'fullscreen_screenshot', startTime);
+      const convertedResult = this.convertLibResult(libResult, 'fullscreen_screenshot', startTime, !options.outputPath);
       
       if (!convertedResult.success) {
         // Throw custom error that preserves error code and context
@@ -705,12 +705,14 @@ export class ScreenshotCommand extends RateLimitedBrowserCommandBase {
    * @param libResult Result from capture library
    * @param operation Operation name for context
    * @param startTime Operation start time for duration calculation
+   * @param includePreview Whether to include base64 preview data (false when saving to file)
    * @returns Converted result with unified error handling
    */
   private convertLibResult(
     libResult: LibScreenshotResult, 
     operation: string, 
-    startTime: number
+    startTime: number,
+    includePreview: boolean = true
   ): Result<ScreenshotData, string> {
     const duration = Date.now() - startTime;
     
@@ -777,8 +779,8 @@ export class ScreenshotCommand extends RateLimitedBrowserCommandBase {
       }
     };
     
-    // Add preview data if available
-    if (libResult.preview) {
+    // Add preview data if available and requested (don't include base64 when saving to file)
+    if (libResult.preview && includePreview) {
       screenshotData.preview = {
         base64: libResult.preview.base64,
         size: libResult.preview.size
