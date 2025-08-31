@@ -61,10 +61,6 @@
           },
           {
             "type": "command",
-            "command": "claudekit-hooks run test-project"
-          },
-          {
-            "type": "command",
             "command": "claudekit-hooks run check-todos"
           },
           {

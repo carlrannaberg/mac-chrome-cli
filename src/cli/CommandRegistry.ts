@@ -473,7 +473,83 @@ export class CommandRegistry {
   }
 
   private registerScreenshotCommands(): void {
-    // Natural screenshot command - navigate and capture or just capture current view
+    // Natural capture command (viewport screenshot)
+    this.program
+      .command('capture')
+      .description('Capture viewport screenshot')
+      .option('--out <path>', 'Output file path (auto-generated if not specified)')
+      .option('--format <format>', 'Image format (png|jpg|pdf)', 'png')
+      .option('--quality <quality>', 'JPEG quality 1-100 (jpg format only)', '90')
+      .option('--no-preview', 'Disable WebP preview generation')
+      .option('--preview-max <size>', 'Maximum preview size in bytes', '1572864')
+      .option('--window <index>', 'Target window index', '1')
+      .action(async (options) => {
+        try {
+          const { ScreenshotCommand } = await import('../commands/screenshot.js');
+          const container = await this.getServiceContainer();
+          const screenshotCmd = new ScreenshotCommand(container);
+          
+          const format = options.format as 'png' | 'jpg' | 'pdf';
+          const screenshotOptions: ScreenshotOptions = {
+            outputPath: options.out,
+            format,
+            preview: options.preview,
+            windowIndex: parseInt(options.window, 10),
+            ...(format === 'jpg' && options.quality && { quality: parseInt(options.quality, 10) }),
+            ...(options.previewMax && { previewMaxSize: parseInt(options.previewMax, 10) })
+          };
+          
+          const result = await screenshotCmd.viewport(screenshotOptions);
+          
+          if (result.success) {
+            this.formatter.output(result.data);
+          } else {
+            this.formatter.output(null, result.error, result.code);
+          }
+        } catch (error) {
+          this.formatter.output(null, `Capture command failed: ${error}`, ErrorCode.UNKNOWN_ERROR);
+        }
+      });
+
+    // Natural capture-element command
+    this.program
+      .command('capture-element <selector>')
+      .description('Capture screenshot of specific element')
+      .option('--out <path>', 'Output file path (auto-generated if not specified)')
+      .option('--format <format>', 'Image format (png|jpg|pdf)', 'png')
+      .option('--quality <quality>', 'JPEG quality 1-100 (jpg format only)', '90')
+      .option('--no-preview', 'Disable WebP preview generation')
+      .option('--preview-max <size>', 'Maximum preview size in bytes', '1572864')
+      .option('--window <index>', 'Target window index', '1')
+      .action(async (selector, options) => {
+        try {
+          const { ScreenshotCommand } = await import('../commands/screenshot.js');
+          const container = await this.getServiceContainer();
+          const screenshotCmd = new ScreenshotCommand(container);
+          
+          const format = options.format as 'png' | 'jpg' | 'pdf';
+          const screenshotOptions: ScreenshotOptions = {
+            outputPath: options.out,
+            format,
+            preview: options.preview,
+            windowIndex: parseInt(options.window, 10),
+            ...(format === 'jpg' && options.quality && { quality: parseInt(options.quality, 10) }),
+            ...(options.previewMax && { previewMaxSize: parseInt(options.previewMax, 10) })
+          };
+          
+          const result = await screenshotCmd.element(selector, screenshotOptions);
+          
+          if (result.success) {
+            this.formatter.output(result.data);
+          } else {
+            this.formatter.output(null, result.error, result.code);
+          }
+        } catch (error) {
+          this.formatter.output(null, `Capture element command failed: ${error}`, ErrorCode.UNKNOWN_ERROR);
+        }
+      });
+
+    // Navigate + screenshot command (hybrid functionality)
     this.program
       .command('screenshot [url]')
       .description('Take screenshot (optionally navigate to URL first)')
@@ -554,55 +630,13 @@ export class CommandRegistry {
         }
       });
 
+
+    // Grouped advanced screenshot commands (specialized use cases)
     const shotCmd = this.program
       .command('shot')
-      .description('Screenshot capture commands');
+      .description('Advanced screenshot commands with specialized options');
 
-    // Viewport screenshot
-    shotCmd
-      .command('viewport')
-      .description('Capture viewport screenshot (visible browser content)')
-      .option('--out <path>', 'Output file path (auto-generated if not specified)')
-      .option('--format <format>', 'Image format (png|jpg|pdf)', 'png')
-      .option('--quality <quality>', 'JPEG quality 1-100 (jpg format only)', '90')
-      .option('--no-preview', 'Disable WebP preview generation')
-      .option('--preview-max <size>', 'Maximum preview size in bytes', '1572864')
-      .option('--window-index <index>', 'Target window index', '1')
-      .option('--method <method>', 'Capture method (auto|window-id|rect)', 'auto')
-      .option('--delay-ms <ms>', 'Delay before capture (ms)')
-      .option('--frontmost', 'Use frontmost Chrome window')
-      .action(async (options) => {
-        try {
-          const { ScreenshotCommand } = await import('../commands/screenshot.js');
-          const container = await this.getServiceContainer();
-          const screenshotCmd = new ScreenshotCommand(container);
-          
-          const format = options.format as 'png' | 'jpg' | 'pdf';
-          const screenshotOptions: ScreenshotOptions = {
-            outputPath: options.out,
-            format,
-            preview: options.preview,
-            windowIndex: parseInt(options.windowIndex, 10),
-            ...(format === 'jpg' && options.quality && { quality: parseInt(options.quality, 10) }),
-            ...(options.previewMax && { previewMaxSize: parseInt(options.previewMax, 10) }),
-            ...(options.method && { method: options.method }),
-            ...(options.delayMs && { delayMs: parseInt(options.delayMs, 10) }),
-            ...(options.frontmost && { frontmost: true })
-          };
-          
-          const result = await screenshotCmd.viewport(screenshotOptions);
-          
-          if (result.success) {
-            this.formatter.output(result.data);
-          } else {
-            this.formatter.output(null, result.error, result.code);
-          }
-        } catch (error) {
-          this.formatter.output(null, `Screenshot failed: ${error}`, ErrorCode.UNKNOWN_ERROR);
-        }
-      });
-
-    // Window screenshot
+    // Window screenshot (includes browser chrome/UI - different from viewport)
     shotCmd
       .command('window')
       .description('Capture window screenshot (entire browser window with chrome)')
@@ -635,45 +669,6 @@ export class CommandRegistry {
           };
           
           const result = await screenshotCmd.window(screenshotOptions);
-          
-          if (result.success) {
-            this.formatter.output(result.data);
-          } else {
-            this.formatter.output(null, result.error, result.code);
-          }
-        } catch (error) {
-          this.formatter.output(null, `Screenshot failed: ${error}`, ErrorCode.UNKNOWN_ERROR);
-        }
-      });
-
-    // Element screenshot
-    shotCmd
-      .command('element')
-      .description('Capture screenshot of specific DOM element')
-      .requiredOption('--selector <selector>', 'CSS selector for target element')
-      .option('--out <path>', 'Output file path (auto-generated if not specified)')
-      .option('--format <format>', 'Image format (png|jpg|pdf)', 'png')
-      .option('--quality <quality>', 'JPEG quality 1-100 (jpg format only)', '90')
-      .option('--no-preview', 'Disable WebP preview generation')
-      .option('--preview-max <size>', 'Maximum preview size in bytes', '1572864')
-      .option('--window-index <index>', 'Target window index', '1')
-      .action(async (options) => {
-        try {
-          const { ScreenshotCommand } = await import('../commands/screenshot.js');
-          const container = await this.getServiceContainer();
-          const screenshotCmd = new ScreenshotCommand(container);
-          
-          const format = options.format as 'png' | 'jpg' | 'pdf';
-          const screenshotOptions: ScreenshotOptions = {
-            outputPath: options.out,
-            format,
-            preview: options.preview,
-            windowIndex: parseInt(options.windowIndex, 10),
-            ...(format === 'jpg' && options.quality && { quality: parseInt(options.quality, 10) }),
-            ...(options.previewMax && { previewMaxSize: parseInt(options.previewMax, 10) })
-          };
-          
-          const result = await screenshotCmd.element(options.selector, screenshotOptions);
           
           if (result.success) {
             this.formatter.output(result.data);
@@ -722,21 +717,147 @@ export class CommandRegistry {
   }
 
   private registerMouseCommands(): void {
-    const mouseCmd = this.program
-      .command('mouse')
-      .description('Mouse interaction commands');
-
-    // Click command
-    mouseCmd
-      .command('click')
-      .description('Click at coordinates or element')
-      .option('--selector <selector>', 'CSS selector for element')
-      .option('--x <x>', 'X coordinate')
-      .option('--y <y>', 'Y coordinate') 
+    // Natural top-level click command
+    this.program
+      .command('click <selector>')
+      .description('Click on element by CSS selector')
       .option('--button <button>', 'Mouse button (left|right|middle)', 'left')
       .option('--click-count <count>', 'Number of clicks', '1')
       .option('--offset-x <x>', 'X offset from element center')
       .option('--offset-y <y>', 'Y offset from element center')
+      .option('--window <index>', 'Target window index', '1')
+      .action(async (selector, options) => {
+        try {
+          const { MouseCommand } = await import('../commands/mouse.js');
+          const mouseCommand = new MouseCommand();
+          
+          const mouseOptions: MouseOptions = {
+            selector,
+            button: options.button as 'left' | 'right' | 'middle',
+            ...(options.clickCount && { clickCount: parseInt(options.clickCount, 10) }),
+            ...(options.offsetX && { offsetX: parseFloat(options.offsetX) }),
+            ...(options.offsetY && { offsetY: parseFloat(options.offsetY) }),
+            windowIndex: parseInt(options.window, 10)
+          };
+          
+          const result = await mouseCommand.click(mouseOptions);
+          
+          if (result.success) {
+            this.formatter.output(result.data);
+          } else {
+            this.formatter.output(null, result.error, result.code);
+          }
+        } catch (error) {
+          this.formatter.output(null, `Click command failed: ${error}`, ErrorCode.UNKNOWN_ERROR);
+        }
+      });
+
+    // Natural top-level double-click command
+    this.program
+      .command('double-click <selector>')
+      .description('Double-click on element by CSS selector')
+      .option('--offset-x <x>', 'X offset from element center')
+      .option('--offset-y <y>', 'Y offset from element center')
+      .option('--window <index>', 'Target window index', '1')
+      .action(async (selector, options) => {
+        try {
+          const { MouseCommand } = await import('../commands/mouse.js');
+          const mouseCommand = new MouseCommand();
+          
+          const mouseOptions: MouseOptions = {
+            selector,
+            ...(options.offsetX && { offsetX: parseFloat(options.offsetX) }),
+            ...(options.offsetY && { offsetY: parseFloat(options.offsetY) }),
+            windowIndex: parseInt(options.window, 10)
+          };
+          
+          const result = await mouseCommand.doubleClick(mouseOptions);
+          
+          if (result.success) {
+            this.formatter.output(result.data);
+          } else {
+            this.formatter.output(null, result.error, result.code);
+          }
+        } catch (error) {
+          this.formatter.output(null, `Double-click command failed: ${error}`, ErrorCode.UNKNOWN_ERROR);
+        }
+      });
+
+    // Natural top-level right-click command
+    this.program
+      .command('right-click <selector>')
+      .description('Right-click (context menu) on element by CSS selector')
+      .option('--offset-x <x>', 'X offset from element center')
+      .option('--offset-y <y>', 'Y offset from element center')
+      .option('--window <index>', 'Target window index', '1')
+      .action(async (selector, options) => {
+        try {
+          const { MouseCommand } = await import('../commands/mouse.js');
+          const mouseCommand = new MouseCommand();
+          
+          const mouseOptions: MouseOptions = {
+            selector,
+            ...(options.offsetX && { offsetX: parseFloat(options.offsetX) }),
+            ...(options.offsetY && { offsetY: parseFloat(options.offsetY) }),
+            windowIndex: parseInt(options.window, 10)
+          };
+          
+          const result = await mouseCommand.rightClick(mouseOptions);
+          
+          if (result.success) {
+            this.formatter.output(result.data);
+          } else {
+            this.formatter.output(null, result.error, result.code);
+          }
+        } catch (error) {
+          this.formatter.output(null, `Right-click command failed: ${error}`, ErrorCode.UNKNOWN_ERROR);
+        }
+      });
+
+    // Natural top-level hover command
+    this.program
+      .command('hover <selector>')
+      .description('Hover over element by CSS selector')
+      .option('--offset-x <x>', 'X offset from element center')
+      .option('--offset-y <y>', 'Y offset from element center')
+      .option('--window <index>', 'Target window index', '1')
+      .action(async (selector, options) => {
+        try {
+          const { MouseCommand } = await import('../commands/mouse.js');
+          const mouseCommand = new MouseCommand();
+          
+          const mouseOptions: MouseOptions = {
+            selector,
+            ...(options.offsetX && { offsetX: parseFloat(options.offsetX) }),
+            ...(options.offsetY && { offsetY: parseFloat(options.offsetY) }),
+            windowIndex: parseInt(options.window, 10)
+          };
+          
+          const result = await mouseCommand.move(mouseOptions);
+          
+          if (result.success) {
+            this.formatter.output(result.data);
+          } else {
+            this.formatter.output(null, result.error, result.code);
+          }
+        } catch (error) {
+          this.formatter.output(null, `Hover command failed: ${error}`, ErrorCode.UNKNOWN_ERROR);
+        }
+      });
+
+    // Grouped mouse commands (for advanced use cases)
+    const mouseCmd = this.program
+      .command('mouse')
+      .description('Advanced mouse interaction commands');
+
+    // Advanced coordinate-based click (for when you need exact coordinates)
+    mouseCmd
+      .command('click-coords')
+      .description('Click at exact coordinates')
+      .requiredOption('--x <x>', 'X coordinate')
+      .requiredOption('--y <y>', 'Y coordinate')
+      .option('--button <button>', 'Mouse button (left|right|middle)', 'left')
+      .option('--click-count <count>', 'Number of clicks', '1')
       .option('--window-index <index>', 'Target window index', '1')
       .action(async (options) => {
         try {
@@ -744,13 +865,10 @@ export class CommandRegistry {
           const mouseCommand = new MouseCommand();
           
           const mouseOptions: MouseOptions = {
-            selector: options.selector,
-            ...(options.x && { x: parseFloat(options.x) }),
-            ...(options.y && { y: parseFloat(options.y) }),
+            x: parseFloat(options.x),
+            y: parseFloat(options.y),
             button: options.button as 'left' | 'right' | 'middle',
             ...(options.clickCount && { clickCount: parseInt(options.clickCount, 10) }),
-            ...(options.offsetX && { offsetX: parseFloat(options.offsetX) }),
-            ...(options.offsetY && { offsetY: parseFloat(options.offsetY) }),
             windowIndex: parseInt(options.windowIndex, 10)
           };
           
@@ -762,119 +880,11 @@ export class CommandRegistry {
             this.formatter.output(null, result.error, result.code);
           }
         } catch (error) {
-          this.formatter.output(null, `Mouse click failed: ${error}`, ErrorCode.UNKNOWN_ERROR);
+          this.formatter.output(null, `Mouse coordinate click failed: ${error}`, ErrorCode.UNKNOWN_ERROR);
         }
       });
 
-    // Double-click command
-    mouseCmd
-      .command('double-click')
-      .description('Double-click at coordinates or element')
-      .option('--selector <selector>', 'CSS selector for element')
-      .option('--x <x>', 'X coordinate')
-      .option('--y <y>', 'Y coordinate')
-      .option('--offset-x <x>', 'X offset from element center')
-      .option('--offset-y <y>', 'Y offset from element center')
-      .option('--window-index <index>', 'Target window index', '1')
-      .action(async (options) => {
-        try {
-          const { MouseCommand } = await import('../commands/mouse.js');
-          const mouseCommand = new MouseCommand();
-          
-          const mouseOptions: MouseOptions = {
-            selector: options.selector,
-            ...(options.x && { x: parseFloat(options.x) }),
-            ...(options.y && { y: parseFloat(options.y) }),
-            ...(options.offsetX && { offsetX: parseFloat(options.offsetX) }),
-            ...(options.offsetY && { offsetY: parseFloat(options.offsetY) }),
-            windowIndex: parseInt(options.windowIndex, 10)
-          };
-          
-          const result = await mouseCommand.doubleClick(mouseOptions);
-          
-          if (result.success) {
-            this.formatter.output(result.data);
-          } else {
-            this.formatter.output(null, result.error, result.code);
-          }
-        } catch (error) {
-          this.formatter.output(null, `Mouse double-click failed: ${error}`, ErrorCode.UNKNOWN_ERROR);
-        }
-      });
-
-    // Right-click command
-    mouseCmd
-      .command('right-click')
-      .description('Right-click (context menu) at coordinates or element')
-      .option('--selector <selector>', 'CSS selector for element')
-      .option('--x <x>', 'X coordinate')
-      .option('--y <y>', 'Y coordinate')
-      .option('--offset-x <x>', 'X offset from element center')
-      .option('--offset-y <y>', 'Y offset from element center')
-      .option('--window-index <index>', 'Target window index', '1')
-      .action(async (options) => {
-        try {
-          const { MouseCommand } = await import('../commands/mouse.js');
-          const mouseCommand = new MouseCommand();
-          
-          const mouseOptions: MouseOptions = {
-            selector: options.selector,
-            ...(options.x && { x: parseFloat(options.x) }),
-            ...(options.y && { y: parseFloat(options.y) }),
-            ...(options.offsetX && { offsetX: parseFloat(options.offsetX) }),
-            ...(options.offsetY && { offsetY: parseFloat(options.offsetY) }),
-            windowIndex: parseInt(options.windowIndex, 10)
-          };
-          
-          const result = await mouseCommand.rightClick(mouseOptions);
-          
-          if (result.success) {
-            this.formatter.output(result.data);
-          } else {
-            this.formatter.output(null, result.error, result.code);
-          }
-        } catch (error) {
-          this.formatter.output(null, `Mouse right-click failed: ${error}`, ErrorCode.UNKNOWN_ERROR);
-        }
-      });
-
-    // Move/hover command
-    mouseCmd
-      .command('move')
-      .description('Move mouse to coordinates or element (hover)')
-      .option('--selector <selector>', 'CSS selector for element')
-      .option('--x <x>', 'X coordinate')
-      .option('--y <y>', 'Y coordinate')
-      .option('--offset-x <x>', 'X offset from element center')
-      .option('--offset-y <y>', 'Y offset from element center')
-      .option('--window-index <index>', 'Target window index', '1')
-      .action(async (options) => {
-        try {
-          const { MouseCommand } = await import('../commands/mouse.js');
-          const mouseCommand = new MouseCommand();
-          
-          const mouseOptions: MouseOptions = {
-            selector: options.selector,
-            ...(options.x && { x: parseFloat(options.x) }),
-            ...(options.y && { y: parseFloat(options.y) }),
-            ...(options.offsetX && { offsetX: parseFloat(options.offsetX) }),
-            ...(options.offsetY && { offsetY: parseFloat(options.offsetY) }),
-            windowIndex: parseInt(options.windowIndex, 10)
-          };
-          
-          const result = await mouseCommand.move(mouseOptions);
-          
-          if (result.success) {
-            this.formatter.output(result.data);
-          } else {
-            this.formatter.output(null, result.error, result.code);
-          }
-        } catch (error) {
-          this.formatter.output(null, `Mouse move failed: ${error}`, ErrorCode.UNKNOWN_ERROR);
-        }
-      });
-
-    // Drag command
+    // Drag command (no simple equivalent - complex operation)
     mouseCmd
       .command('drag')
       .description('Drag from one location to another')
@@ -918,25 +928,20 @@ export class CommandRegistry {
   }
 
   private registerKeyboardCommands(): void {
-    const keyboardCmd = this.program
-      .command('keyboard')
-      .description('Keyboard input commands');
-
-    // Type command
-    keyboardCmd
-      .command('type')
-      .description('Type text')
-      .requiredOption('--text <text>', 'Text to type')
+    // Natural top-level type command
+    this.program
+      .command('type <text>')
+      .description('Type text at current cursor position')
       .option('--speed <ms>', 'Delay between characters in ms', '50')
       .option('--clear', 'Clear field before typing')
       .option('--repeat <count>', 'Number of times to repeat', '1')
-      .action(async (options) => {
+      .action(async (text, options) => {
         try {
           const { KeyboardCommand } = await import('../commands/keyboard.js');
           const keyboardCommand = new KeyboardCommand();
           
           const keyboardOptions: KeyboardOptions = {
-            text: options.text,
+            text,
             speed: parseInt(options.speed, 10),
             clear: options.clear,
             ...(options.repeat && { repeat: parseInt(options.repeat, 10) })
@@ -950,9 +955,14 @@ export class CommandRegistry {
             this.formatter.output(null, result.error, result.code);
           }
         } catch (error) {
-          this.formatter.output(null, `Keyboard type failed: ${error}`, ErrorCode.UNKNOWN_ERROR);
+          this.formatter.output(null, `Type command failed: ${error}`, ErrorCode.UNKNOWN_ERROR);
         }
       });
+
+    // Grouped keyboard commands (for advanced use cases)
+    const keyboardCmd = this.program
+      .command('keyboard')
+      .description('Advanced keyboard input commands');
 
     // Key combination command
     keyboardCmd
@@ -1057,31 +1067,24 @@ export class CommandRegistry {
   }
 
   private registerInputCommands(): void {
-    const inputCmd = this.program
-      .command('input')
-      .description('Form input commands');
-
-    // Fill input field
-    inputCmd
-      .command('fill')
+    // Natural top-level fill command
+    this.program
+      .command('fill <selector> <value>')
       .description('Fill input field with value')
-      .requiredOption('--selector <selector>', 'CSS selector for input element')
-      .requiredOption('--value <value>', 'Value to enter into the input')
       .option('--no-clear', 'Do not clear existing content before filling')
       .option('--method <method>', 'Input method (auto|paste|type|js)', 'auto')
       .option('--speed <ms>', 'Typing speed in milliseconds (for type method)', '50')
       .option('--window <index>', 'Target window index', '1')
       .option('--mask-secret', 'Mask value in logs (for sensitive data)')
-      .option('--json', 'Output result as JSON')
-      .action(async (options) => {
+      .action(async (selector, value, options) => {
         try {
           const { InputCommand } = await import('../commands/input.js');
           const inputCommand = new InputCommand();
           
           const inputOptions: InputOptions = {
-            selector: options.selector,
-            value: options.value,
-            clear: !options.noClear, // Invert the flag - default is true (clear), --no-clear makes it false
+            selector,
+            value,
+            clear: !options.noClear,
             method: options.method as 'auto' | 'paste' | 'type' | 'js',
             speed: parseInt(options.speed, 10),
             windowIndex: parseInt(options.window, 10),
@@ -1090,27 +1093,20 @@ export class CommandRegistry {
           
           const result = await inputCommand.fill(inputOptions);
           
-          if (options.json) {
-            if (result.success) {
-              this.formatter.outputJSON(result.data, undefined, result.code);
-            } else {
-              this.formatter.outputJSON(null, result.error, result.code);
-            }
+          if (result.success) {
+            this.formatter.output(result.data, undefined, result.code);
           } else {
-            if (result.success) {
-              this.formatter.output(result.data, undefined, result.code);
-            } else {
-              this.formatter.output(null, result.error, result.code);
-            }
+            this.formatter.output(null, result.error, result.code);
           }
         } catch (error) {
-          if (options.json) {
-            this.formatter.outputJSON(null, `Input fill failed: ${error}`, ErrorCode.UNKNOWN_ERROR);
-          } else {
-            this.formatter.output(null, `Input fill failed: ${error}`, ErrorCode.UNKNOWN_ERROR);
-          }
+          this.formatter.output(null, `Fill command failed: ${error}`, ErrorCode.UNKNOWN_ERROR);
         }
       });
+
+    // Grouped input commands (for advanced use cases)
+    const inputCmd = this.program
+      .command('input')
+      .description('Advanced form input commands');
 
     // Get input value
     inputCmd
@@ -1785,6 +1781,7 @@ export class CommandRegistry {
         }
       });
   }
+
 
   private async registerBenchmarkCommand(): Promise<void> {
     // Add benchmark command
