@@ -40,3 +40,75 @@ Thumbs.db
 # Logs
 logs
 *.log
+
+# Temporary development artifacts (prevent future accumulation)
+# Debug and analysis files
+analyze-*.js
+analyze-*.ts
+debug-*.js
+debug-*.ts
+research-*.js
+research-*.ts
+*-analysis.md
+
+# Temporary test files
+test-*.js
+test-*.ts
+test-*.mjs
+test-*.sh
+*-test.js
+*-test.ts
+*-test.sh
+quick-test.*
+verify-*.md
+*-examples.js
+*-examples.ts
+
+# POC files
+*-poc.*
+poc-*.*
+*_poc.*
+proof-of-concept-*.*
+
+# Temporary directories
+temp-*/
+test-*/
+# Preserve standard test directories
+!test/
+!tests/
+
+# Reports and summaries (should go in reports/ directory)
+/*_SUMMARY.md
+/*_REPORT.md
+/*_CHECKLIST.md
+/*_COMPLETE.md
+/*_GUIDE.md
+/*_ANALYSIS.md
+/*_IMPLEMENTATION.md
+/*_TRACKER.md
+/*_ISSUES.md
+# Preserve important documentation
+!CHANGELOG.md
+!README.md
+!AGENTS.md
+
+# Todo files (multiple formats)
+.claude-todo
+todo.md
+TODO*.md
+*-todo.md
+
+# Validation scripts (temporary)
+validate-*.js
+validate-*.sh
+validate-*.ts
+
+# Test assets
+test-*.html
+*-test.png
+*-test.jpg
+test*.png
+test*.jpg
+
+# Dated reports in reports/
+reports/*_[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9].md
