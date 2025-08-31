@@ -73,10 +73,6 @@ export interface ScreenshotOptions extends RateLimitedCommandOptions {
   format?: 'png' | 'jpg' | 'pdf';
   /** JPEG quality (1-100, only applies to jpg format) */
   quality?: number;
-  /** Generate WebP preview for efficient transmission */
-  preview?: boolean;
-  /** Maximum preview size in bytes */
-  previewMaxSize?: number;
   /** Target window index (1-based) */
   windowIndex?: number;
   /** Force capture method: auto|window-id|rect */
@@ -85,6 +81,8 @@ export interface ScreenshotOptions extends RateLimitedCommandOptions {
   delayMs?: number;
   /** Use frontmost Chrome window instead of specific index */
   frontmost?: boolean;
+  /** If true, save to file; if false or undefined, return base64 */
+  saveFile?: boolean;
 }
 
 /**
@@ -828,8 +826,8 @@ export class ScreenshotCommand extends RateLimitedBrowserCommandBase {
         timestamp: new Date().toISOString(),
         ...(libResult.metadata?.windowTitle && { windowTitle: libResult.metadata.windowTitle }),
         ...(libResult.metadata?.url && { url: libResult.metadata.url }),
-        ...((libResult.metadata as any)?.captureMethod && { captureMethod: (libResult.metadata as any).captureMethod }),
-        ...((libResult.metadata as any)?.windowId !== undefined && { windowId: (libResult.metadata as any).windowId })
+        ...(libResult.metadata?.captureMethod && { captureMethod: libResult.metadata.captureMethod }),
+        ...(libResult.metadata?.windowId !== undefined && { windowId: libResult.metadata.windowId })
       }
     };
     

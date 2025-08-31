@@ -1,7 +1,7 @@
 import { execWithTimeout, createWebPPreview, expandPath, ERROR_CODES, type ErrorCode } from './util.js';
 import { getChromeWindowBounds, execChromeJS, focusChromeWindow } from './apple.js';
 import { selectorToScreen, validateElementVisibility } from './coords.js';
-import { existsSync, mkdirSync, statSync, writeFileSync, unlinkSync } from 'fs';
+import { existsSync, mkdirSync, statSync, writeFileSync, unlinkSync, readFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { tmpdir } from 'os';
 import { spawn } from 'child_process';
@@ -10,21 +10,17 @@ export interface ScreenshotOptions {
   outputPath?: string;
   format?: 'png' | 'jpg' | 'pdf';
   quality?: number;
-  preview?: boolean;
-  previewMaxSize?: number;
   method?: 'auto' | 'window-id' | 'rect';
   delayMs?: number;
   frontmost?: boolean;
+  saveFile?: boolean; // If true, save to file; if false, return base64
 }
 
 export interface ScreenshotResult {
   success: boolean;
   action: string;
   path?: string;
-  preview?: {
-    base64: string;
-    size: number;
-  };
+  base64?: string;
   metadata?: {
     width?: number;
     height?: number;
@@ -806,7 +802,6 @@ async function buildSuccessResult(
   const screenshotResult: ScreenshotResult = {
     success: true,
     action,
-    path: outputPath,
     code: ERROR_CODES.OK,
     metadata: {
       width: metadata?.width || viewportInfo.width,
@@ -817,23 +812,29 @@ async function buildSuccessResult(
     }
   };
   
-  // Generate WebP preview when requested
-  if (options.preview !== false) {
+  // If saveFile is false (default behavior), return base64 instead of saving file
+  if (options.saveFile === false || (options.saveFile === undefined && !options.outputPath)) {
     try {
-      const maxSize = options.previewMaxSize || 1.5 * 1024 * 1024; // 1.5MB default
-      const webpPreview = await createWebPPreview(outputPath, maxSize);
+      // Read the file as base64
+      const imageBuffer = readFileSync(outputPath);
+      const base64Data = imageBuffer.toString('base64');
+      screenshotResult.base64 = base64Data;
       
-      if (webpPreview.size > 0) { // Only add preview if generation was successful
-        screenshotResult.preview = {
-          base64: webpPreview.base64,
-          size: webpPreview.size
-        };
+      // Clean up temporary file since we're returning base64
+      try {
+        unlinkSync(outputPath);
+      } catch (cleanupError) {
+        // Ignore cleanup errors, but continue with successful result
       }
-    } catch (previewError) {
-      // Preview generation failure doesn't fail the screenshot
-      // Continue with successful screenshot without preview
+    } catch (base64Error) {
+      // If base64 conversion fails, fall back to file path
+      screenshotResult.path = outputPath;
     }
+  } else {
+    // Save to file mode - include the file path
+    screenshotResult.path = outputPath;
   }
+  
   
   return screenshotResult;
 }
@@ -1052,7 +1053,6 @@ async function buildSuccessResultForWindow(
   const screenshotResult: ScreenshotResult = {
     success: true,
     action,
-    path: outputPath,
     code: ERROR_CODES.OK,
     metadata: {
       width: metadata?.width || bounds.width,
@@ -1063,22 +1063,29 @@ async function buildSuccessResultForWindow(
     }
   };
   
-  // Generate WebP preview when requested
-  if (options.preview !== false) {
+  // If saveFile is false (default behavior), return base64 instead of saving file
+  if (options.saveFile === false || (options.saveFile === undefined && !options.outputPath)) {
     try {
-      const maxSize = options.previewMaxSize || 1.5 * 1024 * 1024; // 1.5MB default
-      const webpPreview = await createWebPPreview(outputPath, maxSize);
+      // Read the file as base64
+      const imageBuffer = readFileSync(outputPath);
+      const base64Data = imageBuffer.toString('base64');
+      screenshotResult.base64 = base64Data;
       
-      if (webpPreview.size > 0) {
-        screenshotResult.preview = {
-          base64: webpPreview.base64,
-          size: webpPreview.size
-        };
+      // Clean up temporary file since we're returning base64
+      try {
+        unlinkSync(outputPath);
+      } catch (cleanupError) {
+        // Ignore cleanup errors, but continue with successful result
       }
-    } catch (previewError) {
-      // Preview generation failure doesn't fail the screenshot
+    } catch (base64Error) {
+      // If base64 conversion fails, fall back to file path
+      screenshotResult.path = outputPath;
     }
+  } else {
+    // Save to file mode - include the file path
+    screenshotResult.path = outputPath;
   }
+  
   
   return screenshotResult;
 }

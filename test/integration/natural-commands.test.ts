@@ -116,7 +116,7 @@ describe('Natural Commands Integration', () => {
       const result = await runCLI('capture --help');
 
       const output = result.stderr + result.stdout;
-      expect(output).toContain('Capture viewport screenshot');
+      expect(output).toContain('Alias for screenshot command');
       expect(output).toContain('--out');
       expect(output).toContain('--format');
       expect(output).toContain('--window');
@@ -130,25 +130,6 @@ describe('Natural Commands Integration', () => {
     });
   });
 
-  describe('capture-element command', () => {
-    test('should show help for capture-element command', async () => {
-      const result = await runCLI('capture-element --help');
-
-      const output = result.stderr + result.stdout;
-      expect(output).toContain('Capture screenshot of specific element');
-      expect(output).toContain('<selector>');
-      expect(output).toContain('--out');
-      expect(output).toContain('--format');
-    });
-
-    test('should reject missing selector argument', async () => {
-      const result = await runCLI('capture-element');
-
-      expect(result.exitCode).not.toBe(0);
-      const output = result.stderr + result.stdout;
-      expect(output).toContain("missing required argument 'selector'");
-    });
-  });
 
   describe('mouse interaction commands', () => {
     test('should show help for double-click command', async () => {
@@ -185,7 +166,6 @@ describe('Natural Commands Integration', () => {
       expect(output).toContain('fill [options] <selector> <value>');
       expect(output).toContain('type [options] <text>');
       expect(output).toContain('capture [options]');
-      expect(output).toContain('capture-element [options] <selector>');
       expect(output).toContain('double-click [options] <selector>');
       expect(output).toContain('right-click [options] <selector>');
       expect(output).toContain('hover [options] <selector>');
@@ -198,8 +178,7 @@ describe('Natural Commands Integration', () => {
       expect(output).toContain('Click on element by CSS selector');
       expect(output).toContain('Fill input field with value');
       expect(output).toContain('Type text at current cursor position');
-      expect(output).toContain('Capture viewport screenshot');
-      expect(output).toContain('Capture screenshot of specific element');
+      expect(output).toContain('Alias for screenshot command');
       expect(output).toContain('Double-click on element by CSS selector');
       expect(output).toContain('Right-click (context menu) on element');
       expect(output).toContain('Hover over element by CSS selector');
@@ -213,7 +192,7 @@ describe('Natural Commands Integration', () => {
         'fill "#email" "test@example.com" --json',
         'type "hello world" --json',
         'capture --json',
-        'capture-element "#header" --json',
+        'capture "#header" --json',
         'double-click ".file" --json',
         'right-click ".menu" --json',
         'hover "#link" --json'
