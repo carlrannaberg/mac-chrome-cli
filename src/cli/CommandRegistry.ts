@@ -52,7 +52,6 @@ export class CommandRegistry {
     this.registerTestCommand();
     this.registerDoctorCommand();
     this.registerNavigationCommands();
-    this.registerOpenCommand();
     this.registerTabCommands();
     this.registerScreenshotCommands();
     this.registerMouseCommands();
@@ -189,11 +188,8 @@ export class CommandRegistry {
   }
 
   private registerNavigationCommands(): void {
-    const navCmd = this.program
-      .command('nav')
-      .description('Navigation and page control commands');
-
-    navCmd
+    // Top-level reload command
+    this.program
       .command('reload')
       .description('Reload current page')
       .option('--hard', 'perform hard reload (bypass cache)')
@@ -235,7 +231,8 @@ export class CommandRegistry {
         }
       });
 
-    navCmd
+    // Top-level back command
+    this.program
       .command('back')
       .description('Navigate back in browser history')
       .option('--wait', 'wait for page load completion')
@@ -275,7 +272,8 @@ export class CommandRegistry {
         }
       });
 
-    navCmd
+    // Top-level forward command
+    this.program
       .command('forward')
       .description('Navigate forward in browser history')
       .option('--wait', 'wait for page load completion')
@@ -314,9 +312,8 @@ export class CommandRegistry {
           this.formatter.output(null, `Forward navigation failed: ${error}`, ERROR_CODES.UNKNOWN_ERROR);
         }
       });
-  }
 
-  private registerOpenCommand(): void {
+    // Top-level open command
     this.program
       .command('open <url>')
       .description('Navigate to URL')
@@ -357,6 +354,7 @@ export class CommandRegistry {
         }
       });
   }
+
 
   private registerTabCommands(): void {
     const tabCmd = this.program
@@ -475,6 +473,87 @@ export class CommandRegistry {
   }
 
   private registerScreenshotCommands(): void {
+    // Natural screenshot command - navigate and capture or just capture current view
+    this.program
+      .command('screenshot [url]')
+      .description('Take screenshot (optionally navigate to URL first)')
+      .option('--out <path>', 'Output file path (auto-generated if not specified)')
+      .option('--format <format>', 'Image format (png|jpg|pdf)', 'png')
+      .option('--quality <quality>', 'JPEG quality 1-100 (jpg format only)', '90')
+      .option('--no-preview', 'Disable WebP preview generation')
+      .option('--preview-max <size>', 'Maximum preview size in bytes', '1572864')
+      .option('--wait', 'wait for page load completion (when navigating)')
+      .option('--timeout <ms>', 'navigation/screenshot timeout in milliseconds', '30000')
+      .option('--window <index>', 'target window index', '1')
+      .option('--selector <selector>', 'CSS selector for element screenshot')
+      .option('--fullscreen', 'capture entire screen instead of browser viewport')
+      .action(async (url, options) => {
+        try {
+          const windowIndex = parseInt(options.window, 10);
+          const timeoutMs = parseInt(options.timeout, 10);
+          
+          if (isNaN(windowIndex) || windowIndex < 1) {
+            this.formatter.output(null, 'Invalid window index. Must be a positive integer.', ErrorCode.INVALID_INPUT);
+            return;
+          }
+          
+          if (isNaN(timeoutMs) || timeoutMs < 1000) {
+            this.formatter.output(null, 'Invalid timeout. Must be at least 1000ms.', ErrorCode.INVALID_INPUT);
+            return;
+          }
+
+          // If URL provided, navigate first
+          if (url) {
+            const { NavigationCommand } = await import('../commands/navigation.js');
+            const navCmd = new NavigationCommand();
+            
+            const navResult = await navCmd.go(url, {
+              windowIndex,
+              waitForLoad: options.wait,
+              timeoutMs
+            });
+            
+            if (!navResult.success) {
+              this.formatter.output(null, `Navigation failed: ${navResult.error}`, navResult.code);
+              return;
+            }
+          }
+
+          // Take screenshot
+          const { ScreenshotCommand } = await import('../commands/screenshot.js');
+          const container = await this.getServiceContainer();
+          const screenshotCmd = new ScreenshotCommand(container);
+          
+          const format = options.format as 'png' | 'jpg' | 'pdf';
+          const screenshotOptions: ScreenshotOptions = {
+            outputPath: options.out,
+            format,
+            preview: options.preview,
+            windowIndex,
+            ...(format === 'jpg' && options.quality && { quality: parseInt(options.quality, 10) }),
+            ...(options.previewMax && { previewMaxSize: parseInt(options.previewMax, 10) })
+          };
+          
+          let result;
+          
+          if (options.fullscreen) {
+            result = await screenshotCmd.fullscreen(screenshotOptions);
+          } else if (options.selector) {
+            result = await screenshotCmd.element(options.selector, screenshotOptions);
+          } else {
+            result = await screenshotCmd.viewport(screenshotOptions);
+          }
+          
+          if (result.success) {
+            this.formatter.output(result.data);
+          } else {
+            this.formatter.output(null, result.error, result.code);
+          }
+        } catch (error) {
+          this.formatter.output(null, `Screenshot command failed: ${error}`, ErrorCode.UNKNOWN_ERROR);
+        }
+      });
+
     const shotCmd = this.program
       .command('shot')
       .description('Screenshot capture commands');

@@ -84,9 +84,9 @@ describe('Navigation Commands Integration', () => {
     });
   });
 
-  describe('nav reload command', () => {
-    test('should show help for nav reload command', async () => {
-      const result = await runCLI('nav reload --help');
+  describe('reload command', () => {
+    test('should show help for reload command', async () => {
+      const result = await runCLI('reload --help');
 
       const output = result.stderr + result.stdout;
       expect(output).toContain('Reload current page');
@@ -97,16 +97,16 @@ describe('Navigation Commands Integration', () => {
     });
 
     test('should accept hard reload option', async () => {
-      const result = await runCLI('nav reload --hard --json');
+      const result = await runCLI('reload --hard --json');
 
       // Should not crash on syntax level
       expect(result.exitCode).toBeDefined();
     });
   });
 
-  describe('nav back command', () => {
-    test('should show help for nav back command', async () => {
-      const result = await runCLI('nav back --help');
+  describe('back command', () => {
+    test('should show help for back command', async () => {
+      const result = await runCLI('back --help');
 
       const output = result.stderr + result.stdout;
       expect(output).toContain('Navigate back in browser history');
@@ -116,16 +116,16 @@ describe('Navigation Commands Integration', () => {
     });
 
     test('should handle back navigation gracefully', async () => {
-      const result = await runCLI('nav back --json');
+      const result = await runCLI('back --json');
 
       // Should not crash, should provide appropriate error or result
       expect(result.exitCode).toBeDefined();
     });
   });
 
-  describe('nav forward command', () => {
-    test('should show help for nav forward command', async () => {
-      const result = await runCLI('nav forward --help');
+  describe('forward command', () => {
+    test('should show help for forward command', async () => {
+      const result = await runCLI('forward --help');
 
       const output = result.stderr + result.stdout;
       expect(output).toContain('Navigate forward in browser history');
@@ -135,31 +135,32 @@ describe('Navigation Commands Integration', () => {
     });
 
     test('should handle forward navigation gracefully', async () => {
-      const result = await runCLI('nav forward --json');
+      const result = await runCLI('forward --json');
 
       // Should not crash, should provide appropriate error or result
       expect(result.exitCode).toBeDefined();
     });
   });
 
-  describe('nav command group', () => {
-    test('should show help for nav command group', async () => {
-      const result = await runCLI('nav --help');
+  describe('Navigation commands in main help', () => {
+    test('should show navigation commands in main help', async () => {
+      const result = await runCLI('--help');
 
       const output = result.stderr + result.stdout;
-      expect(output).toContain('Navigation and page control commands');
       expect(output).toContain('reload [options]');
       expect(output).toContain('back [options]');
       expect(output).toContain('forward [options]');
+      expect(output).toContain('open [options] <url>');
     });
 
-    test('should list all navigation subcommands', async () => {
-      const result = await runCLI('nav --help');
+    test('should show correct descriptions for navigation commands', async () => {
+      const result = await runCLI('--help');
 
       const output = result.stderr + result.stdout;
       expect(output).toContain('Reload current page');
       expect(output).toContain('Navigate back in browser history');
       expect(output).toContain('Navigate forward in browser history');
+      expect(output).toContain('Navigate to URL');
     });
   });
 
@@ -200,9 +201,9 @@ describe('Navigation Commands Integration', () => {
     test('should handle all navigation commands without crashing', async () => {
       const commands = [
         'open https://example.com --json',
-        'nav reload --json',
-        'nav back --json', 
-        'nav forward --json'
+        'reload --json',
+        'back --json', 
+        'forward --json'
       ];
 
       for (const command of commands) {
