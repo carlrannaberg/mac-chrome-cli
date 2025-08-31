@@ -34,29 +34,29 @@ async function runCLI(command: string): Promise<{ stdout: string; stderr: string
 }
 
 describe('Navigation Commands Integration', () => {
-  describe('nav go command', () => {
-    test('should show help for nav go command', async () => {
-      const result = await runCLI('nav go --help');
+  describe('open command', () => {
+    test('should show help for open command', async () => {
+      const result = await runCLI('open --help');
 
       // Help output may come through stderr due to commander behavior
       const output = result.stderr + result.stdout;
       expect(output).toContain('Navigate to URL');
-      expect(output).toContain('--url <url>');
+      expect(output).toContain('<url>');
       expect(output).toContain('--wait');
       expect(output).toContain('--timeout <ms>');
       expect(output).toContain('--window <index>');
     });
 
     test('should reject missing URL argument', async () => {
-      const result = await runCLI('nav go');
+      const result = await runCLI('open');
 
       expect(result.exitCode).not.toBe(0);
       const output = result.stderr + result.stdout;
-      expect(output).toContain("required option '--url <url>' not specified");
+      expect(output).toContain("missing required argument 'url'");
     });
 
     test('should reject invalid window index', async () => {
-      const result = await runCLI('nav go --url https://example.com --window 0');
+      const result = await runCLI('open https://example.com --window 0');
 
       expect(result.exitCode).not.toBe(0);
       const output = result.stderr + result.stdout;
@@ -66,7 +66,7 @@ describe('Navigation Commands Integration', () => {
     test('should handle invalid timeout gracefully', async () => {
       // Commander.js doesn't parse negative numbers properly when preceded by --
       // So we test with a too-small positive value instead
-      const result = await runCLI('nav go --url https://example.com --timeout 500');
+      const result = await runCLI('open https://example.com --timeout 500');
 
       expect(result.exitCode).not.toBe(0);
       // Should fail with timeout validation error (must be at least 1000ms)
@@ -76,7 +76,7 @@ describe('Navigation Commands Integration', () => {
 
     test('should handle navigation gracefully in test environment', async () => {
       // In test/CI environment, we expect this to fail gracefully with permissions or Chrome not found
-      const result = await runCLI('nav go --url https://example.com --json');
+      const result = await runCLI('open https://example.com --json');
 
       // Should not crash completely - expect structured failure
       expect(result.exitCode).toBeDefined();
@@ -148,7 +148,6 @@ describe('Navigation Commands Integration', () => {
 
       const output = result.stderr + result.stdout;
       expect(output).toContain('Navigation and page control commands');
-      expect(output).toContain('go [options]');
       expect(output).toContain('reload [options]');
       expect(output).toContain('back [options]');
       expect(output).toContain('forward [options]');
@@ -158,7 +157,6 @@ describe('Navigation Commands Integration', () => {
       const result = await runCLI('nav --help');
 
       const output = result.stderr + result.stdout;
-      expect(output).toContain('Navigate to URL');
       expect(output).toContain('Reload current page');
       expect(output).toContain('Navigate back in browser history');
       expect(output).toContain('Navigate forward in browser history');
@@ -167,7 +165,7 @@ describe('Navigation Commands Integration', () => {
 
   describe('Command structure and validation', () => {
     test('should provide structured output in JSON format', async () => {
-      const result = await runCLI('nav go --url https://example.com --json');
+      const result = await runCLI('open https://example.com --json');
 
       // In test environment, this should provide structured error or success
       expect(result.exitCode).toBeDefined();
@@ -184,7 +182,7 @@ describe('Navigation Commands Integration', () => {
     });
 
     test('should handle validation errors gracefully', async () => {
-      const result = await runCLI('nav go --url "" --json');
+      const result = await runCLI('open "" --json');
 
       expect(result.exitCode).not.toBe(0);
       // Should provide some error output
@@ -192,7 +190,7 @@ describe('Navigation Commands Integration', () => {
     });
 
     test('should validate numeric parameters', async () => {
-      const result = await runCLI('nav go --url https://example.com --window 0 --json');
+      const result = await runCLI('open https://example.com --window 0 --json');
 
       expect(result.exitCode).not.toBe(0);
       // Should reject invalid window index
@@ -201,7 +199,7 @@ describe('Navigation Commands Integration', () => {
 
     test('should handle all navigation commands without crashing', async () => {
       const commands = [
-        'nav go --url https://example.com --json',
+        'open https://example.com --json',
         'nav reload --json',
         'nav back --json', 
         'nav forward --json'
