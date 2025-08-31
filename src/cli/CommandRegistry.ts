@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { OutputFormatter, GlobalOptions } from './OutputFormatter.js';
 import { ERROR_CODES } from '../lib/util.js';
 import { ErrorCode } from '../core/ErrorCodes.js';
+import { Result } from '../core/Result.js';
 import type { ScreenshotOptions } from '../commands/screenshot.js';
 import type { MouseOptions } from '../commands/mouse.js';
 import type { KeyboardOptions } from '../commands/keyboard.js';
@@ -1676,7 +1677,8 @@ export class CommandRegistry {
       if (result.success) {
         this.formatter.output(result.data, undefined, result.code);
       } else {
-        this.formatter.output(null, result.error, result.code);
+        const errorMessage = result.error instanceof Error ? result.error.message : String(result.error);
+        this.formatter.output(null, errorMessage, result.code);
       }
     } catch (error) {
       const name = actionName || method;

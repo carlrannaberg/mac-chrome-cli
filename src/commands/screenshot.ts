@@ -83,6 +83,10 @@ export interface ScreenshotOptions extends RateLimitedCommandOptions {
   frontmost?: boolean;
   /** If true, save to file; if false or undefined, return base64 */
   saveFile?: boolean;
+  /** If true, generate WebP preview; defaults to true */
+  preview?: boolean;
+  /** Maximum preview size in bytes */
+  previewMaxSize?: number;
 }
 
 /**

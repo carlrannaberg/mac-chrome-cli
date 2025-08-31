@@ -14,6 +14,8 @@ export interface ScreenshotOptions {
   delayMs?: number;
   frontmost?: boolean;
   saveFile?: boolean; // If true, save to file; if false, return base64
+  preview?: boolean; // If true, generate WebP preview; defaults to true
+  previewMaxSize?: number; // Maximum preview size in bytes
 }
 
 export interface ScreenshotResult {
@@ -21,6 +23,10 @@ export interface ScreenshotResult {
   action: string;
   path?: string;
   base64?: string;
+  preview?: {
+    base64: string;
+    size: number;
+  };
   metadata?: {
     width?: number;
     height?: number;
