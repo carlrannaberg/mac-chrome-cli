@@ -1124,13 +1124,21 @@ export async function captureDomLite(options: CaptureDomLiteOptions = {}): Promi
   }
 
   // Robust: execChromeJS first (keeps unit tests expecting this), then active tab, then simple fallback
-  const primary = await execChromeJS<SnapshotResult>(script, 1, 1, 20000);
-  const primaryMissing = primary.success && typeof primary.data === 'string' && (primary.data as unknown as string).trim().toLowerCase().includes('missing value');
-  if (primary.success && !primaryMissing) return primary;
+  const primary = await execChromeJS<SnapshotResult | string>(script, 1, 1, 20000);
+  if (primary.success) {
+    // Check if result is the "missing value" string response
+    const data = primary.data;
+    const primaryMissing = typeof data === 'string' && data.trim().toLowerCase().includes('missing value');
+    if (!primaryMissing) return primary as JavaScriptResult<SnapshotResult>;
+  }
 
-  const activeRes = await appleScriptService.executeJavaScriptOnActiveTab<SnapshotResult>(script, 20000);
-  const activeMissing = activeRes.success && typeof activeRes.data === 'string' && (activeRes.data as unknown as string).trim().toLowerCase().includes('missing value');
-  if (activeRes.success && !activeMissing) return activeRes;
+  const activeRes = await appleScriptService.executeJavaScriptOnActiveTab<SnapshotResult | string>(script, 20000);
+  if (activeRes.success) {
+    // Check if result is the "missing value" string response
+    const data = activeRes.data;
+    const activeMissing = typeof data === 'string' && data.trim().toLowerCase().includes('missing value');
+    if (!activeMissing) return activeRes as JavaScriptResult<SnapshotResult>;
+  }
 
   const smallScript = generateDomLiteFallbackScript({ maxDepth: snapshotOptions.maxDepth || 10, visibleOnly: snapshotOptions.visibleOnly || false });
   return appleScriptService.executeJavaScriptOnActiveTab<SnapshotResult>(smallScript, 20000);
@@ -1206,7 +1214,7 @@ export function formatSnapshotResult(result: JavaScriptResult<SnapshotResult>): 
   // Parse the JSON string if needed
   let parsedData: SnapshotResult;
   if (typeof resultData === 'string') {
-    const trimmed = resultData.trim();
+    const trimmed = (resultData as string).trim();
     if (trimmed.toLowerCase().includes('missing value') && (trimmed.length < 64)) {
       return {
         success: false,

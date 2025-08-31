@@ -52,6 +52,7 @@ export class CommandRegistry {
     this.registerTestCommand();
     this.registerDoctorCommand();
     this.registerNavigationCommands();
+    this.registerOpenCommand();
     this.registerTabCommands();
     this.registerScreenshotCommands();
     this.registerMouseCommands();
@@ -352,6 +353,48 @@ export class CommandRegistry {
           }
         } catch (error) {
           this.formatter.output(null, `Forward navigation failed: ${error}`, ERROR_CODES.UNKNOWN_ERROR);
+        }
+      });
+  }
+
+  private registerOpenCommand(): void {
+    this.program
+      .command('open <url>')
+      .description('Navigate to URL (alias for nav go)')
+      .option('--wait', 'wait for page load completion')
+      .option('--timeout <ms>', 'navigation timeout in milliseconds', '30000')
+      .option('--window <index>', 'target window index', '1')
+      .action(async (url, options) => {
+        try {
+          const { NavigationCommand } = await import('../commands/navigation.js');
+          const cmd = new NavigationCommand();
+          
+          const windowIndex = parseInt(options.window, 10);
+          const timeoutMs = parseInt(options.timeout, 10);
+          
+          if (isNaN(windowIndex) || windowIndex < 1) {
+            this.formatter.output(null, 'Invalid window index. Must be a positive integer.', ERROR_CODES.INVALID_INPUT);
+            return;
+          }
+          
+          if (isNaN(timeoutMs) || timeoutMs < 1000) {
+            this.formatter.output(null, 'Invalid timeout. Must be at least 1000ms.', ERROR_CODES.INVALID_INPUT);
+            return;
+          }
+          
+          const result = await cmd.go(url, {
+            windowIndex,
+            waitForLoad: options.wait,
+            timeoutMs
+          });
+          
+          if (result.success) {
+            this.formatter.output(result.data, undefined, result.code);
+          } else {
+            this.formatter.output(null, result.error, result.code);
+          }
+        } catch (error) {
+          this.formatter.output(null, `Open command failed: ${error}`, ERROR_CODES.UNKNOWN_ERROR);
         }
       });
   }
