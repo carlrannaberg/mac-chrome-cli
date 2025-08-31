@@ -38,8 +38,7 @@
     "skipLibCheck": true,
     
     /* Performance */
-    "incremental": true,
-    "tsBuildInfoFile": ".tsbuildinfo"
+    "incremental": false
   },
   "include": [
     "src/**/*"
