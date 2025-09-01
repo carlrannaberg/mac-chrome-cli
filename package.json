@@ -1,11 +1,11 @@
 {
   "name": "mac-chrome-cli",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Command-line interface for controlling Google Chrome on macOS.",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "mac-chrome-cli": "dist/index.js"
+    "mac-chrome-cli": "bin/mac-chrome-cli"
   },
   "engines": {
     "node": ">=18.0.0"

@@ -1,0 +1,6 @@
+#!/usr/bin/env node
+
+// Wrapper script for mac-chrome-cli
+// This ensures the CLI runs correctly when installed globally or via npm link
+
+import('../dist/index.js');

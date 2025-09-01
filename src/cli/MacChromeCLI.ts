@@ -7,6 +7,9 @@ import { createServiceContainer } from '../di/ServiceRegistry.js';
 import { SERVICE_TOKENS } from '../di/ServiceTokens.js';
 import { initializeLogger } from '../lib/logger.js';
 import type { IServiceContainer, ServiceContainer } from '../di/ServiceContainer.js';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 
 /**
  * Main CLI application class
@@ -33,10 +36,16 @@ export class MacChromeCLI {
    * Configure the main program
    */
   private setupProgram(): void {
+    // Read version from package.json
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = dirname(__filename);
+    const packagePath = join(__dirname, '..', '..', 'package.json');
+    const packageJson = JSON.parse(readFileSync(packagePath, 'utf-8'));
+    
     this.program
       .name('mac-chrome-cli')
       .description('Command-line interface for controlling Google Chrome on macOS')
-      .version('1.0.0');
+      .version(packageJson.version);
   }
 
   /**
