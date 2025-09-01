@@ -349,24 +349,21 @@ export class CommandRegistry {
 
 
   private registerTabCommands(): void {
-    const tabCmd = this.program
-      .command('tab')
-      .description('Tab management commands');
-
-    // Focus tab command
-    tabCmd
-      .command('focus')
+    // Flat tab commands - no grouping
+    
+    // Focus tab by pattern
+    this.program
+      .command('focus-tab <pattern>')
       .description('Focus tab by pattern matching title or URL')
-      .requiredOption('--pattern <pattern>', 'Pattern to match tab title or URL')
       .option('--window <index>', 'Target window index', '1')
       .option('--exact', 'Use exact matching instead of substring matching')
-      .action(async (options) => {
+      .action(async (pattern, options) => {
         try {
           const { TabCommand } = await import('../commands/tab.js');
           const tabCommand = new TabCommand();
           
           const focusOptions: TabFocusOptions = {
-            pattern: options.pattern,
+            pattern: pattern,
             windowIndex: parseInt(options.window, 10),
             exactMatch: options.exact
           };
@@ -379,13 +376,13 @@ export class CommandRegistry {
             this.formatter.output(null, result.error, result.code);
           }
         } catch (error) {
-          this.formatter.output(null, `Tab focus failed: ${error}`, ErrorCode.UNKNOWN_ERROR);
+          this.formatter.output(null, `Focus tab failed: ${error}`, ErrorCode.UNKNOWN_ERROR);
         }
       });
 
-    // Get active tab command
-    tabCmd
-      .command('active')
+    // Get active tab
+    this.program
+      .command('active-tab')
       .description('Get information about the currently active tab')
       .option('--window <index>', 'Target window index', '1')
       .action(async (options) => {
@@ -409,9 +406,9 @@ export class CommandRegistry {
         }
       });
 
-    // List tabs command
-    tabCmd
-      .command('list')
+    // List tabs
+    this.program
+      .command('list-tabs')
       .description('List all tabs in a Chrome window')
       .option('--window <index>', 'Target window index', '1')
       .action(async (options) => {
@@ -435,19 +432,18 @@ export class CommandRegistry {
         }
       });
 
-    // Focus tab by index command
-    tabCmd
-      .command('focus-index')
-      .description('Focus tab by its index position')
-      .requiredOption('--tab-index <index>', 'Tab index to focus (1-based)')
+    // Focus tab by index
+    this.program
+      .command('focus-tab-index <index>')
+      .description('Focus tab by its index position (1-based)')
       .option('--window <index>', 'Target window index', '1')
-      .action(async (options) => {
+      .action(async (tabIndex, options) => {
         try {
           const { TabCommand } = await import('../commands/tab.js');
           const tabCommand = new TabCommand();
           
           const focusIndexOptions: TabFocusIndexOptions = {
-            tabIndex: parseInt(options.tabIndex, 10),
+            tabIndex: parseInt(tabIndex, 10),
             windowIndex: parseInt(options.window, 10)
           };
           
@@ -562,28 +558,23 @@ export class CommandRegistry {
         await this.executeMouseCommand(selector, 'move', options);
       });
 
-    // Grouped mouse commands (for advanced use cases)
-    const mouseCmd = this.program
-      .command('mouse')
-      .description('Advanced mouse interaction commands');
-
-    // Advanced coordinate-based click (for when you need exact coordinates)
-    mouseCmd
-      .command('click-coords')
+    // Flat mouse commands - coordinate-based operations
+    
+    // Click at exact coordinates
+    this.program
+      .command('click-coords <x> <y>')
       .description('Click at exact coordinates')
-      .requiredOption('--x <x>', 'X coordinate')
-      .requiredOption('--y <y>', 'Y coordinate')
       .option('--button <button>', 'Mouse button (left|right|middle)', 'left')
       .option('--click-count <count>', 'Number of clicks', '1')
       .option('--window <index>', 'Target window index', '1')
-      .action(async (options) => {
+      .action(async (x, y, options) => {
         try {
           const { MouseCommand } = await import('../commands/mouse.js');
           const mouseCommand = new MouseCommand();
           
           const mouseOptions: MouseOptions = {
-            x: parseFloat(options.x),
-            y: parseFloat(options.y),
+            x: parseFloat(x),
+            y: parseFloat(y),
             button: options.button as 'left' | 'right' | 'middle',
             ...(options.clickCount && { clickCount: parseInt(options.clickCount, 10) }),
             windowIndex: parseInt(options.window, 10)
@@ -601,14 +592,14 @@ export class CommandRegistry {
         }
       });
 
-    // Drag command (no simple equivalent - complex operation)
-    mouseCmd
+    // Drag operation - complex but still flat command
+    this.program
       .command('drag')
       .description('Drag from one location to another')
-      .requiredOption('--from-selector <selector>', 'CSS selector for source element')
+      .option('--from-selector <selector>', 'CSS selector for source element')
       .option('--from-x <x>', 'Source X coordinate (if not using from-selector)')
       .option('--from-y <y>', 'Source Y coordinate (if not using from-selector)')
-      .requiredOption('--to-selector <selector>', 'CSS selector for target element')
+      .option('--to-selector <selector>', 'CSS selector for target element')
       .option('--to-x <x>', 'Target X coordinate (if not using to-selector)')
       .option('--to-y <y>', 'Target Y coordinate (if not using to-selector)')
       .option('--window <index>', 'Target window index', '1')

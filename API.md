@@ -369,12 +369,12 @@ mac-chrome-cli nav forward --wait
 
 ### Tab Commands
 
-#### `tab focus`
+#### `focus-tab`
 
 Focus tab by pattern matching title or URL.
 
 ```bash
-mac-chrome-cli tab focus --pattern <pattern> [options]
+mac-chrome-cli focus-tab <pattern> [options]
 ```
 
 **Options**:
@@ -393,13 +393,13 @@ Information about the focused tab including ID, title, URL, and active status
 **Examples**:
 ```bash
 # Focus tab by title substring
-mac-chrome-cli tab focus --pattern "Dashboard"
+mac-chrome-cli focus-tab "Dashboard"
 
 # Focus tab with exact matching
-mac-chrome-cli tab focus --pattern "My Dashboard" --exact
+mac-chrome-cli focus-tab "My Dashboard" --exact
 
 # JSON output
-mac-chrome-cli tab focus --pattern "GitHub" --json
+mac-chrome-cli focus-tab "GitHub" --json
 # Returns: {
 #   "success": true,
 #   "data": {
@@ -415,12 +415,12 @@ mac-chrome-cli tab focus --pattern "GitHub" --json
 # }
 ```
 
-#### `tab active`
+#### `active-tab`
 
 Get information about the currently active tab.
 
 ```bash
-mac-chrome-cli tab active [options]
+mac-chrome-cli active-tab [options]
 ```
 
 **Options**:
@@ -437,18 +437,18 @@ Information about the currently active tab
 **Examples**:
 ```bash
 # Get active tab information
-mac-chrome-cli tab active
+mac-chrome-cli active-tab
 
 # Get active tab from specific window
-mac-chrome-cli tab active --window-index 2 --json
+mac-chrome-cli active-tab --window 2 --json
 ```
 
-#### `tab list`
+#### `list-tabs`
 
 List all tabs in a Chrome window.
 
 ```bash
-mac-chrome-cli tab list [options]
+mac-chrome-cli list-tabs [options]
 ```
 
 **Options**:
@@ -464,10 +464,10 @@ Array of tab information for all tabs in the window
 **Examples**:
 ```bash
 # List all tabs in default window
-mac-chrome-cli tab list
+mac-chrome-cli list-tabs
 
 # List tabs in specific window with JSON output
-mac-chrome-cli tab list --window-index 2 --json
+mac-chrome-cli list-tabs --window 2 --json
 # Returns: {
 #   "success": true,
 #   "data": {
@@ -492,12 +492,12 @@ mac-chrome-cli tab list --window-index 2 --json
 # }
 ```
 
-#### `tab focus-index`
+#### `focus-tab-index`
 
 Focus tab by its index position.
 
 ```bash
-mac-chrome-cli tab focus-index --tab-index <index> [options]
+mac-chrome-cli focus-tab-index <index> [options]
 ```
 
 **Options**:
@@ -516,10 +516,10 @@ Information about the focused tab
 **Examples**:
 ```bash
 # Focus first tab
-mac-chrome-cli tab focus-index --tab-index 1
+mac-chrome-cli focus-tab-index 1
 
 # Focus third tab in second window
-mac-chrome-cli tab focus-index --tab-index 3 --window-index 2
+mac-chrome-cli focus-tab-index 3 --window 2
 ```
 
 ### Screenshot Commands
@@ -680,25 +680,21 @@ mac-chrome-cli shot fullscreen --format jpg --quality 100
 
 ### Mouse Commands
 
-#### `mouse click`
+#### `click`
 
-Click at coordinates or element.
+Click on element by CSS selector.
 
 ```bash
-mac-chrome-cli mouse click [options]
+mac-chrome-cli click <selector> [options]
 ```
 
 **Options**:
-- `--selector <selector>`: CSS selector for element
-- `--x <x>`: X coordinate (alternative to selector)
-- `--y <y>`: Y coordinate (alternative to selector)
 - `--button <button>`: Mouse button (left|right|middle, default: left)
-- `--click-count <count>`: Number of clicks (default: 1)
+- `--click-count <count>`: Number of clicks (1=single, 2=double, default: 1)
+- `--hover-only`: Only hover over element without clicking
 - `--offset-x <x>`: X offset from element center
 - `--offset-y <y>`: Y offset from element center
-- `--window-index <index>`: Target window index (default: 1)
-
-**Note**: Either `--selector` or both `--x` and `--y` must be provided.
+- `--window <index>`: Target window index (default: 1)
 
 **Returns**: 
 Click operation result with target coordinates and element information
@@ -714,33 +710,30 @@ Click operation result with target coordinates and element information
 **Examples**:
 ```bash
 # Click element by selector
-mac-chrome-cli mouse click --selector "#submit-button"
-
-# Click at specific coordinates
-mac-chrome-cli mouse click --x 100 --y 200
+mac-chrome-cli click "#submit-button"
 
 # Right-click with offset
-mac-chrome-cli mouse click --selector ".menu" --button right --offset-x 10 --offset-y 5
+mac-chrome-cli click ".menu" --button right --offset-x 10 --offset-y 5
 
 # Double-click (using click-count)
-mac-chrome-cli mouse click --selector ".file" --click-count 2
+mac-chrome-cli click ".file" --click-count 2
+
+# Hover only
+mac-chrome-cli click ".tooltip" --hover-only
 ```
 
-#### `mouse double-click`
+#### `double-click`
 
-Double-click at coordinates or element.
+Double-click on element by CSS selector.
 
 ```bash
-mac-chrome-cli mouse double-click [options]
+mac-chrome-cli double-click <selector> [options]
 ```
 
 **Options**:
-- `--selector <selector>`: CSS selector for element
-- `--x <x>`: X coordinate (alternative to selector)
-- `--y <y>`: Y coordinate (alternative to selector)
 - `--offset-x <x>`: X offset from element center
 - `--offset-y <y>`: Y offset from element center
-- `--window-index <index>`: Target window index (default: 1)
+- `--window <index>`: Target window index (default: 1)
 
 **Returns**: 
 Double-click operation result with target coordinates
@@ -753,27 +746,24 @@ Double-click operation result with target coordinates
 **Examples**:
 ```bash
 # Double-click element
-mac-chrome-cli mouse double-click --selector ".file-item"
+mac-chrome-cli double-click ".file-item"
 
-# Double-click at coordinates
-mac-chrome-cli mouse double-click --x 150 --y 300
+# Double-click with offset
+mac-chrome-cli double-click ".file-item" --offset-x 10 --offset-y 5
 ```
 
-#### `mouse right-click`
+#### `right-click`
 
-Right-click (context menu) at coordinates or element.
+Right-click (context menu) on element by CSS selector.
 
 ```bash
-mac-chrome-cli mouse right-click [options]
+mac-chrome-cli right-click <selector> [options]
 ```
 
 **Options**:
-- `--selector <selector>`: CSS selector for element
-- `--x <x>`: X coordinate (alternative to selector)
-- `--y <y>`: Y coordinate (alternative to selector)
 - `--offset-x <x>`: X offset from element center
 - `--offset-y <y>`: Y offset from element center
-- `--window-index <index>`: Target window index (default: 1)
+- `--window <index>`: Target window index (default: 1)
 
 **Returns**: 
 Right-click operation result with target coordinates
@@ -786,29 +776,24 @@ Right-click operation result with target coordinates
 **Examples**:
 ```bash
 # Right-click element to open context menu
-mac-chrome-cli mouse right-click --selector ".context-target"
+mac-chrome-cli right-click ".context-target"
 
-# Right-click at coordinates
-mac-chrome-cli mouse right-click --x 200 --y 100
+# Right-click with offset
+mac-chrome-cli right-click ".context-target" --offset-x 5 --offset-y -5
 ```
 
-#### `mouse move`
+#### `hover`
 
 Move mouse to coordinates or element (hover).
 
 ```bash
-mac-chrome-cli mouse move [options]
+mac-chrome-cli hover <selector> [options]
 ```
 
 **Options**:
-- `--selector <selector>`: CSS selector for element
-- `--x <x>`: X coordinate (alternative to selector)
-- `--y <y>`: Y coordinate (alternative to selector)
 - `--offset-x <x>`: X offset from element center
 - `--offset-y <y>`: Y offset from element center
-- `--window-index <index>`: Target window index (default: 1)
-
-**Note**: Either `--selector` or both `--x` and `--y` must be provided.
+- `--window <index>`: Target window index (default: 1)
 
 **Returns**: 
 Mouse move operation result with final coordinates
@@ -821,31 +806,56 @@ Mouse move operation result with final coordinates
 **Examples**:
 ```bash
 # Hover over element
-mac-chrome-cli mouse move --selector ".dropdown-trigger"
+mac-chrome-cli hover ".dropdown-trigger"
 
-# Move to specific coordinates
-mac-chrome-cli mouse move --x 300 --y 400
-
-# Move with offset from element
-mac-chrome-cli mouse move --selector ".tooltip-target" --offset-x 20 --offset-y -10
+# Hover with offset from element
+mac-chrome-cli hover ".tooltip-target" --offset-x 20 --offset-y -10
 ```
 
-#### `mouse drag`
+#### `click-coords`
+
+Click at exact coordinates.
+
+```bash
+mac-chrome-cli click-coords <x> <y> [options]
+```
+
+**Options**:
+- `--button <button>`: Mouse button (left|right|middle, default: left)
+- `--click-count <count>`: Number of clicks (default: 1)
+- `--window <index>`: Target window index (default: 1)
+
+**Returns**: 
+Click operation result with target coordinates
+
+**Examples**:
+```bash
+# Click at specific coordinates
+mac-chrome-cli click-coords 100 200
+
+# Right-click at coordinates
+mac-chrome-cli click-coords 150 300 --button right
+
+# Double-click at coordinates
+mac-chrome-cli click-coords 200 400 --click-count 2
+```
+
+#### `drag`
 
 Drag from one location to another.
 
 ```bash
-mac-chrome-cli mouse drag [options]
+mac-chrome-cli drag [options]
 ```
 
 **Options**:
-- `--from-selector <selector>` (required): CSS selector for source element
+- `--from-selector <selector>`: CSS selector for source element
 - `--from-x <x>`: Source X coordinate (if not using from-selector)
 - `--from-y <y>`: Source Y coordinate (if not using from-selector)
-- `--to-selector <selector>` (required): CSS selector for target element
+- `--to-selector <selector>`: CSS selector for target element
 - `--to-x <x>`: Target X coordinate (if not using to-selector)
 - `--to-y <y>`: Target Y coordinate (if not using to-selector)
-- `--window-index <index>`: Target window index (default: 1)
+- `--window <index>`: Target window index (default: 1)
 
 **Returns**: 
 Drag operation result with source and target coordinates
@@ -859,13 +869,13 @@ Drag operation result with source and target coordinates
 **Examples**:
 ```bash
 # Drag between elements
-mac-chrome-cli mouse drag --from-selector ".draggable" --to-selector ".drop-zone"
+mac-chrome-cli drag --from-selector ".draggable" --to-selector ".drop-zone"
 
 # Drag from element to coordinates
-mac-chrome-cli mouse drag --from-selector ".item" --to-x 500 --to-y 300
+mac-chrome-cli drag --from-selector ".item" --to-x 500 --to-y 300
 
 # Drag between coordinates
-mac-chrome-cli mouse drag --from-x 100 --from-y 100 --to-x 200 --to-y 200
+mac-chrome-cli drag --from-x 100 --from-y 100 --to-x 200 --to-y 200
 ```
 
 ### Keyboard Commands

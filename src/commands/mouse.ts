@@ -59,6 +59,8 @@ export interface MouseClickOptions {
   y?: number;
   /** Mouse button to use for clicking */
   button?: 'left' | 'right' | 'middle';
+  /** Number of clicks (1=single, 2=double, etc.) */
+  clickCount?: number;
   /** X offset from element center (when using selector) */
   offsetX?: number;
   /** Y offset from element center (when using selector) */
